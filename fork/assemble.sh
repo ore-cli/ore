@@ -544,7 +544,12 @@ else
   # -F, not -m "$(cat ...)": the passes log is as large as the passes make it,
   # and a full snapshot regen pushed it past ARG_MAX. A file has no such limit.
   { echo "assembly: generated passes for $TAG"; echo; cat "$PASSES_LOG"; } >"$OUT_DIR/assembly-msg.txt"
-  wt -c "user.name=$BOT_NAME" -c "user.email=$BOT_EMAIL" \
+  # gpgsign=false deliberately. This commit is machine-generated and authored by
+  # the bot, not by whoever ran the assembly, so signing it with the operator's
+  # key would attest to the wrong thing. It also made assembly fail outright when
+  # a keychain locked mid-run, and would fail in CI, where there is no key at all.
+  # The signature that matters is on the delta series, which humans write.
+  wt -c "user.name=$BOT_NAME" -c "user.email=$BOT_EMAIL" -c commit.gpgsign=false \
     commit --quiet -F "$OUT_DIR/assembly-msg.txt"
 fi
 
