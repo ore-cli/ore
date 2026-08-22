@@ -104,3 +104,30 @@ The lesson worth keeping is not "the fence had a bug" but that the four checks
 which passed the red-team were the four written against tree contents, and the
 one that failed was the one written against commit history. A check whose
 subject is "what ships" has to read what ships.
+
+---
+
+# Tag policy — the server-side layer, verified live
+
+The fork defends the "never push an upstream-name tag" rule in four places:
+upstream tags are fetched into `refs/upstream/tags/*` so they are not local tags
+at all; `safe_push()` allowlists the refs it will push; `workflows_check.py`
+asserts no fork workflow carries an upstream tag glob; and a repository ruleset
+refuses the ref server-side.
+
+Only the fourth one holds against a human who bypasses the tooling, so it is the
+one worth testing rather than assuming. Installed on `ore-cli/ore` and tested by
+pushing an annotated `rust-v0.0.1-oreguardtest` from an owner account:
+
+    remote: error: GH013: Repository rule violations found for
+            refs/tags/rust-v0.0.1-oreguardtest.
+    remote: - Cannot create ref due to creations being restricted.
+     ! [remote rejected] (push declined due to repository rule violations)
+
+`bypass_actors` is empty and the API reports `current_user_can_bypass: never`,
+so the owner is refused too -- which is the ratified shape, and the reason the
+mirrored rusty-v8 assets use `ore-rusty-v8-v*` tags rather than a bypass.
+
+The test was run with Actions disabled, deliberately: had the ruleset not been
+in force, the tag would have landed and upstream's `rust-release.yml` would have
+been sitting in the tree it fired from.
