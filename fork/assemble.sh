@@ -126,7 +126,11 @@ BASE_COMMIT=$(peel_tag "$BASE_REF") || fail_pre "cannot peel $BASE_REF"
 git merge-base --is-ancestor "$BASE_COMMIT" "$DELTA" \
   || fail_pre "base $BASE ($BASE_COMMIT) is not an ancestor of '$DELTA' — fork/UPSTREAM and the series disagree"
 
-if [[ "$TAG" == "$BASE" && "$REASSEMBLE" -eq 0 ]]; then
+PREV=$(git rev-parse --verify --quiet refs/remotes/origin/main \
+       || git rev-parse --verify --quiet refs/heads/main \
+       || true)
+
+if [[ "$TAG" == "$BASE" && "$REASSEMBLE" -eq 0 && -n "$PREV" ]]; then
   fail_pre "--tag equals the current base; a fork-side regeneration needs --reassemble"
 fi
 if [[ "$REASSEMBLE" -eq 1 && "$TAG" != "$BASE" ]]; then
@@ -135,11 +139,18 @@ fi
 
 # The previous generated main: origin/main once the fork is pushed, the local
 # branch during bootstrap. Resolved up front so --reassemble can fail fast.
-PREV=$(git rev-parse --verify --quiet refs/remotes/origin/main \
-       || git rev-parse --verify --quiet refs/heads/main \
-       || true)
+# Bootstrap: with no generated main yet, assembling the current base IS the first
+# main (human checklist item 7 pushes delta and this candidate together). Nothing
+# to re-generate from, so --reassemble is neither needed nor accepted.
 [[ "$REASSEMBLE" -eq 1 && -z "$PREV" ]] \
-  && fail_pre "--reassemble needs an existing main to re-generate from"
+  && fail_pre "--reassemble needs an existing main to re-generate from; drop it to bootstrap the first main"
+
+# A stale `main` left tracking upstream is the failure this catches: parenting a
+# candidate onto upstream/main makes upstream commits reachable as if the fork
+# had generated them, and the merge-shape check only notices afterwards.
+if [[ -n "$PREV" ]] && ! git cat-file -e "$PREV:fork/UPSTREAM" 2>/dev/null; then
+  fail_pre "main ($PREV) carries no fork/UPSTREAM — it is not a generated ore main. Delete or repoint it before assembling."
+fi
 
 # The series must be lintable before we invest in a rebase.
 "$FORK_DIR/lint-series.sh" --base "$BASE_REF" --head "$DELTA" || fail_pre "series lint failed on '$DELTA'"
