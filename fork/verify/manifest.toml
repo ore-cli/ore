@@ -130,6 +130,20 @@ with exact simulations of its three real consumers (daemon token split, install.
 install.ps1 regex)."""
 
 [[check]]
+id = "publish"
+script = "publish_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+reason = """Refuses to publish material that is not the fork's to publish: local filesystem \
+paths, references to the predecessor organisation or its secret vault, and the fork/reference/ \
+tree of verbatim private-repository copies and internal audit notes. Added after that tree \
+reached a public repository -- every other property this fork cares about had a check and this \
+one did not, which is exactly how it went unnoticed. Scoped to fork-authored files: upstream's \
+own tree is full of /Users/alice test fixtures and is already public."""
+
+[[check]]
 id = "attribution"
 script = "attribution_check.py"
 suite = "static"
