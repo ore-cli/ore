@@ -483,18 +483,32 @@ fi
 if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   begin_pass "snapshot regen"
   cargo nextest --version >/dev/null 2>&1 || fail_pass "cargo-nextest is not installed"
-  # Exclude the same two filtersets ore-ci excludes, from the same files, so the
-  # assembler and the gate agree on what "passing" means. Without this the pass
-  # trips on the fork's own seam failures and on upstream's baseline -- neither of
-  # which a snapshot regen can fix, and both of which make a full assembly
-  # impossible rather than merely noisy.
+  # Regenerate, then report -- do not gate. This pass exists to rewrite .snap
+  # files under INSTA_UPDATE=always, where snapshot assertions always succeed;
+  # everything else it observes is the test suite, which is ore-ci's job to judge
+  # and which it judges through the two filtersets.
+  #
+  # It used to fail the assembly on any red test. That premise cannot hold: the
+  # upstream suite does not pass at upstream's own release tags, and it fails
+  # differently on every machine -- so gating here made a complete assembly
+  # impossible rather than merely noisy. A build failure is still fatal, because
+  # then nothing was regenerated at all; nextest signals that with an exit code
+  # other than 100.
   regen_filter=$(cat "$WORKTREE/fork/verify/known-failing-upstream" "$WORKTREE/fork/verify/known-failing" 2>/dev/null \
     | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' | paste -sd'|' - | sed 's/|/ or /g')
   regen_args=(--no-fail-fast -p codex-tui -p codex-core -p codex-cli)
   [[ -n "$regen_filter" ]] && regen_args+=(-E "not ($regen_filter)")
+  regen_rc=0
   ( cd "$WORKTREE/codex-rs" && INSTA_UPDATE=always RUST_MIN_STACK=8388608 \
       cargo "+$TOOLCHAIN" nextest run "${regen_args[@]}" ) \
-    >>"$PASSES_LOG" 2>&1 || fail_pass "snapshot regen (non-snapshot test failures are real regressions)"
+    >>"$PASSES_LOG" 2>&1 || regen_rc=$?
+  if [[ "$regen_rc" -ne 0 && "$regen_rc" -ne 100 ]]; then
+    fail_pass "snapshot regen: the suite did not build (exit $regen_rc), so nothing was regenerated"
+  fi
+  if [[ "$regen_rc" -eq 100 ]]; then
+    echo "### snapshot regen: snapshots rewritten; tests were red — ore-ci judges those" >>"$PASSES_LOG"
+    warn "snapshot regen: tests failed during regeneration; ore-ci is the gate for that"
+  fi
   end_pass
 else
   echo "### snapshot regen: SKIPPED (--skip-heavy)" >>"$PASSES_LOG"
