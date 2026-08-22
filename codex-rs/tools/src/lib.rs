@@ -1,6 +1,8 @@
 //! Shared tool definitions and Responses API tool primitives that can live
 //! outside `codex-core`.
 
+mod anthropic_tools;
+mod chat_completions_tools;
 mod code_mode;
 mod dynamic_tool;
 mod function_call_error;
@@ -20,6 +22,17 @@ mod tool_payload;
 mod tool_search;
 mod tool_spec;
 
+pub use anthropic_tools::AnthropicTools;
+pub use anthropic_tools::create_tools_json_for_anthropic_api;
+pub use chat_completions_tools::ChatCompletionsTools;
+pub use chat_completions_tools::ChatToolBinding;
+pub use chat_completions_tools::ChatToolBindings;
+pub use chat_completions_tools::ChatToolKind;
+pub use chat_completions_tools::FLATTENED_TOOL_NAME_DELIMITER;
+pub use chat_completions_tools::create_tools_json_for_chat_completions_api;
+pub use chat_completions_tools::flatten_tool_name;
+pub use chat_completions_tools::flatten_tool_name_from_parts;
+pub use chat_completions_tools::unflatten_tool_name;
 pub use code_mode::augment_tool_spec_for_code_mode;
 pub use code_mode::code_mode_name_for_tool_name;
 pub use code_mode::collect_code_mode_exec_prompt_tool_definitions;
