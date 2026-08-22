@@ -180,6 +180,22 @@ reason = "connectors OAuth scope string requested during sign-in"
 # Patterns are \b-anchored: 'before_execution' contains the bytes 'ore_exec'.
 # ---------------------------------------------------------------------------
 
+# Anthropic's subscription OAuth is prohibited in third-party tools and enforced
+# server-side, so ore is API-key-only by necessity, not by choice. These two hosts
+# are where an OAuth attempt would have to go; their presence in a shipped binary
+# would mean someone built the flow the terms forbid. docs/ names the console
+# because that is where a user creates the key -- a browser link, not egress --
+# and source_allow already covers fork/**.
+[[forbid]]
+pattern = 'console\.anthropic\.com'
+reason = "Anthropic OAuth/console host: API keys are created by the user in a browser, never contacted by ore"
+source_allow_paths = ["docs/**"]
+
+[[forbid]]
+pattern = 'claude\.ai'
+reason = "Anthropic subscription host: a fork that spoke it would be breaking Anthropic's third-party terms"
+source_allow_paths = ["docs/**"]
+
 [[forbid]]
 pattern = '\bore_cli_rs'
 reason = "rebranded originator would be rejected/misclassified by the ChatGPT backend (upstream keys on codex_cli_rs)"
