@@ -206,7 +206,16 @@ def check_api(root: Path, allowed: set[str], rep: Report) -> None:
             idx += 1
     bad = []
     for wf in workflows:
-        base = Path(wf.get("path", "")).name
+        path = wf.get("path", "")
+        # GitHub synthesises `dynamic/dependabot/*` entries on every repository.
+        # They are not files in the tree, the disable endpoint rejects them with
+        # 422, and they are not upstream workflows -- so counting them here would
+        # make the invariant permanently unsatisfiable. What actually governs
+        # Dependabot is whether .github/dependabot.yaml exists, and assemble
+        # relocates it out of the tree; check (e) already asserts that.
+        if path.startswith("dynamic/"):
+            continue
+        base = Path(path).name
         if base in allowed or base.startswith("ore-"):
             continue
         if wf.get("state") != "disabled_manually":

@@ -73,15 +73,21 @@ preconditions() {
 
   # An origin that already has refs means this is not a first push, and the
   # sequence below would be operating on assumptions that no longer hold.
+  #
+  # Only meaningful up to and including the push itself: steps 5-7 run precisely
+  # BECAUSE refs now exist, so asserting emptiness there would make the second
+  # half of the sequence unreachable.
   # `git ls-remote` wants a URL, not owner/repo, and pipefail would turn its
   # failure into an exit-128 with no explanation.
-  local url refs
-  url=$(git remote get-url origin 2>/dev/null || echo "https://github.com/$SLUG.git")
-  if refs=$(git ls-remote "$url" 2>/dev/null | wc -l | tr -d ' '); then
-    [[ "$refs" == "0" ]] \
-      || { warn "origin already has $refs ref(s) — this is not a first push"; bad=1; }
-  else
-    warn "could not reach $url — cannot confirm origin is empty"; bad=1
+  if [[ "$MODE" == "check" || "$STEP" -le 4 ]]; then
+    local url refs
+    url=$(git remote get-url origin 2>/dev/null || echo "https://github.com/$SLUG.git")
+    if refs=$(git ls-remote "$url" 2>/dev/null | wc -l | tr -d ' '); then
+      [[ "$refs" == "0" ]] \
+        || { warn "origin already has $refs ref(s) — this is not a first push"; bad=1; }
+    else
+      warn "could not reach $url — cannot confirm origin is empty"; bad=1
+    fi
   fi
 
   # Refuse outright if an upstream-name tag exists anywhere locally that a
@@ -166,9 +172,14 @@ step_6_disable_upstream_workflows() {
   local allow
   allow=$(grep -vE '^\s*(#|$)' "$FORK_DIR/workflows.allow")
   gh api "/repos/$SLUG/actions/workflows" --paginate \
-    --jq '.workflows[] | [.id, (.path|split("/")|last), .state] | @tsv' \
-  | while IFS=$'\t' read -r id name state; do
-      if grep -qxF "$name" <<<"$allow"; then
+    --jq '.workflows[] | [.id, .path, (.path|split("/")|last), .state] | @tsv' \
+  | while IFS=$'\t' read -r id path name state; do
+      # dynamic/dependabot/* is synthesised by GitHub, is not a file, and the
+      # disable endpoint answers 422 for it. Dependabot is governed by whether
+      # .github/dependabot.yaml exists, which assemble relocates away.
+      if [[ "$path" == dynamic/* ]]; then
+        info "    skip    $path (synthesised by GitHub; not a workflow file)"
+      elif grep -qxF "$name" <<<"$allow"; then
         info "    keep    $name"
       elif [[ "$state" == "disabled_manually" ]]; then
         info "    already $name"
