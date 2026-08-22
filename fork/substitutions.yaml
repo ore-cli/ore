@@ -67,6 +67,12 @@ engine:
     - codex-rs/core/src/realtime_prompt.rs
     - codex-rs/core/src/guardian/prompt.rs
     - codex-rs/tui/prompt_for_init_command.md
+    # A five-line README for a crate ore vendors and does not modify. Every
+    # "Codex" in it names OpenAI's first-party product, and its issue-tracker
+    # link is correct as written: bugs in this crate do belong upstream.
+    # Rebranding it produced a sentence that claimed OpenAI maintains ore's
+    # fork while pointing users at ore's tracker -- false in both directions.
+    - codex-rs/chatgpt/README.md
     - sdk/*
     - .codex/*
   skip_suffixes: [.png, .jpg, .jpeg, .gif, .ico, .woff, .woff2, .zip, .gz, .zst, .snap, .patch]
@@ -161,18 +167,6 @@ categories:
       exclude: ["codex-rs/tui/src/pets/*"]
       pattern: '(?<!You are )\bCodex\b(?! (?:backend|app(?!-)|App|extension|Extension|[Cc]loud))'
       replace: '${product}'
-
-    - name: vendored-crate-contribution-policy
-      note: >
-        Upstream states a contribution policy for its own repository inside a crate README.
-        Rebranding the issue-tracker link around it turns a true sentence into a contradictory
-        one ("maintained by OpenAI employees ... report in the ore issue tracker"), and the
-        attribution check reads the result as ore claiming OpenAI authorship. Restate it as what
-        it actually is for the fork: vendored code that ore does not modify.
-      globs: ["codex-rs/chatgpt/README.md"]
-      rust_literals_only: false
-      pattern: 'This crate is built and maintained by OpenAI employees\. External code contributions are not accepted; please report bugs and request features in'
-      replace: 'This crate is vendored from upstream Codex, where it is built and maintained by OpenAI employees; ${product} does not modify it. Report bugs and request features in'
 
     - name: article-before-product-name
       globs: ["codex-rs/**/*.rs", "**/*.md"]
