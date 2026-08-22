@@ -71,6 +71,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      # The tag actually validated: github.ref_name on a push, the synthesised
+      # ore-v<version> on a rehearsal. Every later consumer must read THIS and
+      # not github.ref_name, which is a branch name on a dispatch.
+      tag: ${{ steps.check.outputs.tag }}
       version: ${{ steps.check.outputs.version }}
       prerelease: ${{ steps.check.outputs.prerelease }}
       make_latest: ${{ steps.check.outputs.make_latest }}
@@ -155,6 +159,7 @@ jobs:
             exit 1
           fi
 
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           # A stable tag is what releases/latest resolves to, which is the URL
           # install.sh follows when asked for `latest`.
@@ -172,9 +177,11 @@ jobs:
       # a tag that agrees with codex-rs/Cargo.toml but not with fork/VERSION
       # means assemble ran against a different version than the one being cut.
       - name: Cross-check the tag against the fork's own verifier
+        env:
+          EFFECTIVE_TAG: ${{ steps.check.outputs.tag }}
         run: |
           python3 fork/verify/version_check.py \
-            --tag "${GITHUB_REF_NAME}" --on-main-proof --tree-only
+            --tag "${EFFECTIVE_TAG}" --on-main-proof --tree-only
 
   build:
     name: build ${{ matrix.artifact_name }}
