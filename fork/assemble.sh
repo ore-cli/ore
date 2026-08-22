@@ -499,9 +499,14 @@ if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   regen_args=(--no-fail-fast -p codex-tui -p codex-core -p codex-cli)
   [[ -n "$regen_filter" ]] && regen_args+=(-E "not ($regen_filter)")
   regen_rc=0
+  # Raw nextest output goes to its own file. It is megabytes for a full run, and
+  # the passes log becomes the assembly commit message.
+  regen_log="$OUT_DIR/snapshot-regen.log"
   ( cd "$WORKTREE/codex-rs" && INSTA_UPDATE=always RUST_MIN_STACK=8388608 \
       cargo "+$TOOLCHAIN" nextest run "${regen_args[@]}" ) \
-    >>"$PASSES_LOG" 2>&1 || regen_rc=$?
+    >"$regen_log" 2>&1 || regen_rc=$?
+  grep -E '^ +Summary ' "$regen_log" | tail -1 >>"$PASSES_LOG" || true
+  echo "(full output: $(basename "$regen_log"))" >>"$PASSES_LOG"
   if [[ "$regen_rc" -ne 0 && "$regen_rc" -ne 100 ]]; then
     fail_pass "snapshot regen: the suite did not build (exit $regen_rc), so nothing was regenerated"
   fi
@@ -536,8 +541,11 @@ wt add -A
 if wt diff --cached --quiet HEAD; then
   info "generated passes produced no changes (nothing to commit)"
 else
+  # -F, not -m "$(cat ...)": the passes log is as large as the passes make it,
+  # and a full snapshot regen pushed it past ARG_MAX. A file has no such limit.
+  { echo "assembly: generated passes for $TAG"; echo; cat "$PASSES_LOG"; } >"$OUT_DIR/assembly-msg.txt"
   wt -c "user.name=$BOT_NAME" -c "user.email=$BOT_EMAIL" \
-    commit --quiet -m "assembly: generated passes for $TAG" -m "$(cat "$PASSES_LOG")"
+    commit --quiet -F "$OUT_DIR/assembly-msg.txt"
 fi
 
 # ------------------------------------------- 4. merge candidate (commit-tree)
