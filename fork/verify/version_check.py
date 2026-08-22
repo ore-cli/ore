@@ -249,14 +249,25 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     # (d) release tag
+    #
+    # Compare the BASE version. group(1) is the whole semver including any
+    # -alpha.N/-beta.N; fork/VERSION is always the bare x.y.z, because assemble
+    # writes [workspace.package] from it and CARGO_PKG_VERSION is wire-visible.
+    # Comparing group(1) rejected every prerelease -- ore-v1.149.0-alpha.1, the
+    # designated first release, among them.
     if args.tag:
         tm = TAG_RE.match(args.tag)
         if not tm:
             rep.fails.append(f"tag {args.tag!r} does not match the ore tag grammar ^ore-v<semver>$")
-        elif tm.group(1) != fork_version:
-            rep.fails.append(f"tag {args.tag} does not carry fork/VERSION ({fork_version})")
         else:
-            rep.oks.append(f"tag {args.tag} matches the grammar and fork/VERSION")
+            marker = tm.group(2) or ""
+            base = tm.group(1)[: -len(marker)] if marker else tm.group(1)
+            if base != fork_version:
+                rep.fails.append(
+                    f"tag {args.tag} carries {base}, but fork/VERSION is {fork_version}"
+                )
+            else:
+                rep.oks.append(f"tag {args.tag} matches the grammar and fork/VERSION")
 
     # (f) on-main proof
     if args.on_main_proof or assembled:
