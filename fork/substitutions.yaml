@@ -110,7 +110,7 @@ categories:
   cli-command-in-text:
     - name: cli-command-in-help-text
       note: subcommand list is re-derived from `enum Subcommand` by --audit; this rule is the bulk rewrite.
-      globs: ["codex-rs/**/*.rs", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh"]
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh"]
       pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|unarchive|update)\b)'
       replace: '${bin}'
 
@@ -142,7 +142,7 @@ categories:
         The lookahead protects the phrases where "Codex" names OpenAI's service rather than this CLI
         (the ChatGPT backend, the desktop app, the IDE extension, Codex Cloud) -- rebranding those
         would make the text false.
-      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.js", "codex-rs/**/*.toml", "codex-cli/**/*.js", "codex-cli/**/*.json", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/install/*"]
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.js", "codex-rs/**/*.toml", "codex-rs/**/*.txt", "codex-cli/**/*.js", "codex-cli/**/*.json", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/install/*"]
       exclude: ["codex-rs/tui/src/pets/*"]
       pattern: '\bCodex\b(?! (?:backend|app(?!-)|App|extension|Extension|[Cc]loud))'
       replace: '${product}'
@@ -437,3 +437,8 @@ audit:
     # Plugin/OAuth fixtures whose strings are third-party wire values
     - codex-rs/core-plugins/src/agent_plugin_manifest_tests.rs
     - codex-rs/rmcp-client/src/
+    # The pet is *named* Codex -- an upstream easter egg the rebrand keeps, so the
+    # surrounding prose about "the Codex companion" stays with it.
+    - codex-rs/tui/src/pets/
+    # Developer smoke-test harness that shells out to a locally built binary
+    - codex-rs/windows-sandbox-rs/sandbox_smoketests.py
