@@ -79,7 +79,6 @@ use crate::remote_plugin_id_resolver::RemoteInstalledPluginsSnapshot;
 use crate::remote_plugin_id_resolver::RemotePluginIdResolver;
 use crate::remote_plugin_id_resolver::persisted_remote_plugin_id_for_installation;
 use crate::skill_snapshots::new_plugin_skill_snapshots;
-use crate::startup_sync::OPENAI_PLUGINS_GIT_URL;
 use crate::startup_sync::curated_plugins_api_marketplace_path;
 use crate::startup_sync::curated_plugins_repo_path;
 use crate::startup_sync::read_curated_plugins_sha;
@@ -695,10 +694,20 @@ impl PluginsManager {
         config: &PluginsConfigInput,
         on_effective_plugins_changed: Option<EffectivePluginsChangedCallback>,
     ) {
+        // ore hard-codes no curated-plugins repository; naming one via
+        // ORE_CURATED_PLUGINS_REPO is the opt-in that enables this sync.
+        let Some(curated_repo) = crate::startup_sync::curated_plugins_repo_from_env() else {
+            return;
+        };
         if config.plugins_enabled
             && !self.remote_global_catalog_active(config)
+            // rust-v0.153.0 added this gate against upstream's hard-coded
+            // curated URL, which ore does not have. Validate the repository the
+            // operator actually named instead: dropping the check would leave a
+            // marketplace policy that forbids a git source unenforced here,
+            // which upstream enforces.
             && MarketplacePolicy::from_requirements(config.config_layer_stack.requirements())
-                .validate_git_source(OPENAI_PLUGINS_GIT_URL, /*ref_name*/ None)
+                .validate_git_source(&curated_repo.git_url(), /*ref_name*/ None)
                 .is_ok()
         {
             self.start_curated_repo_sync(

@@ -117,13 +117,11 @@ removed_by = "substitution"
 pattern = 'github\.com/openai/plugins'
 reason = "curated-plugins git repo cloned at startup when plugins are enabled (codex-rs/core-plugins/src/startup_sync.rs:28-30); sync disabled per the ratified plugins-curated-sync-off rider (decision is final — only the commit is outstanding)"
 removed_by = "series:plugins-curated-sync-off"
-pending = true
 
 [[kill]]
 pattern = 'chatgpt\.com/backend-api/plugins/export/curated'
 reason = "curated-plugins chatgpt fallback endpoint (codex-rs/core-plugins/src/startup_sync.rs:27)"
 removed_by = "series:plugins-curated-sync-off"
-pending = true
 
 [[kill]]
 pattern = 'developers\.openai\.com/codex/cli'
