@@ -11,11 +11,11 @@ protocol.
 
 ## `wire_api` values
 
-| `wire_api` | Protocol | Endpoint | Typical servers |
-| --- | --- | --- | --- |
-| `"responses"` | OpenAI Responses API | `POST <base_url>/responses` | OpenAI (the default), Azure OpenAI |
-| `"chat"` | OpenAI Chat Completions | `POST <base_url>/chat/completions` | llama.cpp, vLLM, LM Studio, Ollama, OpenRouter, most OpenAI-compatible proxies |
-| `"anthropic"` | Anthropic Messages API | `POST <base_url>/messages` | Anthropic, or a gateway that fronts it |
+| `wire_api`    | Protocol                | Endpoint                           | Typical servers                                                                |
+| ------------- | ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
+| `"responses"` | OpenAI Responses API    | `POST <base_url>/responses`        | OpenAI (the default), Azure OpenAI                                             |
+| `"chat"`      | OpenAI Chat Completions | `POST <base_url>/chat/completions` | llama.cpp, vLLM, LM Studio, Ollama, OpenRouter, most OpenAI-compatible proxies |
+| `"anthropic"` | Anthropic Messages API  | `POST <base_url>/messages`         | Anthropic, or a gateway that fronts it                                         |
 
 There is no built-in provider for the restored wires: nothing speaks `chat` or
 `anthropic` unless your config defines a provider that does.
