@@ -7,4 +7,6 @@ ignore-regex = ^\s*"image/\S+": ".*|\b(afterAll)\b
 # `propert` is a deliberate prefix in codex-rs/core/src/client_chat.rs, so one
 # literal matches both "property" and "properties" in provider error text.
 # `WRONLY` is the POSIX O_WRONLY flag, in upstream's exec-server sources.
-ignore-words-list = ratatui,ser,iTerm,iterm2,iterm,te,TE,PASE,SEH,ore,propert,wronly
+# `arrises` is the plural of `arris`, the edge where two facets meet -- the
+# term scripts/ore_art.py uses for the crystal's ridge lines.
+ignore-words-list = ratatui,ser,iTerm,iterm2,iterm,te,TE,PASE,SEH,ore,propert,wronly,arrises
