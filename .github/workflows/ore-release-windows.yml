@@ -31,6 +31,20 @@
 # job collects; `windows-binaries-*` and `cargo-timings-*` are intra-workflow
 # hand-offs that the caller's "Collect assets" step must exclude from the
 # published release.
+#
+# Runner image, verified by ore-windows-probe.yml on 2026-08-22 (run 32568085889):
+#
+#   ImageOS      win25-vs2026        ImageVersion  20260818.207.1
+#   OS           Windows Server 2025 Datacenter    Arch  AMD64
+#
+# Every assumption this workflow makes was checked on that image rather than
+# inferred: upstream's setup-ci found an existing Dev Drive at D:; 7z, csc.exe,
+# vswhere, python, git and tar are all present; VC.Tools.ARM64 is installed; and
+# a staticlib cross-compiled to aarch64-pc-windows-msvc from the x64 host. That
+# last one is what lets ARM64 stay a cross-compile here instead of renting
+# windows-11-arm runners.
+#
+# Re-run the probe when the image version moves.
 name: ore-release-windows
 
 on:
