@@ -209,7 +209,7 @@ categories:
   # ------------------------------------------------------------------------- npm
   npm:
     - name: npm-package-names
-      globs: ["codex-rs/**/*.rs", "codex-cli/**/*.js", "codex-cli/**/*.json", "codex-cli/**/*.py", "scripts/**/*.py", "scripts/install/*", "**/*.md", ".github/ISSUE_TEMPLATE/*.yml"]
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.json", "codex-cli/**/*.js", "codex-cli/**/*.json", "codex-cli/**/*.py", "scripts/**/*.py", "scripts/install/*", "**/*.md", ".github/ISSUE_TEMPLATE/*.yml"]
       pattern: '@openai/codex(?![\w])'
       replace: '${npm_package}'
 
