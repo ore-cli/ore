@@ -250,6 +250,18 @@ jobs:
         with:
           workspaces: codex-rs
 
+      # Swatinem/rust-cache restores target/ with v8's build-script fingerprint
+      # marked fresh, but the extracted librusty_v8.a is not in what it saves --
+      # so cargo skips re-running the build script and the link then fails with
+      # "could not find native static library `rusty_v8`". Only a linking job
+      # notices: clippy never links, which is why it stays green while this job
+      # goes red on every cache hit and passes on every cold one. Dropping v8
+      # alone re-runs its build script (a gunzip of the prebuilt, seconds) and
+      # keeps the rest of the restored cache.
+      - name: Re-extract the v8 prebuilt the cache restore leaves stale
+        working-directory: codex-rs
+        run: cargo clean -p v8
+
       # fork/verify/known-failing lists the upstream tests the fork's seams
       # legitimately turn red, one nextest filterset expression per line. The
       # file -- not this workflow -- is the single record of what is expected to
