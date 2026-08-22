@@ -30,6 +30,21 @@
 schema = 1
 
 [[check]]
+id = "upstream"
+script = "upstream_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """fork/UPSTREAM must describe the tree it sits in, because everything downstream \
+reads it as fact (assemble's --base, the auth fence diff, the relocation set, `--version` line 2): \
+tag/commit/tag_object agree, the commit is an ancestor of HEAD, no newer stable tag is already \
+reachable, and on an assembled tree the generated merge carries (prev main, tag) in that order \
+with origin/main still an ancestor.  Runs first: a wrong base silently moves every later check \
+onto the wrong baseline instead of failing."""
+
+[[check]]
 id = "workflows"
 script = "workflows_check.py"
 suite = "static"
@@ -81,6 +96,23 @@ reason = """The ChatGPT sign-in path must stay byte-identical to upstream: git d
 fence paths equals allowed-fence.diff, and wire literals outside the fence (codex_exec, \
 codex-tui, CODEX_PRODUCT_SKU, ...) survive verbatim.  ore has no OAuth registration of its \
 own; any drift here bricks sign-in silently."""
+
+[[check]]
+id = "locks"
+script = "locks_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """Nothing enters the fork through a lockfile: Cargo.lock's [[package]] names minus the \
+base tag's must be a subset of fork/expected-deps.txt (git-sourced additions called out \
+separately), every workspace member resolves in the lock, and MODULE.bazel.lock / pnpm-lock.yaml \
+stay byte-equal to the tag.  Member coverage is the hermetic half of `cargo metadata --locked`, \
+which itself needs a toolchain and stays where one is guaranteed — assemble's version+lock pass, \
+and ore-ci's check-clean-worktree, which proves a full build did not rewrite the lock at all; \
+locks_check.py --cargo-metadata runs it on demand.  On delta the lock legitimately lacks the \
+fork's crates (series commits may not touch it), which reports pending, not failure."""
 
 [[check]]
 id = "version"
