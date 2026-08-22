@@ -7,8 +7,8 @@
 # the required-green set:
 #   cargo nextest run -E "not ($(grep -v '^#' known-failing | grep . | paste -sd'|' - | sed 's/|/ or /g'))"
 #
-# Provenance: the telemetry-seam verification pass (fork/reference material:
-# verify/telemetry-seam.md corrections), then re-derived test-by-test against
+# Provenance: the telemetry-seam verification pass, then re-derived
+# test-by-test against
 # the rust-v0.149.0 tree by the seam commit itself, which seeded this file;
 # each later series commit adds its own cause group.
 # Three causes:
