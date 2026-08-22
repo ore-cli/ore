@@ -922,7 +922,10 @@ impl Daemon {
     }
 
     async fn load_settings(&self) -> Result<DaemonSettings> {
-        DaemonSettings::load(&self.settings_file).await
+        let mut settings = DaemonSettings::load(&self.settings_file).await?;
+        // ore never runs the updater: it downloads a remote shell script and pipes it to sh.
+        settings.auto_update_enabled = false;
+        Ok(settings)
     }
 
     async fn acquire_operation_lock(&self) -> Result<tokio::fs::File> {
