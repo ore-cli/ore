@@ -27,6 +27,20 @@ on:
   push:
     tags:
       - "ore-v*"
+  # Rehearsal. The tag is otherwise first contact with a pipeline that spends
+  # signing credentials, and a mistake in it costs a burnt version number --
+  # tag-check's own prerelease bug was found by simulating this by hand. A
+  # dispatch runs validation and the full build matrix and stops before
+  # sign-macos, so the expensive, breakable half is exercised without secrets.
+  #
+  # It cannot reach them even if a gate were wrong: the `release` environment
+  # admits `ore-v*` tags only, so a dispatch on a branch has no access to it.
+  workflow_dispatch:
+    inputs:
+      rehearse_version:
+        description: "Version to rehearse (default: [workspace.package] of the checked-out tree)"
+        required: false
+        type: string
 
 env:
   # scripts/codex_package/targets.py raises at import time when this is unset
@@ -69,8 +83,24 @@ jobs:
         id: check
         env:
           TAG: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          REHEARSE_VERSION: ${{ inputs.rehearse_version }}
         run: |
           set -euo pipefail
+
+          # On a rehearsal there is no tag, so build one from the tree. Every
+          # check below then runs exactly as it would for a real tag -- the
+          # grammar, the workspace-version equality, the three entrypoint greps
+          # and the zsh digest -- which is the point: a rehearsal that skipped
+          # them would prove nothing about the tag that follows.
+          if [[ "$EVENT_NAME" != "push" ]]; then
+            rehearse_version="${REHEARSE_VERSION:-}"
+            if [[ -z "$rehearse_version" ]]; then
+              rehearse_version="$(awk -F'"' '/^\[workspace.package\]/{f=1; next} f && /^version *=/{print $2; exit}' codex-rs/Cargo.toml)"
+            fi
+            TAG="ore-v${rehearse_version}"
+            echo "::notice::Rehearsal: no tag pushed, validating as $TAG"
+          fi
 
           # ore-v<version>, where <version> is exactly the grammar
           # scripts/install/install.sh accepts. A tag install.sh would reject is
@@ -449,6 +479,11 @@ jobs:
   sign-macos:
     name: sign ${{ matrix.artifact_name }}
     needs: [tag-check, build]
+    # The one gate a rehearsal needs. Everything downstream -- verify-macos,
+    # release, dotslash, homebrew-tap, publish-npm -- reaches this job through
+    # `needs`, so skipping it skips all of them, and no `if:` below has an
+    # always() that would override that.
+    if: github.event_name == 'push'
     runs-on: ${{ matrix.runner }}
     environment: release
     timeout-minutes: 90
