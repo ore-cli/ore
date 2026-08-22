@@ -8,7 +8,7 @@ rebranded inside the login crate (CODEX_API_KEY -> ORE_API_KEY, "Codex Auth"
 regression is structurally impossible.
 
 Three layers:
-  a. `git diff <fork/UPSTREAM commit>..HEAD -- <fence paths>`, normalised
+  a. `git diff <fork/UPSTREAM commit> -- <fence paths>` (working tree), normalised
      (index lines dropped), must equal fork/verify/allowed-fence.diff.
   b. Wire literals OUTSIDE the fence must still appear verbatim at their home
      sites — a substitution rule or series commit rewriting one of them
@@ -95,14 +95,31 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     # (a) fence diff == allowed-fence.diff
+    #
+    # Diffed against the WORKING TREE, not against HEAD. `git diff base HEAD`
+    # compares two commits and is blind to the tree it is certifying: a red-team
+    # run rewrote the ChatGPT originator in codex-rs/login/ and this check
+    # reported the fence intact, because the edit was not committed. In CI the
+    # two are the same; the cases where they differ -- an uncommitted edit, or a
+    # generated pass that reached into a fenced path -- are exactly the ones
+    # worth catching.
     try:
         proc = subprocess.run(
-            ["git", "-C", str(root), "diff", base, "HEAD", "--"] + list(FENCE_PATHS),
+            ["git", "-C", str(root), "diff", base, "--"] + list(FENCE_PATHS),
             capture_output=True, text=True, check=True,
         )
+        untracked = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard", "--"]
+            + list(FENCE_PATHS),
+            capture_output=True, text=True, check=True,
+        ).stdout.split()
     except (OSError, subprocess.CalledProcessError) as err:
         print(f"skip: git diff against {base} failed: {err}")
         return 2
+    # A new file inside a fenced path is not a diff hunk, so it would otherwise
+    # be invisible to a check whose whole job is "these paths are upstream's".
+    for path in untracked:
+        fails.append(f"untracked file inside the auth fence: {path}")
     actual = normalize_diff(proc.stdout)
     allowed = load_allowed(here / "allowed-fence.diff")
     if actual != allowed:
