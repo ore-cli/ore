@@ -33,6 +33,12 @@
 #
 # On success the assembly worktree is removed (set WORKTREE_KEEP=1 to inspect
 # it in place instead); on failure it is always kept.
+#
+# Assembly is reproducible: two runs over the same tag and series produce the
+# same tree, with `assembled_at` the single deliberate exception. Set
+# ORE_ASSEMBLED_AT to the first run's stamp and the second run's tree hash is
+# identical -- which is how I-TREE proves the generated passes carry no other
+# hidden nondeterminism (timestamps, ordering, temp paths).
 
 set -euo pipefail
 
@@ -466,7 +472,7 @@ tag = "$TAG"
 commit = "$TAG_COMMIT"
 tag_object = "$TAG_OBJECT"
 tag_date = "$TAG_DATE"
-assembled_at = "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+assembled_at = "${ORE_ASSEMBLED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 series_head = "$SERIES_HEAD"
 EOF
 end_pass
