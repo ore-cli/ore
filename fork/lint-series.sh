@@ -43,9 +43,22 @@ git rev-parse --verify --quiet "$HEAD_REF" >/dev/null || die "head ref '$HEAD_RE
 if [[ -z "$BASE" ]]; then
   tag=$(git show "$HEAD_REF:fork/UPSTREAM" 2>/dev/null | sed -n 's/^tag = "\(.*\)"$/\1/p')
   [[ -n "$tag" ]] || die "cannot read the base tag from $HEAD_REF:fork/UPSTREAM; pass --base"
-  BASE=$(resolve_upstream_tag "$tag") || die "base tag '$tag' (from fork/UPSTREAM) is not fetched"
+  if BASE=$(resolve_upstream_tag "$tag"); then
+    BASE_COMMIT=$(peel_tag "$BASE")
+  else
+    # No tag ref -- the normal state in CI, because upstream-name tags are never
+    # pushed to origin. fork/UPSTREAM records the peeled commit for exactly this,
+    # and it is reachable: the series is built on top of it.
+    BASE_COMMIT=$(git show "$HEAD_REF:fork/UPSTREAM" 2>/dev/null | sed -n 's/^commit = "\(.*\)"$/\1/p')
+    [[ -n "$BASE_COMMIT" ]] \
+      || die "base tag '$tag' is not fetched and fork/UPSTREAM records no commit; pass --base"
+    git cat-file -e "${BASE_COMMIT}^{commit}" 2>/dev/null \
+      || die "base commit $BASE_COMMIT (from fork/UPSTREAM) is not in this repository; fetch more history"
+    BASE="$BASE_COMMIT"
+  fi
+else
+  BASE_COMMIT=$(peel_tag "$BASE")
 fi
-BASE_COMMIT=$(peel_tag "$BASE")
 
 git merge-base --is-ancestor "$BASE_COMMIT" "$HEAD_REF" \
   || die "base $BASE is not an ancestor of $HEAD_REF"
