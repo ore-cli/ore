@@ -192,8 +192,13 @@ categories:
       replace: 'raw.githubusercontent.com/${repo_slug}'
 
     - name: developer-docs-url
-      globs: ["codex-rs/**/*.rs"]
-      pattern: 'https://developers\.openai\.com/codex/cli/?'
+      note: >
+        The trailing path is consumed deliberately. docs/ deep-links into upstream's CLI
+        documentation (slash-commands, features), and those pages describe behaviour ore
+        does not ship -- analytics on, ~/.codex as the home, a desktop app subcommand.
+        Sending ore's users there is worse than sending them to ore's own README.
+      globs: ["codex-rs/**/*.rs", "**/*.md"]
+      pattern: 'https://developers\.openai\.com/codex/cli[^\s)\]]*'
       replace: 'https://github.com/${repo_slug}#install'
 
     - name: hosted-install-sh-url
