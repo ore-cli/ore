@@ -25,6 +25,7 @@ use codex_protocol::openai_models::ModelsResponse;
 use http::HeaderValue;
 
 use crate::amazon_bedrock::AmazonBedrockModelProvider;
+use crate::anthropic::AnthropicModelProvider;
 use crate::auth::ProviderAuthScope;
 use crate::auth::ResolvedProviderAuth;
 use crate::auth::auth_manager_for_provider;
@@ -323,6 +324,8 @@ pub fn create_model_provider(
 ) -> SharedModelProvider {
     if provider_info.is_amazon_bedrock() {
         Arc::new(AmazonBedrockModelProvider::new(provider_info, auth_manager))
+    } else if provider_info.wire_api == codex_model_provider_info::WireApi::Anthropic {
+        Arc::new(AnthropicModelProvider::new(provider_info, auth_manager))
     } else {
         Arc::new(ConfiguredModelProvider::new(provider_info, auth_manager))
     }
@@ -774,6 +777,44 @@ mod tests {
         );
 
         assert!(provider.auth_manager().is_none());
+    }
+
+    /// The Anthropic arm dispatches on `wire_api` alone: without an Anthropic
+    /// provider table in config, nothing constructs an Anthropic provider.
+    #[test]
+    fn create_model_provider_builds_anthropic_only_for_the_anthropic_wire_api() {
+        let non_anthropic = [
+            ModelProviderInfo::default(),
+            ModelProviderInfo {
+                wire_api: WireApi::Chat,
+                ..ModelProviderInfo::default()
+            },
+            ModelProviderInfo {
+                name: "anthropic".to_string(),
+                base_url: Some("https://api.anthropic.com/v1".to_string()),
+                ..ModelProviderInfo::default()
+            },
+        ];
+        for provider_info in non_anthropic {
+            let provider = create_model_provider(provider_info, /*auth_manager*/ None);
+            assert!(
+                !provider
+                    .approval_review_preferred_model()
+                    .starts_with("claude-"),
+                "a non-anthropic wire_api must not construct the Anthropic provider"
+            );
+        }
+
+        let provider = create_model_provider(
+            crate::create_anthropic_provider(/*base_url*/ None),
+            /*auth_manager*/ None,
+        );
+        assert!(
+            provider
+                .approval_review_preferred_model()
+                .starts_with("claude-"),
+            "wire_api = \"anthropic\" must construct the Anthropic provider"
+        );
     }
 
     #[tokio::test]
