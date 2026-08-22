@@ -85,7 +85,8 @@ pub(crate) fn executable_identity_from_bytes(bytes: &[u8]) -> ExecutableIdentity
 }
 
 fn managed_codex_file_name() -> &'static str {
-    if cfg!(windows) { "codex.exe" } else { "codex" }
+    // Fork: keys on the SHIPPED entrypoint name, which install.sh links as `current/ore`.
+    if cfg!(windows) { "ore.exe" } else { "ore" }
 }
 
 #[cfg(unix)]
