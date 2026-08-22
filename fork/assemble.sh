@@ -30,6 +30,9 @@
 # This script NEVER pushes and never moves refs/heads/{main,delta}; the only
 # refs it writes are sync-delta/<tag>, sync/<tag> and rerere-cache. Pushing is
 # the sync workflow's job, through safe_push() only.
+#
+# On success the assembly worktree is removed (set WORKTREE_KEEP=1 to inspect
+# it in place instead); on failure it is always kept.
 
 set -euo pipefail
 
@@ -517,6 +520,18 @@ git update-ref "refs/heads/sync/$TAG" "$M"
 # ------------------------------------------------------- 5. rerere snapshot
 
 snapshot_rerere
+
+# Release the assembly worktree on success. The assembled tree is reachable as
+# refs/heads/sync/$TAG and the reports live outside it, so nothing is lost --
+# but a worktree left registered holds sync-delta/$TAG checked out, and then the
+# "delete it to re-run" remedy this script prints for the next invocation cannot
+# actually be carried out. CI runners are ephemeral and never noticed; a local
+# reassemble hit it on the second run. Failures still keep their worktree: that
+# is where a human resolves the conflict.
+if [[ -z "${WORKTREE_KEEP:-}" ]]; then
+  git worktree remove --force "$WORKTREE" 2>/dev/null \
+    || warn "could not remove the assembly worktree at $WORKTREE; remove it before the next run"
+fi
 
 info "done: refs/heads/sync/$TAG = $M"
 info "  tree     $TREE"
