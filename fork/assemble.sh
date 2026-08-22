@@ -483,8 +483,17 @@ fi
 if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   begin_pass "snapshot regen"
   cargo nextest --version >/dev/null 2>&1 || fail_pass "cargo-nextest is not installed"
+  # Exclude the same two filtersets ore-ci excludes, from the same files, so the
+  # assembler and the gate agree on what "passing" means. Without this the pass
+  # trips on the fork's own seam failures and on upstream's baseline -- neither of
+  # which a snapshot regen can fix, and both of which make a full assembly
+  # impossible rather than merely noisy.
+  regen_filter=$(cat "$WORKTREE/fork/verify/known-failing-upstream" "$WORKTREE/fork/verify/known-failing" 2>/dev/null \
+    | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' | paste -sd'|' - | sed 's/|/ or /g')
+  regen_args=(--no-fail-fast -p codex-tui -p codex-core -p codex-cli)
+  [[ -n "$regen_filter" ]] && regen_args+=(-E "not ($regen_filter)")
   ( cd "$WORKTREE/codex-rs" && INSTA_UPDATE=always RUST_MIN_STACK=8388608 \
-      cargo "+$TOOLCHAIN" nextest run --no-fail-fast -p codex-tui -p codex-core -p codex-cli ) \
+      cargo "+$TOOLCHAIN" nextest run "${regen_args[@]}" ) \
     >>"$PASSES_LOG" 2>&1 || fail_pass "snapshot regen (non-snapshot test failures are real regressions)"
   end_pass
 else
