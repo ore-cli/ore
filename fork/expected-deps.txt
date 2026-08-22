@@ -1,0 +1,18 @@
+# Every [[package]] name codex-rs/Cargo.lock may carry that the base tag's lock
+# does not.  fork/verify/locks_check.py reads this file; a new dependency that
+# is not listed here fails the sync.
+#
+# Derived, not guessed: across the whole series, `git diff <base>..delta --
+# '**/Cargo.toml'` adds exactly one package (codex-rs/fork-invariants) and no
+# third-party crate.  Every dependency the fork's own manifests name —
+# codex-utils-home-dir, and fork-invariants' dev-dependencies — is already a
+# workspace member or a workspace dependency present in upstream's lock.
+#
+# Series commits may not touch Cargo.lock, so on delta this crate is
+# legitimately ABSENT from it (fork/README, "codex-rs/Cargo.lock on delta");
+# assemble's `cargo update --workspace` adds it, and on an assembled tree its
+# absence is a failure.
+#
+# Adding a line here is a supply-chain decision: it is the one way a dependency
+# enters ore without an upstream release bringing it.
+codex-fork-invariants
