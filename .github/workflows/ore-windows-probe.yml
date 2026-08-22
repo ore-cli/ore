@@ -1,0 +1,113 @@
+name: ore-windows-probe
+
+# Answers, once, the two questions Phase 3 rests on and that no amount of reading
+# can settle: does a GitHub-hosted `windows-latest` image carry everything
+# upstream's Windows release assumes, and can it cross-compile ARM64 on x64?
+#
+# Upstream builds Windows on self-hosted runners in an org that has them. ore has
+# free hosted runners and nothing else, so every Windows decision in the plan --
+# hosted-only, ARM64 cross-compiled on x64, Dev Drive left as upstream wrote it --
+# is an inference from upstream's v8-canary job rather than something observed.
+# This observes it.
+#
+# Dispatch-only and deliberately cheap: it builds nothing real. Run it before
+# touching ore-release-windows.yml, and again whenever the runner image changes.
+# Record the image version it prints in the release workflow's header.
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  probe:
+    name: probe windows-latest
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Record the runner image
+        shell: pwsh
+        run: |
+          Write-Host "ImageOS      = $env:ImageOS"
+          Write-Host "ImageVersion = $env:ImageVersion"
+          Write-Host "OS           = $((Get-CimInstance Win32_OperatingSystem).Caption)"
+          Write-Host "Arch         = $env:PROCESSOR_ARCHITECTURE"
+
+      # Upstream's setup-ci creates a Dev Drive VHD and fails outright if D: is
+      # not one. That is the single most likely way a hosted image differs from
+      # the self-hosted runners it was written for, so it runs first and alone.
+      - name: Dev Drive (upstream setup-ci)
+        uses: ./.github/actions/setup-ci
+
+      - name: Report the Dev Drive
+        shell: pwsh
+        run: |
+          Get-Volume | Format-Table DriveLetter, FileSystemType, FriendlyName, SizeRemaining
+          if (Test-Path D:\) { Write-Host "D: present" } else { Write-Host "D: ABSENT" }
+
+      # The ARM64 question. Upstream's own v8-canary builds aarch64 on a hosted
+      # windows image, which is why the plan cross-compiles rather than renting
+      # windows-11-arm -- but it has never been checked on THIS image.
+      - name: MSVC environment for aarch64 (cross-compile on x64)
+        uses: ./.github/actions/setup-msvc-env
+        with:
+          target: aarch64-pc-windows-msvc
+
+      - name: Tools the Windows release expects
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $missing = @()
+          foreach ($tool in '7z', 'csc.exe', 'vswhere', 'python', 'git', 'tar') {
+            $found = Get-Command $tool -ErrorAction SilentlyContinue
+            if ($found) {
+              Write-Host ("  ok      {0,-10} {1}" -f $tool, $found.Source)
+            } else {
+              Write-Host ("  MISSING {0}" -f $tool)
+              $missing += $tool
+            }
+          }
+          # VC.Tools.ARM64 is the component the cross-compile actually needs; its
+          # absence is what would send Windows back to windows-11-arm runners.
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 `
+                       -property installationVersion
+            if ($LASTEXITCODE -ne 0) { $missing += 'VC.Tools.ARM64' }
+          } else {
+            $missing += 'vswhere.exe'
+          }
+          python -m venv "$env:RUNNER_TEMP\probe-venv"
+          if (-not (Test-Path "$env:RUNNER_TEMP\probe-venv")) { $missing += 'python-venv' }
+          if ($missing.Count -gt 0) {
+            Write-Host "::error::missing on this image: $($missing -join ', ')"
+            exit 1
+          }
+          Write-Host "every tool the Windows release expects is present"
+
+      # Cheapest possible proof that the toolchain links for the cross target:
+      # a bare staticlib, no workspace, no dependencies.
+      - name: Prove the aarch64 target links
+        shell: pwsh
+        run: |
+          rustup target add aarch64-pc-windows-msvc
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\probe\src" | Out-Null
+          Set-Content "$env:RUNNER_TEMP\probe\Cargo.toml" @"
+          [package]
+          name = "probe"
+          version = "0.0.0"
+          edition = "2021"
+          [lib]
+          crate-type = ["staticlib"]
+          "@
+          Set-Content "$env:RUNNER_TEMP\probe\src\lib.rs" "pub fn probe() -> u32 { 1 }"
+          Push-Location "$env:RUNNER_TEMP\probe"
+          cargo build --target aarch64-pc-windows-msvc --release
+          Pop-Location
+          Write-Host "aarch64-pc-windows-msvc cross-compile works on this x64 image"
