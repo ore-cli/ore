@@ -591,7 +591,7 @@ impl GuardianV2Extension {
             classification_input.extend(transcript);
             classification_input.extend([
                 ">>> TRANSCRIPT END\n\n".to_owned(),
-                "The Codex agent has requested the following action:\n".to_owned(),
+                "The ore agent has requested the following action:\n".to_owned(),
                 ">>> APPROVAL REQUEST START\n".to_owned(),
                 "Planned action JSON:\n".to_owned(),
                 format!("{planned_action}\n"),

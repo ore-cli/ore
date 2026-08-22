@@ -1,4 +1,4 @@
-//! Read-path helpers for Codex memories.
+//! Read-path helpers for ore memories.
 //!
 //! This crate owns memory injection, memory citation parsing, and telemetry
 //! classification for read access to the memory folder. It intentionally does

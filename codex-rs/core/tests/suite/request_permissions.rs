@@ -514,7 +514,7 @@ async fn request_permissions_auto_review_applies_guardian_decision(outcome: &str
     skip_if_sandbox!(Ok(()));
     skip_if_wine_exec!(
         Ok(()),
-        "request_permissions requires a cwd native to the Codex host"
+        "request_permissions requires a cwd native to the ore host"
     );
 
     let server = start_mock_server().await;
@@ -632,7 +632,7 @@ async fn interrupted_request_permissions_auto_review_aborts_guardian_review() ->
     skip_if_sandbox!(Ok(()));
     skip_if_wine_exec!(
         Ok(()),
-        "request_permissions requires a cwd native to the Codex host"
+        "request_permissions requires a cwd native to the ore host"
     );
 
     let server = start_mock_server().await;

@@ -1,4 +1,4 @@
-# Fixed defaults for packaged Codex clients.
+# Fixed defaults for packaged ore clients.
 include_permissions_instructions = true
 include_apps_instructions = true
 include_collaboration_mode_instructions = true

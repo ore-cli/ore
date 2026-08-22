@@ -32,8 +32,8 @@ const LATE_ASSISTANT: &str = "late external assistant reply";
 const SECOND_USER: &str = "second original external message";
 const SECOND_LATE_ASSISTANT: &str = "second late external assistant reply";
 const LATER_USER: &str = "later external user message";
-const NATIVE_USER: &str = "native Codex message";
-const NATIVE_ASSISTANT: &str = "native Codex answer";
+const NATIVE_USER: &str = "native ore message";
+const NATIVE_ASSISTANT: &str = "native ore answer";
 
 fn source_record(cwd: &Path, role: &str, text: &str) -> Value {
     json!({

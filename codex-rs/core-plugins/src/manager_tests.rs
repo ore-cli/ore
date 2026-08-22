@@ -198,7 +198,7 @@ fn marketplace_source_refresh_notifies_only_after_installed_cache_changes() {
 
 #[tokio::test]
 async fn marketplace_policy_projection_disables_installed_plugin_and_invalidates_cache() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create ore home");
     write_plugin(
         &codex_home.path().join("plugins/cache/company"),
         "sample/local",
@@ -248,7 +248,7 @@ url = "https://github.com/example/other.git"
 
 #[tokio::test]
 async fn plugin_read_rejects_marketplace_blocked_by_requirements() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create ore home");
     let marketplace_root = codex_home.path().join("marketplace");
     write_plugin(&marketplace_root, "sample", "sample");
     write_file(
@@ -293,7 +293,7 @@ restrict_to_allowed_sources = true
 
 #[test]
 fn marketplace_policy_filters_discovered_marketplaces_by_configured_name() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create ore home");
     let repo_root = codex_home.path().join("repo");
     let subdirectory = repo_root.join("worktree/subdirectory");
     fs::create_dir_all(&subdirectory).expect("create input subdirectory");
@@ -777,7 +777,7 @@ fn write_plugin(root: &Path, dir_name: &str, manifest_name: &str) {
 fn init_git_repo(repo: &Path) {
     run_git(repo, &["init"]);
     run_git(repo, &["config", "user.email", "codex-test@example.com"]);
-    run_git(repo, &["config", "user.name", "Codex Test"]);
+    run_git(repo, &["config", "user.name", "ore Test"]);
     run_git(repo, &["add", "."]);
     run_git(repo, &["commit", "-m", "initial"]);
 }
@@ -3176,7 +3176,7 @@ async fn install_plugin_updates_config_with_relative_path_and_plugin_key() {
 
 #[tokio::test]
 async fn strict_install_requires_allowed_local_marketplace_to_be_added_first() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create ore home");
     let marketplace_root = codex_home.path().join("company-marketplace");
     write_plugin(&marketplace_root, "sample", "sample");
     write_file(

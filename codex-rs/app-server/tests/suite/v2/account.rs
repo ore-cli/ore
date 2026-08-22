@@ -1384,7 +1384,7 @@ async fn logout_aws_managed_bedrock_errors_without_changing_auth_or_config() -> 
     assert_eq!(error.error.code, -32600);
     assert_eq!(
         error.error.message,
-        "cannot log out while Amazon Bedrock is using AWS-managed credentials; manage those credentials through AWS or switch model providers before logging out Codex authentication"
+        "cannot log out while Amazon Bedrock is using AWS-managed credentials; manage those credentials through AWS or switch model providers before logging out ore authentication"
     );
     assert_eq!(load_file_auth(codex_home.path())?, expected_auth);
     assert_eq!(read_config_toml(codex_home.path())?, expected_config);

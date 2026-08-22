@@ -19,7 +19,7 @@ impl Display for RateLimitError {
     }
 }
 
-/// Parses the default Codex rate-limit header family into a `RateLimitSnapshot`.
+/// Parses the default ore rate-limit header family into a `RateLimitSnapshot`.
 pub fn parse_default_rate_limit(headers: &HeaderMap) -> Option<RateLimitSnapshot> {
     parse_rate_limit_for_limit(headers, /*limit_id*/ None)
 }
@@ -52,8 +52,8 @@ pub fn parse_all_rate_limits(headers: &HeaderMap) -> Vec<RateLimitSnapshot> {
 
 /// Parses rate-limit headers for the provided limit id.
 ///
-/// `limit_id` should match the server-provided metered limit id (e.g. `codex`,
-/// `codex_other`). When omitted, this defaults to the legacy `codex` header family.
+/// `limit_id` should match the server-provided metered limit id (e.g. `ore`,
+/// `codex_other`). When omitted, this defaults to the legacy `ore` header family.
 pub fn parse_rate_limit_for_limit(
     headers: &HeaderMap,
     limit_id: Option<&str>,
@@ -175,7 +175,7 @@ fn map_event_window(window: Option<&RateLimitEventWindow>) -> Option<RateLimitWi
     })
 }
 
-/// Parses the bespoke Codex rate-limit headers into a `RateLimitSnapshot`.
+/// Parses the bespoke ore rate-limit headers into a `RateLimitSnapshot`.
 pub fn parse_promo_message(headers: &HeaderMap) -> Option<String> {
     parse_header_str(headers, "x-codex-promo-message")
         .map(str::trim)

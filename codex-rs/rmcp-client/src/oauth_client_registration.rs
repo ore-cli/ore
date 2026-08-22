@@ -15,7 +15,7 @@ pub enum McpOAuthClientRegistration {
     /// Prefer a supported native CIMD and otherwise use advertised DCR.
     #[default]
     Auto,
-    /// Require a ChatGPT-hosted Codex public native Client ID Metadata Document.
+    /// Require a ChatGPT-hosted ore public native Client ID Metadata Document.
     Cimd,
     /// Require the authorization server's Dynamic Client Registration endpoint.
     Dcr,
@@ -90,7 +90,7 @@ pub(crate) async fn start_authorization(
     auth_manager.set_metadata(metadata);
     let mut request = AuthorizationRequest::new(redirect_uri)
         .with_scopes(scopes.iter().copied())
-        .with_client_name("Codex");
+        .with_client_name("ore");
     if offer_cimd {
         // CIMD is an active IETF Internet-Draft: this HTTPS client identifier resolves
         // to its self-referential JSON metadata document.

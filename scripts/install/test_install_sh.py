@@ -23,16 +23,13 @@ class InstallShTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(
             requests,
-            [
-                "https://api.github.com/repos/openai/codex/releases/tags/"
-                f"rust-v{VERSION}"
-            ],
+            [f"https://api.github.com/repos/ore-cli/ore/releases/tags/ore-v{VERSION}"],
         )
         self.assertIn(
-            f"Could not fetch GitHub release metadata for Codex {VERSION}",
+            f"Could not fetch GitHub release metadata for ore {VERSION}",
             result.stderr,
         )
-        self.assertNotIn("Could not find Codex package", result.stderr)
+        self.assertNotIn("Could not find ore package", result.stderr)
 
     def test_exact_release_opt_out_uses_github_metadata_once(self) -> None:
         result, requests = run_installer(VERSION, use_mirror=False)
@@ -41,10 +38,10 @@ class InstallShTest(unittest.TestCase):
         self.assertEqual(
             requests,
             [
-                "https://api.github.com/repos/openai/codex/releases/tags/"
-                f"rust-v{VERSION}",
-                "https://github.com/openai/codex/releases/download/"
-                f"rust-v{VERSION}/codex-package_SHA256SUMS",
+                "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                f"ore-v{VERSION}",
+                "https://github.com/ore-cli/ore/releases/download/"
+                f"ore-v{VERSION}/codex-package_SHA256SUMS",
             ],
         )
         self.assertIn(f"Resolved version: {VERSION}", result.stdout)
@@ -57,10 +54,10 @@ class InstallShTest(unittest.TestCase):
         self.assertEqual(
             requests,
             [
-                "https://api.github.com/repos/openai/codex/releases/tags/"
-                f"rust-v{version}",
-                "https://github.com/openai/codex/releases/download/"
-                f"rust-v{version}/codex-package_SHA256SUMS",
+                "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                f"ore-v{version}",
+                "https://github.com/ore-cli/ore/releases/download/"
+                f"ore-v{version}/codex-package_SHA256SUMS",
             ],
         )
         self.assertIn(f"Resolved version: {version}", result.stdout)
@@ -72,9 +69,9 @@ class InstallShTest(unittest.TestCase):
         self.assertEqual(
             requests,
             [
-                "https://api.github.com/repos/openai/codex/releases/latest",
-                "https://github.com/openai/codex/releases/download/"
-                f"rust-v{VERSION}/codex-package_SHA256SUMS",
+                "https://api.github.com/repos/ore-cli/ore/releases/latest",
+                "https://github.com/ore-cli/ore/releases/download/"
+                f"ore-v{VERSION}/codex-package_SHA256SUMS",
             ],
         )
         self.assertIn(f"Resolved version: {VERSION}", result.stdout)
@@ -88,9 +85,9 @@ class InstallShTest(unittest.TestCase):
         self.assertEqual(
             requests,
             [
-                "https://api.github.com/repos/openai/codex/releases/latest",
-                "https://github.com/openai/codex/releases/download/"
-                f"rust-v{VERSION}/codex-package_SHA256SUMS",
+                "https://api.github.com/repos/ore-cli/ore/releases/latest",
+                "https://github.com/ore-cli/ore/releases/download/"
+                f"ore-v{VERSION}/codex-package_SHA256SUMS",
             ],
         )
         self.assertIn(f"Resolved version: {VERSION}", result.stdout)
@@ -162,12 +159,10 @@ class InstallShTest(unittest.TestCase):
             "empty": "",
             "malformed_json": '{"tag_name":',
             "missing_tag": json.dumps({"assets": []}),
-            "missing_assets": json.dumps(
-                {"tag_name": f"rust-v{VERSION}", "assets": []}
-            ),
+            "missing_assets": json.dumps({"tag_name": f"ore-v{VERSION}", "assets": []}),
             "invalid_checksum_digest": json.dumps(
                 {
-                    "tag_name": f"rust-v{VERSION}",
+                    "tag_name": f"ore-v{VERSION}",
                     "assets": [
                         {
                             "name": "codex-package-aarch64-apple-darwin.tar.gz",
@@ -180,7 +175,7 @@ class InstallShTest(unittest.TestCase):
                     ],
                 }
             ),
-            "invalid_version": json.dumps({"tag_name": "rust-vinvalid"}),
+            "invalid_version": json.dumps({"tag_name": "ore-vinvalid"}),
         }
 
         for name, releases_metadata_json in unusable_metadata.items():
@@ -207,11 +202,11 @@ class InstallShTest(unittest.TestCase):
                         requests,
                         [
                             "https://releases.openai.com/codex/channels/latest",
-                            "https://api.github.com/repos/openai/codex/releases/latest",
-                            "https://github.com/openai/codex/releases/download/"
-                            f"rust-v{VERSION}/codex-package_SHA256SUMS",
-                            "https://github.com/openai/codex/releases/download/"
-                            f"rust-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
+                            "https://api.github.com/repos/ore-cli/ore/releases/latest",
+                            "https://github.com/ore-cli/ore/releases/download/"
+                            f"ore-v{VERSION}/codex-package_SHA256SUMS",
+                            "https://github.com/ore-cli/ore/releases/download/"
+                            f"ore-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
                         ],
                     )
                     self.assertIn("falling back to GitHub Releases", result.stderr)
@@ -223,7 +218,7 @@ class InstallShTest(unittest.TestCase):
             root = Path(temp_dir)
             archive_path, checksum_path, metadata_json = create_package_release(root)
             releases_metadata = json.loads(metadata_json)
-            releases_metadata["tag_name"] = f"rust-v{MISMATCH_VERSION}"
+            releases_metadata["tag_name"] = f"ore-v{MISMATCH_VERSION}"
 
             result, requests = run_installer_in(
                 root,
@@ -241,12 +236,12 @@ class InstallShTest(unittest.TestCase):
                 requests,
                 [
                     f"https://releases.openai.com/codex/releases/{VERSION}/release.json",
-                    "https://api.github.com/repos/openai/codex/releases/tags/"
-                    f"rust-v{VERSION}",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package_SHA256SUMS",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
+                    "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                    f"ore-v{VERSION}",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package_SHA256SUMS",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
                 ],
             )
             self.assertIn("falling back to GitHub Releases", result.stderr)
@@ -273,11 +268,11 @@ class InstallShTest(unittest.TestCase):
                 [
                     "https://releases.openai.com/codex/channels/latest",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package_SHA256SUMS",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package_SHA256SUMS",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package_SHA256SUMS",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
                 ],
             )
             self.assertIn("retrying from GitHub Releases", result.stderr)
@@ -304,11 +299,11 @@ class InstallShTest(unittest.TestCase):
                 [
                     "https://releases.openai.com/codex/channels/latest",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package_SHA256SUMS",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package_SHA256SUMS",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package_SHA256SUMS",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
                 ],
             )
             self.assertIn("checksum did not match expected digest", result.stderr)
@@ -340,10 +335,10 @@ class InstallShTest(unittest.TestCase):
                 [
                     "https://releases.openai.com/codex/channels/latest",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package_SHA256SUMS",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package_SHA256SUMS",
-                    "https://api.github.com/repos/openai/codex/releases/tags/"
-                    f"rust-v{VERSION}",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package_SHA256SUMS",
+                    "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                    f"ore-v{VERSION}",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
                 ],
             )
@@ -384,10 +379,10 @@ class InstallShTest(unittest.TestCase):
                 [
                     "https://releases.openai.com/codex/channels/latest",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package_SHA256SUMS",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package_SHA256SUMS",
-                    "https://api.github.com/repos/openai/codex/releases/tags/"
-                    f"rust-v{VERSION}",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package_SHA256SUMS",
+                    "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                    f"ore-v{VERSION}",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package-aarch64-apple-darwin.tar.gz",
                 ],
             )
@@ -415,10 +410,10 @@ class InstallShTest(unittest.TestCase):
                 [
                     "https://releases.openai.com/codex/channels/latest",
                     f"https://releases.openai.com/codex/releases/{VERSION}/codex-package_SHA256SUMS",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-package_SHA256SUMS",
-                    "https://api.github.com/repos/openai/codex/releases/tags/"
-                    f"rust-v{VERSION}",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-package_SHA256SUMS",
+                    "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                    f"ore-v{VERSION}",
                 ],
             )
             self.assertIn("checksum did not match expected digest", result.stderr)
@@ -476,10 +471,10 @@ class InstallShTest(unittest.TestCase):
                 first_requests,
                 [
                     f"https://releases.openai.com/codex/releases/{VERSION}/release.json",
-                    "https://api.github.com/repos/openai/codex/releases/tags/"
-                    f"rust-v{VERSION}",
-                    "https://github.com/openai/codex/releases/download/"
-                    f"rust-v{VERSION}/codex-npm-darwin-arm64-{VERSION}.tgz",
+                    "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                    f"ore-v{VERSION}",
+                    "https://github.com/ore-cli/ore/releases/download/"
+                    f"ore-v{VERSION}/codex-npm-darwin-arm64-{VERSION}.tgz",
                 ],
             )
 
@@ -498,11 +493,11 @@ class InstallShTest(unittest.TestCase):
                 second_requests,
                 [
                     f"https://releases.openai.com/codex/releases/{VERSION}/release.json",
-                    "https://api.github.com/repos/openai/codex/releases/tags/"
-                    f"rust-v{VERSION}",
+                    "https://api.github.com/repos/ore-cli/ore/releases/tags/"
+                    f"ore-v{VERSION}",
                 ],
             )
-            self.assertNotIn("Downloading Codex CLI", second_result.stdout)
+            self.assertNotIn("Downloading ore CLI", second_result.stdout)
 
 
 def run_installer(
@@ -602,7 +597,7 @@ def run_installer_in(
                   exit 22
                 fi
                 ;;
-              https://github.com/openai/codex/releases/download/*/codex-package_SHA256SUMS)
+              https://github.com/ore-cli/ore/releases/download/*/codex-package_SHA256SUMS)
                 if [ "$CODEX_TEST_RELEASES_MODE" = "corrupt_checksum_and_github" ]; then
                   printf '<html>proxy error</html>\n' >"$output"
                   exit 0
@@ -613,14 +608,14 @@ def run_installer_in(
                   exit 22
                 fi
                 ;;
-              https://github.com/openai/codex/releases/download/*/codex-package-*.tar.gz)
+              https://github.com/ore-cli/ore/releases/download/*/codex-package-*.tar.gz)
                 if [ -n "$CODEX_TEST_ARCHIVE_PATH" ]; then
                   cp "$CODEX_TEST_ARCHIVE_PATH" "$output"
                 else
                   exit 22
                 fi
                 ;;
-              https://github.com/openai/codex/releases/download/*/codex-npm-*.tgz)
+              https://github.com/ore-cli/ore/releases/download/*/codex-npm-*.tgz)
                 if [ -n "$CODEX_TEST_LEGACY_ARCHIVE_PATH" ]; then
                   cp "$CODEX_TEST_LEGACY_ARCHIVE_PATH" "$output"
                 else
@@ -740,7 +735,7 @@ def create_package_release(
                     "digest": f"sha256:{checksum_digest}",
                 },
             ],
-            "tag_name": f"rust-v{metadata_version}",
+            "tag_name": f"ore-v{metadata_version}",
         },
         indent=2,
     )
@@ -767,7 +762,7 @@ def create_legacy_release(root: Path) -> tuple[Path, str]:
     metadata_json = json.dumps(
         {
             "assets": [{"name": asset, "digest": f"sha256:{archive_digest}"}],
-            "tag_name": f"rust-v{VERSION}",
+            "tag_name": f"ore-v{VERSION}",
         },
         indent=2,
     )
@@ -802,7 +797,7 @@ def release_metadata(*, compact: bool = False, reorder: bool = False) -> str:
     )
     separators = (",", ":") if compact else None
     return json.dumps(
-        {"assets": assets, "body": "braces: { } [ ]", "tag_name": f"rust-v{VERSION}"},
+        {"assets": assets, "body": "braces: { } [ ]", "tag_name": f"ore-v{VERSION}"},
         indent=None if compact else 2,
         separators=separators,
     )
@@ -833,7 +828,7 @@ def legacy_release_metadata_with_decoys() -> str:
                 f'fake: {{"name":"codex-package_SHA256SUMS","digest":"{fake_digest}"}}'
             ),
             "assets": assets,
-            "tag_name": f"rust-v{VERSION}",
+            "tag_name": f"ore-v{VERSION}",
         },
         separators=(",", ":"),
     )

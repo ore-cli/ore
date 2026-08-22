@@ -94,7 +94,7 @@ async fn paginated_history_without_state_db_does_not_initialize_sqlite() {
     }
 }
 
-/// Separate Codex and SQLite homes must work together across startup backfill,
+/// Separate ore and SQLite homes must work together across startup backfill,
 /// thread listing, and projection-backed paginated history reads.
 #[tokio::test]
 async fn split_homes_support_backfill_listing_and_paginated_history() {
@@ -142,7 +142,7 @@ async fn split_homes_support_backfill_listing_and_paginated_history() {
 
     let runtime = codex_rollout::state_db::try_init(&rollout_config)
         .await
-        .expect("backfill state from Codex home");
+        .expect("backfill state from ore home");
     assert!(
         runtime
             .get_thread(thread_id)
@@ -279,7 +279,7 @@ async fn split_homes_support_backfill_listing_and_paginated_history() {
         let filename = sqlite_path.file_name().expect("SQLite database filename");
         assert!(
             !codex_home.join(filename).exists(),
-            "SQLite database should not be created under Codex home"
+            "SQLite database should not be created under ore home"
         );
     }
 }

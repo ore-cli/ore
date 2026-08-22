@@ -9,7 +9,7 @@ fn test_sync_tool_matches_expected_spec() {
         create_test_sync_tool(),
         ToolSpec::Function(ResponsesApiTool {
             name: "test_sync_tool".to_string(),
-            description: "Internal synchronization helper used by Codex integration tests."
+            description: "Internal synchronization helper used by ore integration tests."
                 .to_string(),
             strict: false,
             defer_loading: None,

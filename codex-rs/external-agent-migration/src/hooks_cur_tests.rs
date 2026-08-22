@@ -75,7 +75,7 @@ fn imports_supported_cur_hooks_and_drops_failure_policy() {
                         "type": "command",
                         "command": format!("sh '{}'", rewritten_script.display()),
                         "timeout": 7,
-                        "statusMessage": "Codex check"
+                        "statusMessage": "ore check"
                     }]
                 }],
                 "UserPromptSubmit": [{

@@ -1,0 +1,31 @@
+# fork/verify/telemetry-baseline.txt — the frozen telemetry-crate set.
+#
+# GENERATED from codex-rs/Cargo.lock (deps_gate.py --regen); never hand-edited.
+# deps_gate.py asserts the telemetry crates in Cargo.lock equal this set
+# exactly: an addition means new telemetry arrived with a sync, a removal means
+# upstream dropped one and the fork's seam assumptions need re-verification.
+# Both require a deliberate, reviewed regeneration.
+#
+# Why these crates stay linked at all: no Cargo feature gates OTel/Sentry in
+# 0.149.0 (upstream bans workspace crate features) and codex-http-client has a
+# runtime dep on opentelemetry for W3C traceparent injection. The fork's
+# guarantee is behavioural — the config seam makes them unreachable — proven by
+# the telemetry crate tests and the release-build egress suite, not by
+# unlinking (plan decision 3).
+opentelemetry
+opentelemetry-appender-tracing
+opentelemetry-http
+opentelemetry-otlp
+opentelemetry-proto
+opentelemetry-semantic-conventions
+opentelemetry_sdk
+sentry
+sentry-actix
+sentry-backtrace
+sentry-contexts
+sentry-core
+sentry-debug-images
+sentry-panic
+sentry-tracing
+sentry-types
+tracing-opentelemetry

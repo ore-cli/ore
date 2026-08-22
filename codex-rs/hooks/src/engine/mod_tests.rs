@@ -1371,7 +1371,7 @@ fn allow_managed_hooks_only_keeps_managed_requirement_and_config_layer_hooks() {
         vec![
             ConfigLayerEntry::new(
                 ConfigLayerSource::Mdm {
-                    domain: "com.openai.codex".to_string(),
+                    domain: "io.github.ore-cli.ore".to_string(),
                     key: "config".to_string(),
                 },
                 config_toml_with_pre_tool_use("python3 /tmp/mdm-hook.py"),

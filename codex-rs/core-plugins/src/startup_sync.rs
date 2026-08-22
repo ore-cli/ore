@@ -23,20 +23,14 @@ mod http_client;
 const GITHUB_API_BASE_URL: &str = "https://api.github.com";
 const GITHUB_API_ACCEPT_HEADER: &str = "application/vnd.github+json";
 const GITHUB_API_VERSION_HEADER: &str = "2022-11-28";
-const CURATED_PLUGINS_BACKUP_ARCHIVE_API_URL: &str =
-    "https://chatgpt.com/backend-api/plugins/export/curated";
-const OPENAI_PLUGINS_OWNER: &str = "openai";
-const OPENAI_PLUGINS_REPO: &str = "plugins";
-const OPENAI_PLUGINS_GIT_URL: &str = "https://github.com/openai/plugins.git";
+const CURATED_PLUGINS_REPO_ENV_VAR: &str = "ORE_CURATED_PLUGINS_REPO";
 const CURATED_PLUGINS_FETCH_REF: &str = "refs/codex/curated-sync";
 const CURATED_PLUGINS_RELATIVE_DIR: &str = ".tmp/plugins";
 const CURATED_PLUGINS_SHA_FILE: &str = ".tmp/plugins.sha";
 const CURATED_PLUGINS_SYNC_LOCK_FILE: &str = ".tmp/plugins.sync.lock";
-const CURATED_PLUGINS_BACKUP_ARCHIVE_FALLBACK_VERSION: &str = "export-backup";
 const CURATED_PLUGINS_GIT_TIMEOUT: Duration = Duration::from_secs(30);
 const CURATED_PLUGINS_HTTP_TIMEOUT: Duration = Duration::from_secs(30);
-const CURATED_PLUGINS_BACKUP_ARCHIVE_TIMEOUT: Duration = Duration::from_secs(30);
-// Keep this comfortably above a normal sync attempt so we do not race another Codex process.
+// Keep this comfortably above a normal sync attempt so we do not race another ore process.
 const CURATED_PLUGINS_STALE_TEMP_DIR_MAX_AGE: Duration = Duration::from_secs(10 * 60);
 #[derive(Debug, Deserialize)]
 struct GitHubRepositorySummary {
@@ -53,9 +47,39 @@ struct GitHubGitRefObject {
     sha: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct CuratedPluginsBackupArchiveResponse {
-    download_url: String,
+// ore ships no curated-plugins repository of its own: naming one here is the
+// opt-in that enables the startup sync, so unset or malformed means disabled.
+#[derive(Debug)]
+pub(crate) struct CuratedPluginsRepo {
+    owner: String,
+    repo: String,
+}
+
+impl CuratedPluginsRepo {
+    fn git_url(&self) -> String {
+        format!("https://github.com/{}/{}.git", self.owner, self.repo)
+    }
+}
+
+pub(crate) fn curated_plugins_repo_from_env() -> Option<CuratedPluginsRepo> {
+    parse_curated_plugins_repo(&std::env::var(CURATED_PLUGINS_REPO_ENV_VAR).ok()?)
+}
+
+fn parse_curated_plugins_repo(coordinates: &str) -> Option<CuratedPluginsRepo> {
+    let (owner, repo) = coordinates.split_once('/')?;
+    let valid = |part: &str| {
+        !part.is_empty()
+            && part
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    };
+    if !valid(owner) || !valid(repo) {
+        return None;
+    }
+    Some(CuratedPluginsRepo {
+        owner: owner.to_string(),
+        repo: repo.to_string(),
+    })
 }
 
 pub fn curated_plugins_repo_path(codex_home: &Path) -> PathBuf {
@@ -78,6 +102,11 @@ pub fn sync_openai_plugins_repo(
     codex_home: &Path,
     http_client_factory: HttpClientFactory,
 ) -> Result<String, String> {
+    let Some(repo) = curated_plugins_repo_from_env() else {
+        return Err(format!(
+            "curated plugins sync is disabled: {CURATED_PLUGINS_REPO_ENV_VAR} is unset or not owner/repo"
+        ));
+    };
     #[cfg(target_os = "macos")]
     let git_binary = match which::which("git") {
         Ok(git_path) => macos_git_binary_from_path(git_path, apple_developer_tools_available()),
@@ -88,24 +117,25 @@ pub fn sync_openai_plugins_repo(
 
     sync_openai_plugins_repo_with_transport_overrides(
         codex_home,
+        &repo,
         git_binary.as_deref(),
         GITHUB_API_BASE_URL,
-        CURATED_PLUGINS_BACKUP_ARCHIVE_API_URL,
         &http_client_factory,
     )
 }
 
 fn sync_openai_plugins_repo_with_transport_overrides(
     codex_home: &Path,
+    repo: &CuratedPluginsRepo,
     git_binary: Option<&Path>,
     api_base_url: &str,
-    backup_archive_api_url: &str,
     http_client_factory: &HttpClientFactory,
 ) -> Result<String, String> {
     let _file_guard = lock_curated_plugins_startup_sync(codex_home)?;
 
+    let git_url = repo.git_url();
     let git_sync_result = match git_binary {
-        Some(git_binary) => sync_openai_plugins_repo_via_git(codex_home, git_binary),
+        Some(git_binary) => sync_openai_plugins_repo_via_git(codex_home, &git_url, git_binary),
         None => Err("git executable is unavailable".to_string()),
     };
 
@@ -121,7 +151,12 @@ fn sync_openai_plugins_repo_with_transport_overrides(
                 error = %err,
                 "git sync failed for curated plugin sync; falling back to GitHub HTTP"
             );
-            match sync_openai_plugins_repo_via_http(codex_home, api_base_url, http_client_factory) {
+            match sync_openai_plugins_repo_via_http(
+                codex_home,
+                repo,
+                api_base_url,
+                http_client_factory,
+            ) {
                 Ok(remote_sha) => {
                     emit_curated_plugins_startup_sync_metric("http", "success");
                     emit_curated_plugins_startup_sync_final_metric("http", "success");
@@ -129,37 +164,10 @@ fn sync_openai_plugins_repo_with_transport_overrides(
                 }
                 Err(http_err) => {
                     emit_curated_plugins_startup_sync_metric("http", "failure");
-                    if has_local_curated_plugins_snapshot(codex_home) {
-                        emit_curated_plugins_startup_sync_final_metric("http", "failure");
-                        warn!(
-                            error = %http_err,
-                            "GitHub HTTP sync failed for curated plugin sync; skipping export archive fallback because a local curated plugins snapshot already exists"
-                        );
-                        Err(format!(
-                            "git sync failed for curated plugin sync: {err}; GitHub HTTP sync failed for curated plugin sync: {http_err}; export archive fallback skipped because a local curated plugins snapshot already exists"
-                        ))
-                    } else {
-                        // The export archive is a lagging backup path. Only use it to bootstrap a
-                        // missing local curated snapshot, never to refresh an existing one.
-                        warn!(
-                            error = %http_err,
-                            backup_archive_api_url,
-                            "GitHub HTTP sync failed for curated plugin sync; falling back to export archive"
-                        );
-                        let result = sync_openai_plugins_repo_via_backup_archive(
-                            codex_home,
-                            backup_archive_api_url,
-                            http_client_factory,
-                        );
-                        let status = if result.is_ok() { "success" } else { "failure" };
-                        emit_curated_plugins_startup_sync_metric("export_archive", status);
-                        emit_curated_plugins_startup_sync_final_metric("export_archive", status);
-                        result.map_err(|export_err| {
-                            format!(
-                                "git sync failed for curated plugin sync: {err}; GitHub HTTP sync failed for curated plugin sync: {http_err}; export archive sync failed for curated plugin sync: {export_err}"
-                            )
-                        })
-                    }
+                    emit_curated_plugins_startup_sync_final_metric("http", "failure");
+                    Err(format!(
+                        "git sync failed for curated plugin sync: {err}; GitHub HTTP sync failed for curated plugin sync: {http_err}"
+                    ))
                 }
             }
         }
@@ -184,11 +192,12 @@ fn lock_curated_plugins_startup_sync(codex_home: &Path) -> Result<File, String> 
 
 fn sync_openai_plugins_repo_via_git(
     codex_home: &Path,
+    git_url: &str,
     git_binary: &Path,
 ) -> Result<String, String> {
     let repo_path = curated_plugins_repo_path(codex_home);
     let sha_path = codex_home.join(CURATED_PLUGINS_SHA_FILE);
-    let remote_sha = git_ls_remote_head_sha(codex_home, git_binary)?;
+    let remote_sha = git_ls_remote_head_sha(codex_home, git_url, git_binary)?;
     let local_sha = read_local_git_or_sha_file(&repo_path, &sha_path, git_binary);
 
     if local_sha.as_deref() == Some(remote_sha.as_str()) && repo_path.join(".git").is_dir() {
@@ -204,7 +213,7 @@ fn sync_openai_plugins_repo_via_git(
     )?;
 
     if repo_path.join(".git").is_dir() {
-        fetch_curated_plugins_commit(&repo_path, &remote_sha, git_binary)?;
+        fetch_curated_plugins_commit(&repo_path, git_url, &remote_sha, git_binary)?;
         fetch_curated_plugins_commit_from_source(
             staged_repo_dir.path(),
             &repo_path,
@@ -212,7 +221,7 @@ fn sync_openai_plugins_repo_via_git(
             git_binary,
         )?;
     } else {
-        fetch_curated_plugins_commit(staged_repo_dir.path(), &remote_sha, git_binary)?;
+        fetch_curated_plugins_commit(staged_repo_dir.path(), git_url, &remote_sha, git_binary)?;
     }
 
     reset_curated_plugins_checkout(staged_repo_dir.path(), git_binary)?;
@@ -231,12 +240,13 @@ fn sync_openai_plugins_repo_via_git(
 
 fn fetch_curated_plugins_commit(
     repo_path: &Path,
+    git_url: &str,
     remote_sha: &str,
     git_binary: &Path,
 ) -> Result<(), String> {
     fetch_curated_plugins_commit_from(
         repo_path,
-        OPENAI_PLUGINS_GIT_URL.as_ref(),
+        git_url.as_ref(),
         remote_sha,
         git_binary,
         "git fetch curated plugins repo",
@@ -306,6 +316,7 @@ fn run_git_in_repo(
 
 fn sync_openai_plugins_repo_via_http(
     codex_home: &Path,
+    repo: &CuratedPluginsRepo,
     api_base_url: &str,
     http_client_factory: &HttpClientFactory,
 ) -> Result<String, String> {
@@ -316,8 +327,11 @@ fn sync_openai_plugins_repo_via_http(
         .build()
         .map_err(|err| format!("failed to create curated plugins sync runtime: {err}"))?;
     let http_clients = StartupSyncHttpClient::new(http_client_factory);
-    let remote_sha =
-        runtime.block_on(fetch_curated_repo_remote_sha(&http_clients, api_base_url))?;
+    let remote_sha = runtime.block_on(fetch_curated_repo_remote_sha(
+        &http_clients,
+        repo,
+        api_base_url,
+    ))?;
     let local_sha = read_sha_file(&sha_path);
 
     if local_sha.as_deref() == Some(remote_sha.as_str()) && repo_path.is_dir() {
@@ -327,6 +341,7 @@ fn sync_openai_plugins_repo_via_http(
     let staged_repo_dir = prepare_curated_repo_parent_and_temp_dir(&repo_path)?;
     let zipball_bytes = runtime.block_on(fetch_curated_repo_zipball(
         &http_clients,
+        repo,
         api_base_url,
         &remote_sha,
     ))?;
@@ -335,39 +350,6 @@ fn sync_openai_plugins_repo_via_http(
     activate_curated_repo(&repo_path, staged_repo_dir)?;
     write_curated_plugins_sha(&sha_path, &remote_sha)?;
     Ok(remote_sha)
-}
-
-fn sync_openai_plugins_repo_via_backup_archive(
-    codex_home: &Path,
-    backup_archive_api_url: &str,
-    http_client_factory: &HttpClientFactory,
-) -> Result<String, String> {
-    let repo_path = curated_plugins_repo_path(codex_home);
-    let sha_path = curated_plugins_sha_path(codex_home);
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|err| format!("failed to create curated plugins sync runtime: {err}"))?;
-    let staged_repo_dir = prepare_curated_repo_parent_and_temp_dir(&repo_path)?;
-    let http_clients = StartupSyncHttpClient::new(http_client_factory);
-    let zipball_bytes = runtime.block_on(fetch_curated_repo_backup_archive_zip(
-        &http_clients,
-        backup_archive_api_url,
-    ))?;
-    extract_zipball_to_dir(&zipball_bytes, staged_repo_dir.path())?;
-    ensure_marketplace_manifest_exists(staged_repo_dir.path())?;
-    let export_version = read_extracted_backup_archive_git_sha(staged_repo_dir.path())?
-        .unwrap_or_else(|| CURATED_PLUGINS_BACKUP_ARCHIVE_FALLBACK_VERSION.to_string());
-    activate_curated_repo(&repo_path, staged_repo_dir)?;
-    write_curated_plugins_sha(&sha_path, &export_version)?;
-    Ok(export_version)
-}
-
-pub fn has_local_curated_plugins_snapshot(codex_home: &Path) -> bool {
-    curated_plugins_repo_path(codex_home)
-        .join(".agents/plugins/marketplace.json")
-        .is_file()
-        && codex_home.join(CURATED_PLUGINS_SHA_FILE).is_file()
 }
 
 fn prepare_curated_repo_parent_and_temp_dir(repo_path: &Path) -> Result<TempDir, String> {
@@ -607,13 +589,14 @@ fn read_local_git_or_sha_file(
     read_sha_file(sha_path)
 }
 
-fn git_ls_remote_head_sha(codex_home: &Path, git_binary: &Path) -> Result<String, String> {
+fn git_ls_remote_head_sha(
+    codex_home: &Path,
+    git_url: &str,
+    git_binary: &Path,
+) -> Result<String, String> {
     let mut command = git_command(git_binary);
     let _trusted_repository = crate::configure_trusted_git_repository(&mut command, codex_home)?;
-    command
-        .arg("ls-remote")
-        .arg(OPENAI_PLUGINS_GIT_URL)
-        .arg("HEAD");
+    command.arg("ls-remote").arg(git_url).arg("HEAD");
     let output = run_git_command_with_timeout(
         &mut command,
         "git ls-remote curated plugins repo",
@@ -759,10 +742,11 @@ fn ensure_git_success(output: &Output, context: &str) -> Result<(), String> {
 
 async fn fetch_curated_repo_remote_sha(
     http_clients: &StartupSyncHttpClient,
+    repo: &CuratedPluginsRepo,
     api_base_url: &str,
 ) -> Result<String, String> {
     let api_base_url = api_base_url.trim_end_matches('/');
-    let repo_url = format!("{api_base_url}/repos/{OPENAI_PLUGINS_OWNER}/{OPENAI_PLUGINS_REPO}");
+    let repo_url = format!("{api_base_url}/repos/{}/{}", repo.owner, repo.repo);
     let repo_body =
         fetch_github_text(http_clients, &repo_url, "get curated plugins repository").await?;
     let repo_summary: GitHubRepositorySummary =
@@ -792,11 +776,12 @@ async fn fetch_curated_repo_remote_sha(
 
 async fn fetch_curated_repo_zipball(
     http_clients: &StartupSyncHttpClient,
+    repo: &CuratedPluginsRepo,
     api_base_url: &str,
     remote_sha: &str,
 ) -> Result<Vec<u8>, String> {
     let api_base_url = api_base_url.trim_end_matches('/');
-    let repo_url = format!("{api_base_url}/repos/{OPENAI_PLUGINS_OWNER}/{OPENAI_PLUGINS_REPO}");
+    let repo_url = format!("{api_base_url}/repos/{}/{}", repo.owner, repo.repo);
     let zipball_url = format!("{repo_url}/zipball/{remote_sha}");
     fetch_github_bytes(
         http_clients,
@@ -804,126 +789,6 @@ async fn fetch_curated_repo_zipball(
         "download curated plugins archive",
     )
     .await
-}
-
-async fn fetch_curated_repo_backup_archive_zip(
-    http_clients: &StartupSyncHttpClient,
-    backup_archive_api_url: &str,
-) -> Result<Vec<u8>, String> {
-    let export_body = fetch_public_text(
-        http_clients,
-        backup_archive_api_url,
-        "get curated plugins export archive metadata",
-    )
-    .await?;
-    let export_response: CuratedPluginsBackupArchiveResponse = serde_json::from_str(&export_body)
-        .map_err(|err| {
-            format!(
-                "failed to parse curated plugins backup archive response from {backup_archive_api_url}: {err}"
-            )
-        })?;
-    if export_response.download_url.is_empty() {
-        return Err(format!(
-            "curated plugins backup archive response from {backup_archive_api_url} did not include a download URL"
-        ));
-    }
-
-    fetch_public_bytes(
-        http_clients,
-        &export_response.download_url,
-        "download curated plugins export archive",
-    )
-    .await
-}
-
-fn read_extracted_backup_archive_git_sha(repo_path: &Path) -> Result<Option<String>, String> {
-    let git_dir = repo_path.join(".git");
-    if !git_dir.is_dir() {
-        return Ok(None);
-    }
-
-    let head_path = git_dir.join("HEAD");
-    let head = std::fs::read_to_string(&head_path).map_err(|err| {
-        format!(
-            "failed to read curated plugins backup archive git HEAD {}: {err}",
-            head_path.display()
-        )
-    })?;
-    let head = head.trim();
-    if head.is_empty() {
-        return Err(format!(
-            "curated plugins backup archive git HEAD is empty at {}",
-            head_path.display()
-        ));
-    }
-
-    if let Some(reference) = head.strip_prefix("ref: ") {
-        let reference = validate_backup_archive_git_ref(reference.trim())?;
-        return read_git_ref_sha(&git_dir, reference).map(Some);
-    }
-
-    Ok(Some(head.to_string()))
-}
-
-fn validate_backup_archive_git_ref(reference: &str) -> Result<&str, String> {
-    if !reference.starts_with("refs/") {
-        return Err(format!(
-            "curated plugins backup archive git ref must stay under refs/: {reference}"
-        ));
-    }
-
-    let path = Path::new(reference);
-    if path.is_absolute() {
-        return Err(format!(
-            "curated plugins backup archive git ref must be relative: {reference}"
-        ));
-    }
-
-    for component in path.components() {
-        match component {
-            std::path::Component::Normal(_) => {}
-            _ => {
-                return Err(format!(
-                    "curated plugins backup archive git ref contains invalid path components: {reference}"
-                ));
-            }
-        }
-    }
-
-    Ok(reference)
-}
-
-fn read_git_ref_sha(git_dir: &Path, reference: &str) -> Result<String, String> {
-    let ref_path = git_dir.join(reference);
-    if let Ok(sha) = std::fs::read_to_string(&ref_path) {
-        let sha = sha.trim();
-        if sha.is_empty() {
-            return Err(format!(
-                "curated plugins backup archive git ref {reference} is empty at {}",
-                ref_path.display()
-            ));
-        }
-        return Ok(sha.to_string());
-    }
-
-    let packed_refs_path = git_dir.join("packed-refs");
-    if let Ok(packed_refs) = std::fs::read_to_string(&packed_refs_path)
-        && let Some(sha) = packed_refs.lines().find_map(|line| {
-            let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with('^') {
-                return None;
-            }
-            let (sha, candidate_ref) = trimmed.split_once(' ')?;
-            (candidate_ref == reference).then_some(sha.to_string())
-        })
-    {
-        return Ok(sha);
-    }
-
-    Err(format!(
-        "failed to resolve curated plugins backup archive git ref {reference} from {}",
-        git_dir.display()
-    ))
 }
 
 async fn fetch_github_text(
@@ -951,50 +816,6 @@ async fn fetch_github_bytes(
     context: &str,
 ) -> Result<Vec<u8>, String> {
     let response = github_request(http_clients, url)
-        .send()
-        .await
-        .map_err(|err| format!("failed to {context} from {url}: {err}"))?;
-    let status = response.status();
-    let body = response
-        .bytes()
-        .await
-        .map_err(|err| format!("failed to read {context} response from {url}: {err}"))?;
-    if !status.is_success() {
-        let body_text = String::from_utf8_lossy(&body);
-        return Err(format!(
-            "{context} from {url} failed with status {status}: {body_text}"
-        ));
-    }
-    Ok(body.to_vec())
-}
-
-async fn fetch_public_text(
-    http_clients: &StartupSyncHttpClient,
-    url: &str,
-    context: &str,
-) -> Result<String, String> {
-    let response = startup_sync_request(http_clients, url)
-        .timeout(CURATED_PLUGINS_BACKUP_ARCHIVE_TIMEOUT)
-        .send()
-        .await
-        .map_err(|err| format!("failed to {context} from {url}: {err}"))?;
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(format!(
-            "{context} from {url} failed with status {status}: {body}"
-        ));
-    }
-    Ok(body)
-}
-
-async fn fetch_public_bytes(
-    http_clients: &StartupSyncHttpClient,
-    url: &str,
-    context: &str,
-) -> Result<Vec<u8>, String> {
-    let response = startup_sync_request(http_clients, url)
-        .timeout(CURATED_PLUGINS_BACKUP_ARCHIVE_TIMEOUT)
         .send()
         .await
         .map_err(|err| format!("failed to {context} from {url}: {err}"))?;

@@ -583,7 +583,7 @@ async fn automatic_marketplace_upgrade_refreshes_hook_runtime_for_loaded_session
     for args in [
         &["init"][..],
         &["config", "user.email", "codex@example.com"],
-        &["config", "user.name", "Codex Tests"],
+        &["config", "user.name", "ore Tests"],
         &["add", "."],
         &["commit", "-m", "install marketplace plugin version 2"],
     ] {

@@ -210,7 +210,7 @@ fn installed_windows_app() -> Result<Option<InstalledApp>, DiscoveryError> {
         .ok_or(DiscoveryError)?;
 
     Ok(Some(InstalledApp {
-        identity: "OpenAI.Codex",
+        identity: "OpenAI.ore",
         version: version.to_string(),
         package_family: PACKAGE_FAMILY,
     }))
@@ -221,7 +221,7 @@ async fn installed_macos_app() -> Result<Option<InstalledApp>, DiscoveryError> {
     let applications = std::iter::once(PathBuf::from("/Applications"))
         .chain(std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Applications")))
         .flat_map(|directory| {
-            ["ChatGPT.app", "Codex.app"]
+            ["ChatGPT.app", "ore.app"]
                 .into_iter()
                 .map(move |application| directory.join(application))
         });
@@ -260,7 +260,7 @@ pub(in crate::doctor) async fn inspect_macos_bundle(
         return Err(DiscoveryError);
     }
     let metadata: Value = serde_json::from_slice(&output.stdout).map_err(|_| DiscoveryError)?;
-    if metadata.get("CFBundleIdentifier").and_then(Value::as_str) != Some("com.openai.codex") {
+    if metadata.get("CFBundleIdentifier").and_then(Value::as_str) != Some("io.github.ore-cli.ore") {
         return Ok(None);
     }
     let version = metadata
@@ -275,7 +275,7 @@ pub(in crate::doctor) async fn inspect_macos_bundle(
         .ok_or(DiscoveryError)?;
 
     Ok(Some(InstalledApp {
-        identity: "com.openai.codex",
+        identity: "io.github.ore-cli.ore",
         version: version.to_string(),
         bundle: bundle.to_path_buf(),
         build,

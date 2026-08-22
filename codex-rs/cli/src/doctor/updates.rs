@@ -1,4 +1,4 @@
-//! Diagnoses whether Codex update paths target the running installation.
+//! Diagnoses whether ore update paths target the running installation.
 //!
 //! Update diagnostics combine cached version metadata, install-channel hints,
 //! and bounded latest-version probes. For npm-managed launches, this module also
@@ -13,35 +13,24 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use codex_core::config::Config;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use codex_http_client::ClientRouteClass;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use codex_http_client::RouteAwareClientPool;
 use codex_install_context::InstallContext;
 use codex_install_context::InstallMethod;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use http::Method;
 use serde::Deserialize;
 #[cfg(target_os = "macos")]
 use url::Url;
 
 use super::CheckStatus;
 use super::DoctorCheck;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use super::DoctorIssue;
 use super::NpmRootCheck;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use super::desktop::platform::InstalledApp;
 use super::doctor_install_context;
 use super::doctor_managed_by_npm;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use super::network;
 use super::npm_global_root_check;
 use super::run_command;
 
 const VERSION_FILE_NAME: &str = "version.json";
-const GITHUB_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
-const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
+const GITHUB_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/ore-cli/ore/releases/latest";
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const DESKTOP_UPDATE_URL: &str = "https://persistent.oaistatic.com/codex-app-prod/appcast-x64.xml";
 #[cfg(all(target_os = "macos", not(target_arch = "x86_64")))]
@@ -100,7 +89,7 @@ pub(super) fn updates_check(config: &Config) -> DoctorCheck {
                 status = status.max(CheckStatus::Warning);
                 summary = "npm update target could not be proven".to_string();
                 remediation = Some(
-                    "Reinstall or update Codex so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
+                    "Reinstall or update ore so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
                         .to_string(),
                 );
             }
@@ -183,92 +172,12 @@ pub(super) async fn append_desktop_update(
     let desktop_update_display_url = desktop_update_url
         .split_once('?')
         .map_or(desktop_update_url, |(endpoint, _)| endpoint);
-    let client = RouteAwareClientPool::new_without_request_logging(
-        config.http_client_factory(),
-        ClientRouteClass::Other,
-    );
-    let outcome = match client
-        .request(Method::GET, desktop_update_url)
-        .timeout(deadline.saturating_duration_since(tokio::time::Instant::now()))
-        .send()
-        .await
-    {
-        Ok(response) => {
-            let status = response.status().as_u16();
-            #[cfg(target_os = "windows")]
-            if status == 404 && response.url().scheme() == "https" {
-                checks[reachability_index].details.push(format!(
-                    "desktop assets CDN: {desktop_update_display_url} reachable (HTTP 404; no update available)"
-                ));
-                return;
-            }
-            if cfg!(target_os = "windows") && response.url().scheme() != "https" {
-                Err("update manifest redirected to a non-HTTPS URL".to_string())
-            } else if status == 407 {
-                Err("proxy authentication required (HTTP 407)".to_string())
-            } else if !(200..=299).contains(&status) {
-                Err(format!("HTTP {status}"))
-            } else {
-                checks[reachability_index].details.push(format!(
-                    "desktop assets CDN: {desktop_update_display_url} reachable (HTTP {status})"
-                ));
-                #[cfg(target_os = "windows")]
-                if let Some(update) = checks.iter_mut().find(|check| check.id == "updates.status") {
-                    match response.bytes().await {
-                        Ok(body) => match windows_store_update(&body, &application.version) {
-                            Ok(Some(build)) => update.details.extend([
-                                "desktop update status: available".to_string(),
-                                format!("desktop latest build: {build}"),
-                                format!("desktop application: {}", application.identity),
-                            ]),
-                            Ok(None) => {}
-                            Err(error) => {
-                                update.status = update.status.max(CheckStatus::Warning);
-                                update
-                                    .details
-                                    .push(format!("desktop update manifest: {error}"));
-                            }
-                        },
-                        Err(_) => {
-                            update.status = update.status.max(CheckStatus::Warning);
-                            update
-                                .details
-                                .push("desktop update manifest: response could not be read".into());
-                        }
-                    }
-                }
-                Ok(())
-            }
-        }
-        Err(error) => Err(network::request_error(error)),
-    };
-
-    if let Err(error) = outcome {
-        let reachability = &mut checks[reachability_index];
-        reachability.details.push(format!(
-            "desktop assets CDN: {desktop_update_display_url} {error} (optional)"
-        ));
-        if reachability.status == CheckStatus::Ok {
-            reachability.status = CheckStatus::Warning;
-            reachability.summary = "desktop update and runtime CDN is unreachable".to_string();
-        }
-        reachability.issues.push(
-            DoctorIssue::new(
-                CheckStatus::Warning,
-                "desktop update and runtime CDN is unreachable",
-            )
-            .measured(format!("{desktop_update_display_url} {error}"))
-            .expected("desktop update and runtime CDN reachable over HTTPS")
-            .remedy(
-                if desktop_update_display_url.starts_with("https://chatgpt.com/") {
-                    "check proxy, firewall, DNS, and certificate access to chatgpt.com"
-                } else {
-                    "check proxy, firewall, DNS, and certificate access to persistent.oaistatic.com"
-                },
-            )
-            .field("desktop assets CDN"),
-        );
-    }
+    // ore: the appcast serves OpenAI's desktop app, which ore does not ship —
+    // report the probe as skipped instead of contacting the host.
+    let _ = (deadline, config, application);
+    checks[reachability_index].details.push(format!(
+        "desktop assets CDN: {desktop_update_display_url} skipped (ore does not ship the desktop app)"
+    ));
 }
 
 #[cfg(target_os = "macos")]
@@ -321,6 +230,8 @@ fn macos_desktop_update_url(home: &Path, application: &InstalledApp, os_version:
 }
 
 #[cfg(any(target_os = "windows", test))]
+// ore: with the appcast probe skipped, this is reachable only from tests.
+#[allow(dead_code)]
 fn windows_store_update(
     manifest: &[u8],
     installed_version: &str,
@@ -338,7 +249,7 @@ fn windows_store_update(
         serde_json::from_slice(manifest).map_err(|_| "invalid Windows Store update manifest")?;
     if manifest.schema_version == 0
         || manifest.store_product_id != "9PLM9XGG6VKS"
-        || manifest.package_identity != "OpenAI.Codex"
+        || manifest.package_identity != "OpenAI.ore"
     {
         return Err("Windows Store update manifest does not target the production application");
     }
@@ -430,19 +341,21 @@ fn push_cached_version_details(details: &mut Vec<String>, version_file: &Path) {
 
 fn update_action_label(context: &InstallContext) -> &'static str {
     match &context.method {
-        InstallMethod::Npm => "npm install -g @openai/codex",
-        InstallMethod::Bun => "bun install -g @openai/codex",
-        InstallMethod::Pnpm => "pnpm add -g @openai/codex",
-        InstallMethod::Brew => "brew upgrade --cask codex",
+        InstallMethod::Npm => "npm install -g @ore-cli/ore",
+        InstallMethod::Bun => "bun install -g @ore-cli/ore",
+        InstallMethod::Pnpm => "pnpm add -g @ore-cli/ore",
+        InstallMethod::Brew => "brew upgrade ore-cli/homebrew-tap/ore",
         InstallMethod::Standalone { .. } => "standalone installer",
         InstallMethod::Other => "manual or unknown",
     }
 }
 
 fn fetch_latest_version(context: &InstallContext) -> Result<String, String> {
+    // The tap formula is invisible to formulae.brew.sh, which indexes only
+    // homebrew-core, so Brew reads the release feed like everything else.
     match &context.method {
-        InstallMethod::Brew => fetch_homebrew_cask_version(),
-        InstallMethod::Npm
+        InstallMethod::Brew
+        | InstallMethod::Npm
         | InstallMethod::Bun
         | InstallMethod::Pnpm
         | InstallMethod::Standalone { .. }
@@ -458,18 +371,9 @@ fn fetch_latest_github_release_version() -> Result<String, String> {
 
     let info = http_get_json::<ReleaseInfo>(GITHUB_LATEST_RELEASE_URL)?;
     info.tag_name
-        .strip_prefix("rust-v")
+        .strip_prefix("ore-v")
         .map(str::to_string)
         .ok_or_else(|| format!("failed to parse latest tag {}", info.tag_name))
-}
-
-fn fetch_homebrew_cask_version() -> Result<String, String> {
-    #[derive(Deserialize)]
-    struct HomebrewCaskInfo {
-        version: String,
-    }
-
-    http_get_json::<HomebrewCaskInfo>(HOMEBREW_CASK_API_URL).map(|info| info.version)
 }
 
 fn http_get_json<T>(url: &str) -> Result<T, String>
@@ -481,18 +385,39 @@ where
 }
 
 fn is_newer(latest: &str, current: &str) -> Option<bool> {
-    match (parse_version(latest), parse_version(current)) {
-        (Some(latest), Some(current)) => Some(latest > current),
-        (Some(_), None) | (None, Some(_)) | (None, None) => None,
-    }
+    let latest = parse_version(latest)?;
+    let current = parse_version(current)?;
+    // releases/latest never resolves to a prerelease, and one is not an upgrade
+    // to offer even if it did.
+    Some(latest.is_release && latest > current)
 }
 
-fn parse_version(value: &str) -> Option<(u64, u64, u64)> {
-    let mut parts = value.trim().split('.');
-    let major = parts.next()?.parse::<u64>().ok()?;
-    let minor = parts.next()?.parse::<u64>().ok()?;
-    let patch = parts.next()?.parse::<u64>().ok()?;
-    Some((major, minor, patch))
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct Version {
+    major: u64,
+    minor: u64,
+    patch: u64,
+    /// Last, so the derived ordering puts a prerelease below the release it
+    /// precedes: 0.147.0-alpha.4 < 0.147.0.
+    is_release: bool,
+}
+
+/// Semver precedence, narrowed to the shapes ore's tags produce. Everything
+/// after the first `-` is a prerelease marker and is not ordered further:
+/// upgrades are only ever offered *to* a release.
+fn parse_version(value: &str) -> Option<Version> {
+    let value = value.trim();
+    let (core, is_release) = match value.split_once('-') {
+        Some((core, _)) => (core, false),
+        None => (value, true),
+    };
+    let mut parts = core.split('.');
+    Some(Version {
+        major: parts.next()?.parse().ok()?,
+        minor: parts.next()?.parse().ok()?,
+        patch: parts.next()?.parse().ok()?,
+        is_release,
+    })
 }
 
 #[derive(Deserialize)]
@@ -513,7 +438,7 @@ mod tests {
     fn macos_update_probe_uses_the_persisted_production_appcast_feed() {
         let home = tempfile::tempdir().expect("temporary home should be created");
         let application = InstalledApp {
-            identity: "com.openai.codex",
+            identity: "io.github.ore-cli.ore",
             version: "26.623.10000".to_string(),
             bundle: PathBuf::new(),
             build: 6139,
@@ -525,7 +450,7 @@ mod tests {
 
         let state_directory = home
             .path()
-            .join("Library/Application Support/com.openai.codex");
+            .join("Library/Application Support/io.github.ore-cli.ore");
         std::fs::create_dir_all(&state_directory)
             .expect("production appcast state directory should be created");
         std::fs::write(
@@ -556,18 +481,18 @@ mod tests {
                 .expect("unrelated Sparkle cache directory should be created");
         }
         for (name, identity, build) in [
-            ("newest", "com.openai.codex", "6268"),
-            ("newer", "com.openai.codex", "6168"),
-            ("older", "com.openai.codex", "6138"),
+            ("newest", "io.github.ore-cli.ore", "6268"),
+            ("newer", "io.github.ore-cli.ore", "6168"),
+            ("older", "io.github.ore-cli.ore", "6138"),
             ("different", "com.example.other", "9999"),
-            ("invalid", "com.openai.codex", "invalid"),
+            ("invalid", "io.github.ore-cli.ore", "invalid"),
         ] {
             let bundle = root.path().join(name).join("extracted/ChatGPT.app");
             write_macos_bundle(&bundle, identity, build);
         }
         let outside = tempfile::tempdir().expect("external fixture should be created");
         let linked = outside.path().join("ChatGPT.app");
-        write_macos_bundle(&linked, "com.openai.codex", "9999");
+        write_macos_bundle(&linked, "io.github.ore-cli.ore", "9999");
         std::os::unix::fs::symlink(&linked, root.path().join("ChatGPT.app"))
             .expect("symlinked staged app fixture should be created");
 
@@ -587,7 +512,7 @@ mod tests {
             "schemaVersion": 1,
             "buildVersion": "26.803.5235.1",
             "storeProductId": "9PLM9XGG6VKS",
-            "packageIdentity": "OpenAI.Codex",
+            "packageIdentity": "OpenAI.ore",
         });
         assert_eq!(
             windows_store_update(&serde_json::to_vec(&manifest).unwrap(), "26.803.5235.0"),
@@ -623,7 +548,16 @@ mod tests {
     fn is_newer_compares_plain_semver() {
         assert_eq!(is_newer("1.2.4", "1.2.3"), Some(true));
         assert_eq!(is_newer("1.2.3", "1.2.4"), Some(false));
-        assert_eq!(is_newer("1.2.3-beta.1", "1.2.2"), None);
+        assert_eq!(is_newer("1.2.3-beta.1", "1.2.2"), Some(false));
+        assert_eq!(is_newer("nightly", "1.2.3"), None);
+    }
+
+    /// The version a prerelease install reports has to compare, or doctor
+    /// reports it as up to date forever.
+    #[test]
+    fn a_prerelease_install_still_gets_offered_releases() {
+        assert_eq!(is_newer("0.146.1", "0.146.0-alpha.4"), Some(true));
+        assert_eq!(is_newer("0.147.0", "0.147.0-alpha.4.1"), Some(true));
     }
 
     #[test]
@@ -633,14 +567,14 @@ mod tests {
                 method: InstallMethod::Npm,
                 package_layout: None,
             }),
-            "npm install -g @openai/codex"
+            "npm install -g @ore-cli/ore"
         );
         assert_eq!(
             update_action_label(&InstallContext {
                 method: InstallMethod::Pnpm,
                 package_layout: None,
             }),
-            "pnpm add -g @openai/codex"
+            "pnpm add -g @ore-cli/ore"
         );
         assert_eq!(
             update_action_label(&InstallContext {

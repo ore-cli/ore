@@ -1,4 +1,4 @@
-//! Migration helpers for importing external-agent configuration into Codex.
+//! Migration helpers for importing external-agent configuration into ore.
 
 mod config_values;
 mod detect;

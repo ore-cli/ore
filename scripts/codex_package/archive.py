@@ -1,4 +1,4 @@
-"""Archive writers for canonical Codex package directories."""
+"""Archive writers for canonical ore package directories."""
 
 import shutil
 import subprocess

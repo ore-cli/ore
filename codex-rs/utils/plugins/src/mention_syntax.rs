@@ -1,4 +1,4 @@
-//! Sigils for tool/plugin mentions in plaintext (shared across Codex crates).
+//! Sigils for tool/plugin mentions in plaintext (shared across ore crates).
 
 /// Default plaintext sigil for tools.
 pub const TOOL_MENTION_SIGIL: char = '$';

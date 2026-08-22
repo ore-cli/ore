@@ -98,7 +98,7 @@ impl LocalThreadStore {
                     let rollout_path = super::helpers::scoped_rollout_path(
                         self.config.codex_home.clone(),
                         rollout_path.as_path(),
-                        "Codex home",
+                        "ore home",
                     )?;
                     codex_rollout::materialize_rollout_for_reference(rollout_path.as_path())
                         .await

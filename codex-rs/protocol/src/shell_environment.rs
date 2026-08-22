@@ -28,7 +28,7 @@ pub fn is_non_inheritable_env_var(name: &str) -> bool {
 /// Configures a child command to omit non-inheritable variables from the
 /// process environment and explicit command overrides.
 ///
-/// This prevents accidental propagation of Codex launch context; it is not a
+/// This prevents accidental propagation of ore launch context; it is not a
 /// filesystem security boundary for the referenced identity-token file.
 pub fn scrub_non_inheritable_env_vars(command: &mut std::process::Command) {
     let configured_names = command

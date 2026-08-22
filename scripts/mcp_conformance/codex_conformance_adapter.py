@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adapt one official MCP client scenario to Codex app-server requests."""
+"""Adapt one official MCP client scenario to ore app-server requests."""
 
 import ipaddress
 import json
@@ -140,7 +140,7 @@ def _elicitation_content(
     _params: Mapping[str, object],
 ) -> Mapping[str, object]:
     if scenario == "elicitation-sep1034-client-defaults":
-        # The official scenario deliberately supplies no values. Codex, as the
+        # The official scenario deliberately supplies no values. ore, as the
         # MCP client under test, must materialize the JSON Schema defaults.
         return {}
     if scenario == "sep-2322-client-request-state":
@@ -225,7 +225,7 @@ def _validated_callback_url(authorization_url: str, location: str) -> str:
         or callback.fragment
     ):
         raise AdapterFailure(
-            "authorization server redirect did not target Codex's exact loopback callback"
+            "authorization server redirect did not target ore's exact loopback callback"
         )
 
     callback_query = urllib.parse.parse_qs(callback.query, keep_blank_values=True)
@@ -298,7 +298,7 @@ def _drive_headless_authorization(
     # Error callbacks may intentionally return a 4xx after notifying the OAuth
     # waiter. The completion notification is the authoritative outcome.
     if not 200 <= callback_status < 500:
-        raise AdapterFailure("Codex OAuth callback endpoint returned an invalid status")
+        raise AdapterFailure("ore OAuth callback endpoint returned an invalid status")
 
 
 def _oauth_client_id(
@@ -493,7 +493,7 @@ def _exercise_auth_scenario(
         _auth_inventory(client)
         if require_automatic_auth:
             _auth_tool_call(client, workspace)
-            return "Codex automatically recovered from the challenged OAuth scope"
+            return "ore automatically recovered from the challenged OAuth scope"
         try:
             _auth_tool_call(client, workspace)
         except AdapterFailure:
@@ -529,7 +529,7 @@ def _exercise_auth_scenario(
             try:
                 _auth_tool_call(client, workspace)
             except AdapterFailure:
-                return "observed Codex's production OAuth retry-limit behavior"
+                return "observed ore's production OAuth retry-limit behavior"
             raise AdapterFailure(
                 "retry-limit scenario unexpectedly completed the tool call"
             )
@@ -566,9 +566,7 @@ def _exercise_auth_scenario(
         _auth_inventory(client)
         if require_automatic_auth:
             _auth_tool_call(client, workspace)
-            return (
-                "Codex automatically registered with the migrated authorization server"
-            )
+            return "ore automatically registered with the migrated authorization server"
         try:
             _auth_tool_call(client, workspace)
         except AdapterFailure:
@@ -718,7 +716,7 @@ def run_adapter(server_url: str) -> dict[str, object]:
     workspace.mkdir()
     env = _isolated_environment(codex_home)
     # Scenario context can contain ephemeral OAuth client secrets. The adapter
-    # consumes it directly and does not expose the full blob to Codex.
+    # consumes it directly and does not expose the full blob to ore.
     env.pop("MCP_CONFORMANCE_CONTEXT", None)
     steps: list[Step] = []
     registered = False
@@ -806,7 +804,7 @@ def run_adapter(server_url: str) -> dict[str, object]:
             registered = add.returncode == 0
             steps.append(Step("mcp_add", registered, _command_detail(add)))
             if not registered:
-                raise AdapterFailure("codex mcp add failed")
+                raise AdapterFailure("ore mcp add failed")
 
         get = _run_command(
             [
@@ -844,7 +842,7 @@ def run_adapter(server_url: str) -> dict[str, object]:
             )
         )
         if not registration_ok:
-            raise AdapterFailure("Codex registration did not preserve the scenario URL")
+            raise AdapterFailure("ore registration did not preserve the scenario URL")
 
         with AppServerClient(
             codex_binary,

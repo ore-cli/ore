@@ -148,7 +148,7 @@ pub enum ImageDetailSetting {
     Original,
 }
 
-/// Measurements for one successfully decoded image at the point where Codex prepares it for
+/// Measurements for one successfully decoded image at the point where ore prepares it for
 /// durable conversation history.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ImagePreparationMetadata {

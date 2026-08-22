@@ -54,7 +54,7 @@ const RESTART_RETRY_INTERVAL: Duration = Duration::from_millis(50);
 #[cfg(unix)]
 const UPDATE_INTERVAL: Duration = Duration::from_secs(60 * 60);
 #[cfg(unix)]
-const INSTALL_URL: &str = "https://chatgpt.com/codex/install.sh";
+const INSTALL_URL: &str = "https://github.com/ore-cli/ore/releases/latest/download/install.sh";
 
 #[cfg(unix)]
 pub(crate) async fn run(http_client_factory: HttpClientFactory) -> Result<()> {
@@ -159,7 +159,7 @@ pub(crate) fn reexec_managed_updater(managed_codex_bin: &std::path::Path) -> Res
         .exec();
     Err(err).with_context(|| {
         format!(
-            "failed to replace updater with managed Codex binary {}",
+            "failed to replace updater with managed ore binary {}",
             managed_codex_bin.display()
         )
     })
@@ -175,25 +175,25 @@ async fn install_latest_standalone(http: &RouteAwareClientPool) -> Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .context("failed to invoke standalone Codex updater")?;
+        .context("failed to invoke standalone ore updater")?;
     let mut stdin = child
         .stdin
         .take()
-        .context("standalone Codex updater stdin was unavailable")?;
+        .context("standalone ore updater stdin was unavailable")?;
     stdin
         .write_all(&script)
         .await
-        .context("failed to pass standalone Codex updater to shell")?;
+        .context("failed to pass standalone ore updater to shell")?;
     drop(stdin);
     let status = child
         .wait()
         .await
-        .context("failed to wait for standalone Codex updater")?;
+        .context("failed to wait for standalone ore updater")?;
 
     if status.success() {
         Ok(())
     } else {
-        anyhow::bail!("standalone Codex updater exited with status {status}")
+        anyhow::bail!("standalone ore updater exited with status {status}")
     }
 }
 
@@ -202,7 +202,7 @@ async fn fetch_installer_script(http: &impl InstallerHttp) -> Result<Vec<u8>> {
     match http.get(INSTALL_URL).await? {
         InstallerResponse::Success(body) => Ok(body),
         InstallerResponse::Unsuccessful { status } => {
-            anyhow::bail!("standalone Codex updater request failed with status {status}")
+            anyhow::bail!("standalone ore updater request failed with status {status}")
         }
     }
 }
@@ -232,7 +232,7 @@ impl InstallerHttp for RouteAwareClientPool {
         let response = RouteAwareClientPool::get(self, url)
             .send()
             .await
-            .context("failed to fetch standalone Codex updater")?;
+            .context("failed to fetch standalone ore updater")?;
         if !response.status().is_success() {
             return Ok(InstallerResponse::Unsuccessful {
                 status: response.status().as_u16(),
@@ -241,7 +241,7 @@ impl InstallerHttp for RouteAwareClientPool {
         let body = response
             .bytes()
             .await
-            .context("failed to read standalone Codex updater")?
+            .context("failed to read standalone ore updater")?
             .to_vec();
         Ok(InstallerResponse::Success(body))
     }

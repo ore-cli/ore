@@ -1,0 +1,272 @@
+# fork/verify/strings.toml — kill / keep / forbid string sets for ore.
+#
+# Consumed by strings_check.py in two modes:
+#   --tree                 source tripwire (static suite, every PR)
+#   --binary / --artifacts shipped-binary scan (artifact + release suites)
+#
+# Every entry carries a mandatory `reason`.  Widening any allowlist or deleting
+# any entry is a policy change: the PR must cite the decision (plan risk flag 4).
+#
+# `removed_by` records which mechanism removes the literal from the tree:
+#   "substitution"    the fork/substitutions.yaml pass, applied at assemble time —
+#                     the literal is EXPECTED in a pre-assembly (delta) tree and
+#                     enforced-absent only on an assembled tree and in binaries.
+#   "series:<slug>"   a delta series commit.  Until it lands the entry carries
+#                     `pending = true` and reports as a warning; the commit that
+#                     removes the literal also deletes its `pending` flag, after
+#                     which absence is enforced on delta and main alike.
+
+schema = 1
+
+# ---------------------------------------------------------------------------
+# kill: must NOT appear in any shipped binary, nor in the tree outside
+# allowlisted paths.  Sources: audit egress.md §10, telemetry-seam verdict.
+# ---------------------------------------------------------------------------
+
+[[kill]]
+pattern = 'ab\.chatgpt\.com'
+reason = "Statsig OTLP metrics endpoint (codex-rs/otel/src/config.rs:9); default-on phone-home in release builds"
+removed_by = "series:telemetry-statsig-strip"
+
+[[kill]]
+pattern = 'client-MkRuleRQBd6qakfnDYqJVR9JuXcY57Ljly3vi5JVUIO'
+reason = "hardcoded Statsig client key (codex-rs/otel/src/config.rs:11)"
+removed_by = "series:telemetry-statsig-strip"
+
+[[kill]]
+pattern = 'statsig-api-key'
+reason = "Statsig auth header name (codex-rs/otel/src/config.rs:10; also documented in codex-rs/otel/README.md, which the strip commit must update)"
+removed_by = "series:telemetry-statsig-strip"
+
+[[kill]]
+pattern = 'o33249\.ingest\.us\.sentry\.io'
+reason = "Sentry ingest host for feedback reports (codex-rs/feedback/src/lib.rs:46-47); DSN strip ratified with decision 3"
+removed_by = "series:telemetry-feedback-off"
+
+[[kill]]
+pattern = 'ae32ed50620d7a7792c1ce5df38b3e3e'
+reason = "Sentry DSN public key (codex-rs/feedback/src/lib.rs:47)"
+removed_by = "series:telemetry-feedback-off"
+
+[[kill]]
+pattern = 'raw\.githubusercontent\.com/openai/codex/main/announcement_tip\.toml'
+reason = "announcement tip fetched on every TUI start (codex-rs/tui/src/tooltips.rs:6-7); repointed to the ore raw URL by the manifest, tip seeded empty by series updates-ore-feed"
+removed_by = "substitution"
+
+[[kill]]
+pattern = 'api\.github\.com/repos/openai/codex/releases/latest'
+reason = "upstream release feed used by the TUI update checker and doctor (codex-rs/tui/src/updates.rs:62, codex-rs/cli/src/doctor/updates.rs:43); an unrewritten copy would offer OpenAI's Codex as an 'update' to ore"
+removed_by = "substitution"
+
+[[kill]]
+pattern = 'github\.com/openai/codex/releases/latest'
+reason = "upstream release page in update prompts (codex-rs/tui/src/update_prompt.rs:29 and announcement_tip.toml; the latter is seeded empty by series updates-ore-feed)"
+removed_by = "substitution"
+
+[[kill]]
+pattern = 'registry\.npmjs\.org/@openai%2fcodex'
+reason = "upstream npm registry probe (codex-rs/tui/src/npm_registry.rs:5)"
+removed_by = "substitution"
+
+[[kill]]
+pattern = '@openai/codex'
+reason = "upstream npm package name inside Rust update/doctor code and packaging (codex-rs/tui/src/update_action.rs:44-46, codex-rs/cli/src/doctor.rs); `npm install -g @openai/codex` from ore would replace ore with Codex"
+removed_by = "substitution"
+
+[[kill]]
+pattern = 'formulae\.brew\.sh/api/cask/codex\.json'
+reason = "upstream Homebrew cask probe (codex-rs/tui/src/updates.rs:61, codex-rs/cli/src/doctor/updates.rs:44); ore ships a tap formula (decision 6), so the cask check is rewritten by the updates series"
+removed_by = "series:updates-ore-feed"
+
+[[kill]]
+pattern = 'chatgpt\.com/codex/install\.sh'
+reason = "hosted installer URL: the daemon hourly `curl | sh` self-updater (codex-rs/app-server-daemon/src/update_loop.rs:57) and TUI update commands (codex-rs/tui/src/update_action.rs:52); riskiest single phone-home (would install OpenAI's Codex over ore)"
+removed_by = "substitution"
+
+[[kill]]
+pattern = 'chatgpt\.com/codex/install\.ps1'
+reason = "hosted Windows installer URL (codex-rs/tui/src/update_action.rs:61)"
+removed_by = "substitution"
+
+# Deliberately NOT killed: the three desktop-app literals.
+#
+# Decision 8 ratified that `codex app` is HIDDEN, not deleted -- the variant
+# stays so the dispatch match and the derived subcommand list keep their
+# upstream shape, which is what keeps codex-rs/cli/src/desktop_app/** in the
+# tree and therefore its host, product id and bundle id in the binary:
+#
+#   persistent\.oaistatic\.com   desktop-app DMG host (desktop_app/mac.rs:9-11)
+#   9PLM9XGG6VKS                 MS Store product id  (desktop_app/windows.rs:6-8)
+#   com\.openai\.codex           desktop bundle id    (desktop_app/mac.rs:8)
+#
+# These were kill entries when the plan was written, before hide-vs-delete was
+# settled; a kill entry they can never satisfy is a check that only ever
+# reports noise.  The guarantee is behavioural instead, exactly as it is for
+# `/codex/analytics-events/events` under the telemetry seam: series
+# desktop-app-gate makes `ore app` bail before any network call and reports the
+# doctor appcast probe as skipped, and I-EGRESS asserts no contact with either
+# host from any flow.  Re-adding them as kill entries means deleting
+# desktop_app/**, which decision 8 declined.
+#
+# com\.openai\.codex has a second, independent reason to survive: it is also
+# the managed-preferences application id (codex-rs/config/src/loader/macos.rs:20)
+# through which MDM-managed config reaches the loader.  Whether ore should read
+# enterprise config keyed on the upstream domain is still an open question.
+
+[[kill]]
+pattern = 'github\.com/openai/plugins'
+reason = "curated-plugins git repo cloned at startup when plugins are enabled (codex-rs/core-plugins/src/startup_sync.rs:28-30); sync disabled per the ratified plugins-curated-sync-off rider (decision is final — only the commit is outstanding)"
+removed_by = "series:plugins-curated-sync-off"
+
+[[kill]]
+pattern = 'chatgpt\.com/backend-api/plugins/export/curated'
+reason = "curated-plugins chatgpt fallback endpoint (codex-rs/core-plugins/src/startup_sync.rs:27)"
+removed_by = "series:plugins-curated-sync-off"
+
+[[kill]]
+pattern = 'developers\.openai\.com/codex/cli'
+reason = "upstream docs URL printed by the CLI (codex-rs/cli/src/main.rs:895); rewritten to the ore repo by the developer-docs-url manifest rule"
+removed_by = "substitution"
+
+# ---------------------------------------------------------------------------
+# keep: must be present byte-identical in the ENTRYPOINT binary (binary mode)
+# and somewhere under codex-rs/ (tree mode — a substitution over-reach that
+# rewrites one of these breaks ChatGPT sign-in silently).  Source: auth.md §5.3.
+# ---------------------------------------------------------------------------
+
+[[keep]]
+literal = "app_EMoamEEZ73f0CkXaXp7hrann"
+reason = "OAuth client id (codex-rs/login/src/auth/manager.rs); the ChatGPT flow only works with upstream's registered client"
+
+[[keep]]
+literal = "https://auth.openai.com"
+reason = "OAuth issuer (codex-rs/login/src/auth/server.rs)"
+
+[[keep]]
+literal = "codex_cli_rs"
+reason = "wire originator / User-Agent prefix (codex-rs/login/src/auth/default_client.rs:40); the backend keys behaviour off it"
+
+[[keep]]
+literal = "codex_cli_simplified_flow"
+reason = "authorize-URL query parameter upstream's login server expects (codex-rs/login/src/auth/server.rs)"
+
+[[keep]]
+literal = "x-openai-internal-codex-residency"
+reason = "residency header on ChatGPT-backend requests"
+
+[[keep]]
+literal = "Codex Auth"
+reason = "OS keyring service name; renaming it strands every existing stored credential"
+
+[[keep]]
+literal = "CODEX_AUTH"
+reason = "keyring secret name paired with the Codex Auth service"
+
+[[keep]]
+literal = "https://chatgpt.com/backend-api/codex"
+reason = "CHATGPT_CODEX_BASE_URL (codex-rs/model-provider-info/src/lib.rs); the ChatGPT-auth model endpoint"
+
+[[keep]]
+literal = "CODEX_INTERNAL_ORIGINATOR_OVERRIDE"
+reason = "originator override env var read inside the auth fence"
+
+[[keep]]
+literal = "api.connectors.read api.connectors.invoke"
+reason = "connectors OAuth scope string requested during sign-in"
+
+# ---------------------------------------------------------------------------
+# forbid: new-brand leakage into wire identifiers.  These strings existing at
+# all means a substitution rewrote something the allowlist should have fenced.
+# Patterns are \b-anchored: 'before_execution' contains the bytes 'ore_exec'.
+# ---------------------------------------------------------------------------
+
+# Anthropic's subscription OAuth is prohibited in third-party tools and enforced
+# server-side, so ore is API-key-only by necessity, not by choice. These two hosts
+# are where an OAuth attempt would have to go; their presence in a shipped binary
+# would mean someone built the flow the terms forbid. docs/ names the console
+# because that is where a user creates the key -- a browser link, not egress --
+# and source_allow already covers fork/**.
+[[forbid]]
+pattern = 'console\.anthropic\.com'
+reason = "Anthropic OAuth/console host: API keys are created by the user in a browser, never contacted by ore"
+source_allow_paths = ["docs/**"]
+
+[[forbid]]
+pattern = 'claude\.ai'
+reason = "Anthropic subscription host: a fork that spoke it would be breaking Anthropic's third-party terms"
+source_allow_paths = ["docs/**"]
+
+[[forbid]]
+pattern = '\bore_cli_rs'
+reason = "rebranded originator would be rejected/misclassified by the ChatGPT backend (upstream keys on codex_cli_rs)"
+
+[[forbid]]
+pattern = '\bore_cli_simplified_flow'
+reason = "rebranded authorize-URL parameter breaks the simplified login flow"
+
+[[forbid]]
+pattern = '\bORE_INTERNAL_ORIGINATOR_OVERRIDE'
+reason = "the fence reads CODEX_INTERNAL_ORIGINATOR_OVERRIDE; a renamed env var silently stops working"
+
+[[forbid]]
+pattern = '\bORE_API_KEY'
+reason = "legacy-fork regression: auth reads OPENAI_API_KEY/CODEX_API_KEY; a renamed key var breaks API-key auth"
+
+[[forbid]]
+pattern = '\bORE_ACCESS_TOKEN'
+reason = "legacy-fork regression on the access-token env override"
+
+[[forbid]]
+pattern = '\bore Auth'
+reason = "rebranded keyring service name strands stored ChatGPT credentials"
+
+[[forbid]]
+pattern = '\bORE_AUTH'
+reason = "rebranded keyring secret name strands stored ChatGPT credentials"
+
+[[forbid]]
+pattern = '\bore_exec'
+reason = "codex_exec is a wire originator (codex-rs/exec/src/lib.rs:246); rebranding it changes what the backend sees"
+
+[[forbid]]
+pattern = '\bore-tui'
+reason = "codex-tui is the wire client_name (codex-rs/tui/src/lib.rs:424,581)"
+
+# ---------------------------------------------------------------------------
+# source_allow: paths and literal families where old-brand strings are allowed
+# in tree mode.  Everything here is either the auth fence, a wire-identifier
+# carrier, generated/reference material, or attribution that must stay.
+# ---------------------------------------------------------------------------
+
+[source_allow]
+paths = [
+  "codex-rs/login/**",
+  "codex-rs/protocol/src/auth.rs",
+  "codex-rs/model-provider/src/auth.rs",
+  "codex-rs/model-provider/src/bearer_auth_provider.rs",
+  "codex-rs/model-provider-info/src/lib.rs",
+  "codex-rs/agent-identity/**",
+  "codex-rs/workload-identity/**",
+  "codex-rs/http-client/src/chatgpt_hosts.rs",
+  "codex-rs/http-client/src/chatgpt_cloudflare_cookies.rs",
+  "codex-rs/app-server-protocol/**",
+  "LICENSE",
+  "NOTICE",
+  "**/*.snap",
+  "fork/**",
+  ".github/**",
+  ".devcontainer/**",
+  "sdk/**",
+  # A developer harness that downloads *released* Codex binaries to test
+  # exec-server wire compatibility across versions. Never shipped, never run in
+  # ore CI, and the upstream release URL is the point of it. If ore ever runs
+  # this, repoint it at ore's own releases -- the literal is deliberate here,
+  # not a leak.
+  "codex-rs/exec-server/testing/**",
+]
+# Identifier families that legitimately contain 'codex' everywhere (env vars,
+# crate/bin names, wire ids).  Consulted by the kill scan only when a kill
+# pattern would otherwise swallow one of these; kept for parity with the
+# substitution manifest's allowlist.
+literal_prefixes = ["CODEX_", "codex-", "codex_", "codexHome", "codexRateLimits"]
+literals = ["codex_apps", "gpt-5.2-codex", ".codex"]

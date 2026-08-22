@@ -246,7 +246,7 @@ fn ensure_supported_platform() -> Result<()> {
 #[cfg(not(unix))]
 fn ensure_supported_platform() -> Result<()> {
     Err(anyhow!(
-        "codex app-server daemon lifecycle is only supported on Unix platforms"
+        "ore app-server daemon lifecycle is only supported on Unix platforms"
     ))
 }
 
@@ -338,7 +338,7 @@ impl Daemon {
             && self.running_backend(&settings).await?.is_none()
         {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by ore app-server daemon"
             ));
         }
 
@@ -392,7 +392,7 @@ impl Daemon {
             }
         } else if client::probe(&self.socket_path).await.is_ok() {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by ore app-server daemon"
             ));
         } else {
             RestartIfRunningOutcome::NotRunning
@@ -421,7 +421,7 @@ impl Daemon {
 
         if client::probe(&self.socket_path).await.is_ok() {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by ore app-server daemon"
             ));
         }
 
@@ -536,7 +536,7 @@ impl Daemon {
 
         if backend.is_none() && client::probe(&self.socket_path).await.is_ok() {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by ore app-server daemon"
             ));
         }
 
@@ -594,7 +594,7 @@ impl Daemon {
             && self.running_backend(&settings).await?.is_none()
         {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by ore app-server daemon"
             ));
         }
         settings.save(&self.settings_file).await?;
@@ -605,18 +605,19 @@ impl Daemon {
 
         let backend = backend::pid_backend(self.backend_paths(&settings));
         backend.start().await?;
+        // ore never runs the hourly updater: it downloads a remote shell script
+        // and pipes it to sh. Stop one left behind by an earlier install.
         let updater = backend::pid_update_loop_backend(self.backend_paths(&settings));
         if updater.is_starting_or_running().await? {
             updater.stop().await?;
         }
-        updater.start().await?;
 
         let info = self.wait_until_ready().await?;
         let managed_codex_version = self.managed_codex_version_best_effort().await;
         Ok(BootstrapOutput {
             status: BootstrapStatus::Bootstrapped,
             backend: BackendKind::Pid,
-            auto_update_enabled: true,
+            auto_update_enabled: false,
             remote_control_enabled: settings.remote_control_enabled,
             managed_codex_path: self.managed_codex_bin.clone(),
             managed_codex_version,
@@ -660,8 +661,8 @@ impl Daemon {
     }
 
     async fn is_bootstrapped(&self, settings: &DaemonSettings) -> Result<bool> {
-        let updater = backend::pid_update_loop_backend(self.backend_paths(settings));
-        updater.is_starting_or_running().await
+        // Upstream keys this on the updater backend, which ore never starts.
+        Ok(self.running_backend_instance(settings).await?.is_some())
     }
 
     fn ensure_managed_codex_bin(&self) -> Result<()> {
@@ -671,10 +672,10 @@ impl Daemon {
 
         let managed_codex_path = self.managed_codex_bin.display();
         Err(anyhow!(
-            "managed standalone Codex install not found at {managed_codex_path}\n\n\
-             This command requires the standalone install managed by the Codex installer, because \
+            "managed standalone ore install not found at {managed_codex_path}\n\n\
+             This command requires the standalone install managed by the ore installer, because \
              the daemon starts and updates app-server from that fixed path.\n\n\
-             Install it with:\n  curl -fsSL https://chatgpt.com/codex/install.sh | sh\n\n\
+             Install it with:\n  curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh\n\n\
              Then rerun the command you just tried."
         ))
     }

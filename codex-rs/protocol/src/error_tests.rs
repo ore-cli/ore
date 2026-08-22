@@ -284,7 +284,7 @@ fn usage_limit_reached_error_formats_free_plan() {
     };
     assert_eq!(
         err.to_string(),
-        "You've hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again later."
+        "You've hit your usage limit. Upgrade to Plus to continue using ore (https://chatgpt.com/explore/plus), or try again later."
     );
 }
 
@@ -299,7 +299,7 @@ fn usage_limit_reached_error_formats_go_plan() {
     };
     assert_eq!(
         err.to_string(),
-        "You've hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again later."
+        "You've hit your usage limit. Upgrade to Plus to continue using ore (https://chatgpt.com/explore/plus), or try again later."
     );
 }
 
@@ -685,12 +685,12 @@ fn usage_limit_reached_with_promo_message() {
             resets_at: Some(resets_at),
             rate_limits: Some(Box::new(rate_limit_snapshot())),
             promo_message: Some(
-                "To continue using Codex, start a free trial of <PLAN> today".to_string(),
+                "To continue using ore, start a free trial of <PLAN> today".to_string(),
             ),
             rate_limit_reached_type: None,
         };
         let expected = format!(
-            "You've hit your usage limit. To continue using Codex, start a free trial of <PLAN> today, or try again at {expected_time}."
+            "You've hit your usage limit. To continue using ore, start a free trial of <PLAN> today, or try again at {expected_time}."
         );
         assert_eq!(err.to_string(), expected);
     });

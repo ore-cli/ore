@@ -1,0 +1,61 @@
+# fork/verify/allowed-fence.diff — the ONLY diff the auth fence may carry.
+#
+# auth_fence.py normalises `git diff <fork/UPSTREAM commit>..HEAD -- <fence>`
+# (index lines dropped) and requires it to equal this file byte-for-byte,
+# comments and blank lines excluded.  Stronger than a path allowlist: an
+# unexpected hunk in an ALLOWED file fails too.
+#
+# The wire-api series (P1 `wire-api-variants`) owns everything below: three
+# hunks in codex-rs/model-provider-info/src/lib.rs that extend `enum WireApi`
+# with `Chat` and `Anthropic` (Display + Deserialize arms) and delete the
+# now-unused `CHAT_WIRE_API_REMOVED_ERROR` const.  No other fenced file may
+# change at all, and no other hunk in this file may appear — auth flows,
+# header names, env keys, URLs, and every other line of lib.rs stay
+# byte-identical to upstream rust-v0.149.0.
+diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-info/src/lib.rs
+--- a/codex-rs/model-provider-info/src/lib.rs
++++ b/codex-rs/model-provider-info/src/lib.rs
+@@ -53,7 +53,6 @@ pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
+     "https://bedrock-mantle.us-east-1.api.aws/openai/v1";
+ const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_HEADER: &str = "x-amzn-mantle-client-agent";
+ const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE: &str = "codex";
+-const CHAT_WIRE_API_REMOVED_ERROR: &str = "`wire_api = \"chat\"` is no longer supported.\nHow to fix: set `wire_api = \"responses\"` in your provider config.\nMore info: https://github.com/openai/codex/discussions/7782";
+ pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
+ pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
+ 
+@@ -64,12 +63,20 @@ pub enum WireApi {
+     /// The Responses API exposed by OpenAI at `/v1/responses`.
+     #[default]
+     Responses,
++    /// The Chat Completions API at `/v1/chat/completions`. The protocol most
++    /// OpenAI-compatible servers speak: llama.cpp, vLLM, LM Studio, older
++    /// Ollama, and most proxies.
++    Chat,
++    /// The Anthropic Messages API at `/v1/messages`.
++    Anthropic,
+ }
+ 
+ impl fmt::Display for WireApi {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         let value = match self {
+             Self::Responses => "responses",
++            Self::Chat => "chat",
++            Self::Anthropic => "anthropic",
+         };
+         f.write_str(value)
+     }
+@@ -83,8 +90,12 @@ impl<'de> Deserialize<'de> for WireApi {
+         let value = String::deserialize(deserializer)?;
+         match value.as_str() {
+             "responses" => Ok(Self::Responses),
+-            "chat" => Err(serde::de::Error::custom(CHAT_WIRE_API_REMOVED_ERROR)),
+-            _ => Err(serde::de::Error::unknown_variant(&value, &["responses"])),
++            "chat" => Ok(Self::Chat),
++            "anthropic" => Ok(Self::Anthropic),
++            _ => Err(serde::de::Error::unknown_variant(
++                &value,
++                &["responses", "chat", "anthropic"],
++            )),
+         }
+     }
+ }

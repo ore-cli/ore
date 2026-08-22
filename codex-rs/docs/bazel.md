@@ -34,7 +34,7 @@ build event upload, downloads, and remote execution are opt-in configurations.
 
 ## BuildBuddy
 
-Codex uses BuildBuddy for a shared Bazel cache and remoted builds and tests. To use it
+ore uses BuildBuddy for a shared Bazel cache and remoted builds and tests. To use it
 to speed up your builds and tests you'll need to provide an API key and select a
 configuration.
 

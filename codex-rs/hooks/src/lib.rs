@@ -36,7 +36,7 @@ pub const HOOK_EVENT_NAMES: [&str; 11] = [
 
 /// Hook event names whose matcher fields are meaningful during dispatch.
 ///
-/// Other events can appear in hooks JSON, but Codex ignores their matcher
+/// Other events can appear in hooks JSON, but ore ignores their matcher
 /// fields because those events do not dispatch against a tool, compaction
 /// trigger, session-start source, or session-end reason.
 pub const HOOK_EVENT_NAMES_WITH_MATCHERS: [&str; 9] = [

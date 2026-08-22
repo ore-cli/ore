@@ -1,5 +1,5 @@
 {
-  "name": "@openai/codex-responses-api-proxy",
+  "name": "@ore-cli/ore-responses-api-proxy",
   "version": "0.0.0-dev",
   "license": "Apache-2.0",
   "bin": {

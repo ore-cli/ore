@@ -1,4 +1,4 @@
-"""Codex-built V8 artifact overrides for package Cargo builds."""
+"""ore-built V8 artifact overrides for package Cargo builds."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def fetch_codex_v8_artifacts(
 ) -> RustyV8ArtifactPair:
     version = version or resolved_v8_crate_version()
     release_url = (
-        f"https://github.com/openai/codex/releases/download/rusty-v8-v{version}"
+        f"https://github.com/ore-cli/ore/releases/download/rusty-v8-v{version}"
     )
     target = spec.target
     cache_dir = (cache_root or default_cache_root()) / f"rusty-v8-{version}-{target}"
@@ -150,9 +150,7 @@ def ensure_valid_artifact(artifact: Path, checksum: str, url: str) -> None:
         return
 
     artifact.unlink(missing_ok=True)
-    raise RuntimeError(
-        f"Codex-built V8 artifact {artifact} failed checksum validation."
-    )
+    raise RuntimeError(f"ore-built V8 artifact {artifact} failed checksum validation.")
 
 
 def has_checksum(path: Path, expected: str) -> bool:

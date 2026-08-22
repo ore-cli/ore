@@ -63,7 +63,7 @@ pub fn assess_patch_safety(
             PermissionProfile::Disabled | PermissionProfile::External { .. }
         ) {
             // Disabled and External profiles intentionally do not apply an
-            // outer Codex filesystem sandbox.
+            // outer ore filesystem sandbox.
             SafetyCheck::AutoApprove
         } else {
             // Only auto‑approve when we can actually enforce a sandbox. Otherwise

@@ -953,7 +953,7 @@ async fn assert_disabled_permissions_surface_requested_user_input(
     assert_eq!(reviewer.review_count.load(Ordering::SeqCst), 0);
 
     let codex_protocol::mcp::RequestId::String(request_id) = request.id else {
-        panic!("expected Codex-owned string request ID");
+        panic!("expected ore-owned string request ID");
     };
     let user_response = ElicitationResponse {
         action: ElicitationAction::Accept,
@@ -1205,7 +1205,7 @@ async fn shared_elicitation_router_targets_the_exact_pending_request() {
         codex_protocol::mcp::RequestId::String(request_b_id),
     ) = (request_a.id, request_b.id)
     else {
-        panic!("expected Codex-owned string request IDs");
+        panic!("expected ore-owned string request IDs");
     };
     assert_ne!(request_a_id, request_b_id);
 
@@ -1298,7 +1298,7 @@ async fn cancelled_elicitation_is_removed_without_affecting_other_pending_reques
         codex_protocol::mcp::RequestId::String(pending_id),
     ) = (cancelled_request.id, pending_request.id)
     else {
-        panic!("expected Codex-owned string request IDs");
+        panic!("expected ore-owned string request IDs");
     };
 
     cancelled.abort();
@@ -3818,7 +3818,7 @@ fn mcp_init_error_display_prompts_for_github_pat() {
 fn mcp_init_error_display_prompts_for_login_when_auth_required() {
     let server_name = "example";
     let expected = format!(
-        "The {server_name} MCP server is not logged in. Run `codex mcp login {server_name}`."
+        "The {server_name} MCP server is not logged in. Run `ore mcp login {server_name}`."
     );
     let executor_config: McpServerConfig = serde_json::from_value(serde_json::json!({
         "url": "https://example.com/mcp",
@@ -3870,7 +3870,7 @@ fn mcp_init_error_display_identifies_oauth_reauthentication() {
     .expect("executor MCP configuration should deserialize");
 
     for (config, recovery_hint) in [
-        (None, "Run `codex mcp login example`."),
+        (None, "Run `ore mcp login example`."),
         (
             Some(&executor_config),
             "Use your client's MCP OAuth sign-in flow.",

@@ -8,6 +8,6 @@ const PROFILE: RewriteProfile = RewriteProfile::new("SOURCE.md", &["source agent
 fn rewrites_terms_only_at_word_boundaries() {
     assert_eq!(
         PROFILE.rewrite("SOURCE.md Source source agent source_agent"),
-        "AGENTS.md Codex Codex source_agent"
+        "AGENTS.md ore ore source_agent"
     );
 }

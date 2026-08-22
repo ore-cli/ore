@@ -1,19 +1,19 @@
 # Rollout Trace
 
-> **Privacy:** Rollout tracing is not telemetry. Codex does **not** upload or
+> **Privacy:** Rollout tracing is not telemetry. ore does **not** upload or
 > report these traces; it writes local bundles only when
 > `CODEX_ROLLOUT_TRACE_ROOT` is set. Those local bundles can contain prompts,
 > responses, tool inputs/outputs, terminal output, and paths, so treat them as
 > sensitive.
 
 Rollout tracing is an opt-in diagnostic path for understanding what happened
-during a Codex session. It records raw runtime evidence into a local bundle on
+during an ore session. It records raw runtime evidence into a local bundle on
 disk, then replays that bundle into a semantic graph that a debugger or UI can
 inspect.
 
 The key design choice is: **observe first, interpret later**.
 
-Hot-path Codex code does not try to build the final graph while the session is
+Hot-path ore code does not try to build the final graph while the session is
 running. It writes ordered raw events and payload references. The offline reducer
 then decides which events became model-visible conversation, which events were
 runtime work, and how information moved between threads, tools, code cells, and
@@ -33,7 +33,7 @@ They preserve enough evidence to answer questions like:
   child thread?
 
 The reduced `state.json` is intentionally not just a transcript. It is a graph of
-model-visible conversation plus the runtime objects that explain how Codex got
+model-visible conversation plus the runtime objects that explain how ore got
 there.
 
 ## System Shape
@@ -97,7 +97,7 @@ own context from the parent's context so the whole rollout tree shares one
 writer. Disabled contexts accept the same calls and record nothing.
 
 Trace startup and writes are best-effort. Rollout tracing must never make a
-Codex session fail just because diagnostic recording failed. Core emits raw
+ore session fail just because diagnostic recording failed. Core emits raw
 observations; this crate owns the bundle schema, trace-context APIs, writer, and
 reducer.
 
@@ -109,16 +109,16 @@ A trace bundle contains:
 - `trace.jsonl`: append-only raw events ordered by writer-assigned `seq`.
 - `payloads/*.json`: raw requests, responses, tool inputs/results, runtime
   events, terminal output, compaction data, and protocol snapshots.
-- `state.json`: optional reducer output written by `codex debug trace-reduce`.
+- `state.json`: optional reducer output written by `ore debug trace-reduce`.
 
 `trace_id` identifies this diagnostic artifact. `rollout_id` identifies the
-Codex rollout/session being observed. Keeping those separate lets us reason about
+ore rollout/session being observed. Keeping those separate lets us reason about
 the stored trace without confusing it with the product-level session identity.
 
 To reduce a bundle:
 
 ```bash
-codex debug trace-reduce <trace-bundle>
+ore debug trace-reduce <trace-bundle>
 ```
 
 By default this writes `<trace-bundle>/state.json`. Rust callers can also call

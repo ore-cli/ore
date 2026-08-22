@@ -1757,7 +1757,7 @@ fn parse_tool_input_schema_preserves_legacy_definitions() {
     // }
     //
     // Expected normalization behavior:
-    // - Codex preserves legacy `definitions`.
+    // - ore preserves legacy `definitions`.
     // - Reachability follows refs through the legacy definition table.
     // - Unreachable legacy definition entries are pruned.
     let schema = parse_tool_input_schema(&serde_json::json!({

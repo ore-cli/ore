@@ -1,6 +1,6 @@
 # codex-otel
 
-`codex-otel` is the OpenTelemetry integration crate for Codex. It provides:
+`codex-otel` is the OpenTelemetry integration crate for ore. It provides:
 
 - Provider wiring for log/trace/metric exporters (`codex_otel::OtelProvider`
   and `codex_otel::provider`).
@@ -65,7 +65,7 @@ beta = "two"
 
 Configured tracestate members and encoded values must be valid W3C tracestate.
 Each nested table is encoded as semicolon-separated `key:value` fields inside
-that member. If propagated trace context already has the named member, Codex
+that member. If propagated trace context already has the named member, ore
 upserts configured fields and preserves other fields in that member. This
 config shape does not support setting opaque tracestate member values. Invalid
 trace metadata entries are ignored during config load and reported as startup
@@ -74,7 +74,7 @@ warnings.
 ## SessionTelemetry (events)
 
 `SessionTelemetry` adds consistent metadata to tracing events and helps record
-Codex-specific session events. Rich session/business events should go through
+ore-specific session events. Rich session/business events should go through
 `SessionTelemetry`; subsystem-owned audit events can stay with the owning subsystem.
 
 ```rust
@@ -103,10 +103,11 @@ Modes:
 - OTLP: exports metrics via the OpenTelemetry OTLP exporter (HTTP or gRPC).
 - In-memory: records via `opentelemetry_sdk::metrics::InMemoryMetricExporter` for tests/assertions; call `shutdown()` to flush.
 
-`codex-otel` also provides `OtelExporter::Statsig`, a shorthand for exporting OTLP/HTTP JSON metrics
-to Statsig using Codex-internal defaults.
+`codex-otel` still accepts `OtelExporter::Statsig`, so existing configs and the generated JSON
+schema keep working, but it resolves to no exporter: this build carries no built-in vendor
+endpoint or key. Point an OTLP exporter at your own collector instead.
 
-Statsig ingestion (OTLP/HTTP JSON) example:
+Bring-your-own OTLP/HTTP JSON ingestion example:
 
 ```rust
 use codex_otel::config::{OtelExporter, OtelHttpProtocol};
@@ -116,10 +117,10 @@ let metrics = MetricsClient::new(MetricsConfig::otlp(
     "codex-cli",
     env!("CARGO_PKG_VERSION"),
     OtelExporter::OtlpHttp {
-        endpoint: "https://api.statsig.com/otlp".to_string(),
+        endpoint: "https://otlp.example.com/v1/metrics".to_string(),
         headers: std::collections::HashMap::from([(
-            "statsig-api-key".to_string(),
-            std::env::var("STATSIG_SERVER_SDK_SECRET")?,
+            "x-api-key".to_string(),
+            std::env::var("OTLP_API_KEY")?,
         )]),
         protocol: OtelHttpProtocol::Json,
         tls: None,

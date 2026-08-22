@@ -1,30 +1,30 @@
 {
   "outputs": {
-    "codex": {
+    "ore": {
       "platforms": {
         "macos-aarch64": {
           "regex": "^codex-package-aarch64-apple-darwin\\.tar\\.zst$",
-          "path": "bin/codex"
+          "path": "bin/ore"
         },
         "macos-x86_64": {
           "regex": "^codex-package-x86_64-apple-darwin\\.tar\\.zst$",
-          "path": "bin/codex"
+          "path": "bin/ore"
         },
         "linux-x86_64": {
           "regex": "^codex-package-x86_64-unknown-linux-musl\\.tar\\.zst$",
-          "path": "bin/codex"
+          "path": "bin/ore"
         },
         "linux-aarch64": {
           "regex": "^codex-package-aarch64-unknown-linux-musl\\.tar\\.zst$",
-          "path": "bin/codex"
+          "path": "bin/ore"
         },
         "windows-x86_64": {
           "regex": "^codex-package-x86_64-pc-windows-msvc\\.tar\\.zst$",
-          "path": "bin/codex.exe"
+          "path": "bin/ore.exe"
         },
         "windows-aarch64": {
           "regex": "^codex-package-aarch64-pc-windows-msvc\\.tar\\.zst$",
-          "path": "bin/codex.exe"
+          "path": "bin/ore.exe"
         }
       }
     },

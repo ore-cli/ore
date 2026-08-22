@@ -8,7 +8,7 @@ fn workload_identity_markers_are_rejected() {
 
     assert_eq!(
         error.to_string(),
-        "workload identity is not supported by `codex mcp-server`"
+        "workload identity is not supported by `ore mcp-server`"
     );
     reject_workload_identity(/*workload_identity_selected*/ false)
         .expect("mcp-server remains available without workload identity");

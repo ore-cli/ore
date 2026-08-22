@@ -1,0 +1,477 @@
+# ore's sync engine: walk `main` forward by ONE upstream stable tag per run.
+#
+# Daily cron plus manual dispatch. Clean path: fork/assemble.sh builds the
+# merge candidate (refs/heads/sync/<tag>, with its rebased series on
+# refs/heads/sync-delta/<tag>), the quick tree-level invariant suite and the
+# semantic review run against the candidate, the branches go out through
+# safe_push(), and a `sync`-labelled PR to main carries the reports. The heavy
+# proof (build, nextest, fork-guards) is ore-ci running ON that PR; nothing
+# heavy is duplicated here. Landing is ore-sync-finalize.yml's fast-forward
+# push, never the GitHub merge button: assemble already wrote the merge commit
+# with parents (prev main, upstream tag), and the button would rewrite them.
+#
+# Non-obvious constraints:
+#
+#   * Authentication is the `ore-sync` GitHub App, not GITHUB_TOKEN: events
+#     caused by GITHUB_TOKEN never trigger other workflows, so a PR it opened
+#     would sit with no ore-ci run -- and that PR's checks ARE the sync gate.
+#     The App needs contents:write, workflows:write (the pushed trees change
+#     workflow files), pull-requests:write, issues:write and actions:read+write
+#     (ratified decision 4: repo-level disablement of newly-arrived upstream
+#     workflows). App tokens expire after 60 minutes -- shorter than an
+#     assembly -- so the token is minted AFTER assemble, and the checkout
+#     persists no credentials at all.
+#
+#   * Upstream tags exist here ONLY as refs/upstream/tags/* (fetched with the
+#     exact refspec assemble.sh step 0 uses). No upstream-named tag ref is
+#     ever created locally, so a reflexive push has nothing upstream-shaped to
+#     push, and every deliberate push still goes through safe_push()'s
+#     allowlist on top of that.
+#
+#   * One tag per run, and not even that while a `sync` PR is open: the open
+#     PR is the gate, and a second candidate would race it for delta.
+name: ore-sync
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      target_tag:
+        description: "upstream stable tag to sync to (default: the next one after the current base)"
+        required: false
+        type: string
+      reassemble:
+        description: "regenerate main from the CURRENT base (fork-side change, no upstream movement)"
+        required: false
+        type: boolean
+        default: false
+
+# Shared with ore-sync-finalize.yml: a finalize must never interleave with a
+# sync (both move the sync/* namespace and read origin/main). Queue, never
+# cancel -- a half-finished sync holds no lock a cancel would release cleanly.
+concurrency:
+  group: ore-sync
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  preflight:
+    name: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    steps:
+      - name: Skip while a sync PR is open
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          open="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --label sync --json number --jq length)"
+          if [ "$open" -gt 0 ]; then
+            echo "an open sync PR exists; finalize or close it before the next walk"
+            echo "proceed=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          fi
+
+  sync:
+    name: sync
+    needs: preflight
+    if: needs.preflight.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    # Cold, assemble builds codex-core twice over (schema regen, then the
+    # tui/core/cli test binaries for snapshot regen).
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    env:
+      # Builds run inside the assembly worktree under $RUNNER_TEMP, but
+      # Swatinem/rust-cache only caches a workspace-relative target directory;
+      # pointing cargo back into the workspace makes the cache real.
+      CARGO_TARGET_DIR: ${{ github.workspace }}/codex-rs/target
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The `runner` context does not exist in a job-level `env:` block, so these
+      # are derived here from $RUNNER_TEMP, which is always present in a step.
+      # GitHub rejects the whole workflow file for that -- it reports a run that
+      # fails in 0s attributed to the push, which is easy to read as a transient.
+      # assemble.sh formats the assembled tree with the project's own tools, so
+      # it needs uv for the ruff pass the same way it needs cargo for rustfmt.
+      # Without it the assembly fails loudly rather than producing a candidate
+      # that ore-ci would then reject for formatting.
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Resolve the assembly paths
+        run: |
+          set -euo pipefail
+          {
+            echo "ASSEMBLY=$RUNNER_TEMP/assembly"
+            # assemble.sh derives its report dir as <worktree parent>/assembly-out.
+            echo "OUT_DIR=$RUNNER_TEMP/assembly-out"
+            echo "CANDIDATE=$RUNNER_TEMP/candidate"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure identity and fetch the upstream tag namespace
+        run: |
+          set -euo pipefail
+          # The rebase inside assemble.sh commits with the repo-local identity.
+          git config user.name 'ore-sync[bot]'
+          git config user.email 'ore-sync[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/openai/codex.git
+          # Identical to assemble.sh step 0, which re-runs it harmlessly:
+          # upstream tags land ONLY under refs/upstream/tags/*, never as local
+          # tags. Fetched here first because picking the walk target needs the
+          # tag list before assemble starts.
+          git fetch --no-tags upstream '+refs/tags/rust-v*:refs/upstream/tags/rust-v*'
+          # assemble's rerere snapshot parents on the LOCAL rerere-cache
+          # branch; seed it from origin or the snapshot would re-root the
+          # history and the later push could not fast-forward.
+          if git rev-parse --verify --quiet refs/remotes/origin/rerere-cache >/dev/null; then
+            git update-ref refs/heads/rerere-cache "$(git rev-parse refs/remotes/origin/rerere-cache)"
+          fi
+
+      - name: Pick the target tag (one step forward)
+        id: target
+        env:
+          TARGET_TAG: ${{ inputs.target_tag }}
+          REASSEMBLE: ${{ inputs.reassemble && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          base=""
+          # Same derivation as assemble.sh: main's manifest is authoritative,
+          # delta's is a stale-ok placeholder for bootstrap.
+          for src in refs/remotes/origin/main refs/remotes/origin/delta; do
+            base="$(git show "$src:fork/UPSTREAM" 2>/dev/null | sed -n 's/^tag = "\(.*\)"$/\1/p')" \
+              && [ -n "$base" ] && break
+          done
+          if [ -z "$base" ]; then
+            echo "::error::cannot read the current base from fork/UPSTREAM on origin/main or origin/delta"
+            exit 1
+          fi
+          tag="" reassemble_flag=""
+          if [ "$REASSEMBLE" = "true" ]; then
+            tag="${TARGET_TAG:-$base}"
+            reassemble_flag="--reassemble"
+          elif [ -n "$TARGET_TAG" ]; then
+            tag="$TARGET_TAG"
+          else
+            tags="$(git for-each-ref --format='%(refname)' 'refs/upstream/tags/rust-v*' \
+              | sed 's|^refs/upstream/tags/||' \
+              | grep -E '^rust-v[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V)" || true
+            if ! grep -qxF "$base" <<<"$tags"; then
+              echo "::error::base '$base' is not among the fetched upstream stable tags"
+              exit 1
+            fi
+            tag="$(awk -v base="$base" 'hit { print; exit } $0 == base { hit = 1 }' <<<"$tags")"
+            [ -n "$tag" ] || echo "up to date: no stable tag after $base; nothing to do"
+          fi
+          [ -z "$tag" ] || echo "walking $base -> $tag ${reassemble_flag:+(reassemble)}"
+          {
+            echo "base=$base"
+            echo "tag=$tag"
+            echo "reassemble_flag=$reassemble_flag"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        if: steps.target.outputs.tag != ''
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            pkg-config libcap-dev bubblewrap
+          # Snapshot regen runs the codex-core suite, whose sandbox tests
+          # spawn unprivileged user namespaces; the runner image restricts
+          # them (same steps as ore-ci's test job).
+          sudo sysctl -w kernel.unprivileged_userns_clone=1
+          if sudo sysctl -a 2>/dev/null | grep -q '^kernel.apparmor_restrict_unprivileged_userns'; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      - name: Install DotSlash (codex-core test helpers spawn it by name)
+        if: steps.target.outputs.tag != ''
+        uses: facebook/install-dotslash@1e4e7b3e07eaca387acb98f1d4720e0bee8dbb6a # v2
+      - name: Make DotSlash available on a stable system path
+        if: steps.target.outputs.tag != ''
+        run: sudo cp "$(command -v dotslash)" /usr/local/bin/
+
+      # In codex-rs so rustup resolves the pinned channel that assemble will
+      # invoke as `cargo +<channel>`.
+      - name: Install the pinned Rust toolchain
+        if: steps.target.outputs.tag != ''
+        working-directory: codex-rs
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Install cargo-nextest
+        if: steps.target.outputs.tag != ''
+        uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532 # v2.62.49
+        with:
+          tool: nextest
+          version: 0.9.103
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: steps.target.outputs.tag != ''
+        with:
+          workspaces: codex-rs
+
+      # The step never fails directly: the exit code is captured so the next
+      # steps can react per code (0 clean, 2 conflicts, 3 generated-pass
+      # failure, 4 precondition). On failure assemble keeps its worktree,
+      # which is where the conflict diffs for the sync-blocked issue live.
+      - name: Assemble the merge candidate
+        id: assemble
+        if: steps.target.outputs.tag != ''
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+          BASE: ${{ steps.target.outputs.base }}
+          REASSEMBLE_FLAG: ${{ steps.target.outputs.reassemble_flag }}
+        run: |
+          set -euo pipefail
+          rc=0
+          fork/assemble.sh --tag "$TAG" --base "$BASE" \
+            --delta refs/remotes/origin/delta \
+            --worktree "$ASSEMBLY" ${REASSEMBLE_FLAG:+"$REASSEMBLE_FLAG"} \
+            2>&1 | tee "$RUNNER_TEMP/assemble.log" || rc=$?
+          echo "rc=$rc" >>"$GITHUB_OUTPUT"
+          echo "assemble exit code: $rc"
+
+      # Minted only now: the assembly above routinely outlives a 60-minute App
+      # token. Everything below that talks to GitHub uses this token.
+      - name: Mint the ore-sync App token
+        id: app-token
+        if: steps.target.outputs.tag != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
+          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      - name: Handle a failed assembly (conflicts file a sync-blocked issue)
+        if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc != '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          BASE: ${{ steps.target.outputs.base }}
+          RC: ${{ steps.assemble.outputs.rc }}
+        run: |
+          set -euo pipefail
+          case "$RC" in
+            2) ;;
+            3)
+              echo "::error::generated-pass failure (exit 3): substitutions, fmt, version/lock, schema or snapshots -- see the assembly-reports artifact"
+              exit 3
+              ;;
+            4)
+              echo "::error::precondition failure (exit 4): nothing was touched -- see the assemble log above"
+              exit 4
+              ;;
+            *)
+              echo "::error::assemble.sh exited $RC"
+              exit 1
+              ;;
+          esac
+          # Exit 2: the rebase stopped on conflicts. The runner (and the
+          # conflicted worktree) evaporate after this job, so the issue body
+          # is the durable record of what conflicted and how.
+          conflicted="$(git -C "$ASSEMBLY" diff --name-only --diff-filter=U || true)"
+          git -C "$ASSEMBLY" diff >"$RUNNER_TEMP/conflicts.diff" || true
+          {
+            echo "The sync \`$BASE\` -> \`$TAG\` stopped on rebase conflicts (assemble.sh exit 2)."
+            echo
+            echo "Resolve locally: run \`fork/assemble.sh --tag $TAG\` in a clone, resolve each"
+            echo "stop (rerere records every resolution), push \`refs/heads/rerere-cache\` via"
+            echo "safe_push, and the next scheduled run replays the resolutions and opens the PR."
+            echo
+            echo "## conflicted files"
+            echo '```'
+            echo "$conflicted"
+            echo '```'
+            echo
+            echo "## apply log (tail)"
+            tail -n 120 "$OUT_DIR/apply-log.md"
+            echo
+            echo "## conflict state (truncated diff)"
+            echo '```diff'
+            head -c 20000 "$RUNNER_TEMP/conflicts.diff"
+            echo
+            echo '```'
+          } >"$RUNNER_TEMP/issue.md"
+          gh label create sync-blocked --repo "$GITHUB_REPOSITORY" \
+            --description "a sync stopped on rebase conflicts" --color B60205 2>/dev/null || true
+          if [ "$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label sync-blocked --json number --jq length)" -gt 0 ]; then
+            echo "an open sync-blocked issue already exists; not filing a duplicate"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --label sync-blocked \
+              --title "sync blocked: $BASE -> $TAG (rebase conflicts)" \
+              --body-file "$RUNNER_TEMP/issue.md"
+          fi
+          exit 2
+
+      # Verification runs against the merge candidate M itself, detached --
+      # the same commit ore-ci will judge on the PR -- not against the
+      # sync-delta series branch (whose shape the upstream check would rightly
+      # reject: origin/main is no ancestor of a rebased series).
+      - name: Check out the candidate for verification
+        if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc == '0'
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        run: git worktree add --detach "$CANDIDATE" "refs/heads/sync/$TAG"
+
+      - name: Quick verify (static invariant suite)
+        if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc == '0'
+        run: |
+          set -euo pipefail
+          python3 "$CANDIDATE/fork/verify/run.py" --suite static --root "$CANDIDATE" \
+            | tee "$OUT_DIR/verify.txt"
+
+      - name: Semantic review of the upstream movement
+        if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc == '0'
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+          BASE: ${{ steps.target.outputs.base }}
+        run: |
+          set -euo pipefail
+          python3 "$CANDIDATE/fork/semantic-review.py" --base "$BASE" --tag "$TAG" \
+            --out "$OUT_DIR/semantic-review.md" --repo "$CANDIDATE"
+
+      - name: Push the candidate branches (safe_push only)
+        if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc == '0'
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          . "$CANDIDATE/fork/lib.sh"
+          # Push credentials exist only in this step's environment; nothing is
+          # written to .git config.
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+          # Leased force (against the refs fetched at checkout) so a re-run of
+          # the same tag can replace its own earlier candidate.
+          safe_push --force-with-lease "refs/heads/sync/$TAG" "refs/heads/sync-delta/$TAG"
+          if git rev-parse --verify --quiet refs/heads/rerere-cache >/dev/null; then
+            safe_push "refs/heads/rerere-cache"
+          fi
+
+      # Ratified decision 4. The tree-level relocation already neutralized new
+      # upstream workflows on the candidate; this is the ref-independent half:
+      # a workflow file that arrived on the just-pushed branches registers
+      # repo-side as enabled, so disable it via the API and assert the enabled
+      # set equals fork/workflows.allow through the verifier's --api mode.
+      - name: Workflow governance (disable what arrived enabled)
+        if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc == '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          allow="$(grep -Ev '^[[:space:]]*(#|$)' "$CANDIDATE/fork/workflows.allow")"
+          gov="$OUT_DIR/governance.md"
+          echo "## workflow governance" >"$gov"
+          disabled=0
+          while IFS=$'\t' read -r id state path; do
+            base="${path##*/}"
+            case "$base" in ore-*) continue ;; esac
+            grep -qxF "$base" <<<"$allow" && continue
+            [ "$state" = "disabled_manually" ] && continue
+            gh api --method PUT "/repos/${GITHUB_REPOSITORY}/actions/workflows/${id}/disable" </dev/null
+            echo "- auto-disabled \`$base\` (state was \`$state\`): not in fork/workflows.allow" >>"$gov"
+            disabled=1
+          done < <(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows" --paginate \
+            --jq '.workflows[] | [.id, .state, .path] | @tsv')
+          [ "$disabled" -eq 1 ] || echo "- no action needed: every enabled workflow is allowlisted" >>"$gov"
+          cat "$gov"
+          rc=0
+          python3 "$CANDIDATE/fork/verify/workflows_check.py" --root "$CANDIDATE" --api \
+            | tee "$OUT_DIR/workflows-check.txt" || rc=$?
+          # The verifier downgrades an unreachable API to a note; here the
+          # assertion half is the point, so silence is failure too.
+          if ! grep -q '^ok: api:' "$OUT_DIR/workflows-check.txt"; then
+            echo "::error::the --api assertion did not run (gh unauthenticated or API unreachable)"
+            exit 1
+          fi
+          exit "$rc"
+
+      - name: Open the sync PR
+        if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc == '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          BASE: ${{ steps.target.outputs.base }}
+          REASSEMBLE_FLAG: ${{ steps.target.outputs.reassemble_flag }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/pr-body.md"
+          # Keep the body under GitHub's 64 KiB; full files ride the artifact.
+          cap() {
+            if [ "$(wc -l <"$1")" -gt "$2" ]; then
+              head -n "$2" "$1"
+              printf '\n... truncated (%s lines total; full file in the assembly-reports artifact)\n' "$(wc -l <"$1")"
+            else
+              cat "$1"
+            fi
+          }
+          m="$(git rev-parse "refs/heads/sync/$TAG")"
+          {
+            echo "Merge candidate \`$m\` for \`$TAG\` (previous base \`$BASE\`)."
+            echo
+            echo "Land it by APPROVING this PR: ore-sync-finalize fast-forwards main to the"
+            echo "candidate. Never use the merge button -- it would rewrite the merge parents"
+            echo "assemble.sh built."
+            echo
+            cap "$OUT_DIR/apply-log.md" 400
+            echo
+            echo "## verify (static suite)"
+            echo '```'
+            cap "$OUT_DIR/verify.txt" 120
+            echo '```'
+            echo
+            cap "$OUT_DIR/governance.md" 80
+            echo
+            cap "$OUT_DIR/semantic-review.md" 500
+          } >"$body"
+          python3 - "$body" <<'PY'
+          import pathlib, sys
+
+          p = pathlib.Path(sys.argv[1])
+          t = p.read_text(encoding="utf-8")
+          if len(t) > 60000:
+              p.write_text(t[:60000] + "\n\n... body truncated; full reports in the assembly-reports artifact\n", encoding="utf-8")
+          PY
+          gh label create sync --repo "$GITHUB_REPOSITORY" \
+            --description "generated sync PR: approve to finalize" --color 1D76DB 2>/dev/null || true
+          title="sync: $BASE -> $TAG"
+          [ -z "$REASSEMBLE_FLAG" ] || title="reassemble: $TAG"
+          url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "sync/$TAG" \
+            --title "$title" --label sync --body-file "$body")"
+          echo "opened $url"
+          # Advisory labels the reports ask for (plan 2.4/2.5 conventions).
+          extra=""
+          grep -q 'UNCLASSIFIED' "$OUT_DIR/semantic-review.md" && extra="$extra needs-decision"
+          grep -q '^## DROPPED' "$OUT_DIR/apply-log.md" && extra="$extra series-retired"
+          grep -q 'agent-resolved' "$OUT_DIR/apply-log.md" && extra="$extra agent-resolved"
+          for l in $extra; do
+            gh label create "$l" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+            gh pr edit "$url" --repo "$GITHUB_REPOSITORY" --add-label "$l"
+          done
+          echo "sync PR: $url" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload assembly reports
+        if: always() && steps.target.outputs.tag != ''
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: assembly-reports
+          path: |
+            ${{ runner.temp }}/assembly-out/
+            ${{ runner.temp }}/assemble.log
+          if-no-files-found: ignore

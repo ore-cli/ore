@@ -49,7 +49,7 @@ pub enum LocalSecretsNamespace {
     /// General managed secrets stored in `local.age`.
     #[default]
     ManagedSecrets,
-    /// Codex authentication credentials used by the CLI, TUI, app server, and other clients.
+    /// ore authentication credentials used by the CLI, TUI, app server, and other clients.
     CodexAuth,
     /// OAuth credentials for external MCP servers.
     McpOAuth,

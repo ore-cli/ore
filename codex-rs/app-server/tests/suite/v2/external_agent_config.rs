@@ -447,7 +447,7 @@ async fn external_agent_config_import_source_remains_attribution_only() -> Resul
     assert_eq!(completed.item_type_results[0].failures, Vec::new());
     assert_eq!(
         std::fs::read_to_string(codex_home.path().join("AGENTS.md"))?,
-        "Codex guidance"
+        "ore guidance"
     );
 
     Ok(())

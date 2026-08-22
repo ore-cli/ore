@@ -3,9 +3,9 @@
 > `codex-app-server-daemon` is experimental and its lifecycle contract may
 > change while the remote-management flow is still being developed.
 
-`codex-app-server-daemon` backs the machine-readable `codex app-server`
+`codex-app-server-daemon` backs the machine-readable `ore app-server`
 lifecycle commands used by remote clients such as the desktop and mobile apps.
-It is intended for Codex instances launched over SSH, including fresh developer
+It is intended for ore instances launched over SSH, including fresh developer
 machines that should expose app-server with `remote_control` enabled.
 
 ## Platform support
@@ -17,13 +17,13 @@ support Windows lifecycle management.
 ## Commands
 
 ```sh
-codex app-server daemon start
-codex app-server daemon restart
-codex app-server daemon enable-remote-control
-codex app-server daemon disable-remote-control
-codex app-server daemon stop
-codex app-server daemon version
-codex app-server daemon bootstrap --remote-control
+ore app-server daemon start
+ore app-server daemon restart
+ore app-server daemon enable-remote-control
+ore app-server daemon disable-remote-control
+ore app-server daemon stop
+ore app-server daemon version
+ore app-server daemon bootstrap --remote-control
 ```
 
 On success, every command writes exactly one JSON object to stdout. Consumers
@@ -36,7 +36,7 @@ running app-server version when applicable.
 For a new remote machine:
 
 ```sh
-curl -fsSL https://chatgpt.com/codex/install.sh | sh
+curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh
 $HOME/.codex/packages/standalone/current/codex app-server daemon bootstrap --remote-control
 ```
 
@@ -46,7 +46,7 @@ pidfile-backed detached process, and launches a detached updater loop.
 
 ## Installation and update cases
 
-The daemon assumes Codex is installed through `install.sh` and always launches
+The daemon assumes ore is installed through `install.sh` and always launches
 the standalone managed binary under `CODEX_HOME`.
 
 | Situation | What starts | Does this daemon fetch new binaries? | Does a running app-server eventually move to a newer binary on its own? |
@@ -92,7 +92,7 @@ JSON-RPC initialize handshake on the Unix control socket.
 for future starts. If a managed app-server is already running, they restart it
 so the new setting takes effect immediately.
 
-Top-level `codex remote-control` bootstraps with `--remote-control` when the
+Top-level `ore remote-control` bootstraps with `--remote-control` when the
 updater loop is not running. Otherwise it enables remote control and starts the
 daemon normally.
 

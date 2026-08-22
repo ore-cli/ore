@@ -64,9 +64,9 @@ async fn daemon_ctrl_c_shows_background_exit_menu_and_escape_dismisses_it() -> R
       Task is still running
       Choose what happens to the current task.
 
-    › 1. Cancel task        Stop the current task and stay in Codex
-      2. Run in background  Exit Codex and leave the task running
-      3. Exit               Stop the current task and exit Codex
+    › 1. Cancel task        Stop the current task and stay in ore
+      2. Run in background  Exit ore and leave the task running
+      3. Exit               Stop the current task and exit ore
 
       Press enter to confirm or esc to go back
     ");
@@ -287,8 +287,8 @@ async fn daemon_ctrl_c_hides_background_exit_for_running_background_side_thread(
       Task is still running
       Choose what happens to the current task.
 
-    › 1. Cancel task  Stop the current task and stay in Codex
-      2. Exit         Stop the current task and exit Codex
+    › 1. Cancel task  Stop the current task and stay in ore
+      2. Exit         Stop the current task and exit ore
 
       Press enter to confirm or esc to go back
     ");

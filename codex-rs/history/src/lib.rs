@@ -40,7 +40,7 @@ pub struct ResponseItemEnvelope {
     pub metadata: Option<CodexHarnessMetadata>,
 }
 
-/// Metadata owned by the Codex harness and persisted with a response item.
+/// Metadata owned by the ore harness and persisted with a response item.
 ///
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
 pub struct CodexHarnessMetadata {

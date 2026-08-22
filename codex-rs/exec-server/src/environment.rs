@@ -65,7 +65,7 @@ pub enum EnvironmentConnectionState {
     Disconnected,
 }
 
-/// Owns the execution/filesystem environments available to the Codex runtime.
+/// Owns the execution/filesystem environments available to the ore runtime.
 ///
 /// `EnvironmentManager` is a shared registry for concrete environments. Its
 /// default constructor preserves the legacy `CODEX_EXEC_SERVER_URL` behavior

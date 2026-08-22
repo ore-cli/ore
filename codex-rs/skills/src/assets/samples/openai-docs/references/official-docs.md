@@ -1,8 +1,8 @@
 # Official documentation, API references, and ChatGPT Work
 
-Use this route for OpenAI product or API documentation, examples, citations, ChatGPT Work, learning content, mixed Chat/Work/Codex comparisons, and narrow Codex product documentation. Follow the root skill's official-source order and credential boundary.
+Use this route for OpenAI product or API documentation, examples, citations, ChatGPT Work, learning content, mixed Chat/Work/ore comparisons, and narrow ore product documentation. Follow the root skill's official-source order and credential boundary.
 
-An explicit OpenAI documentation question stays documentation-first even when embedded in a broader repository, Promptfoo, agent-evaluation, `PLANS.md`, frontend, tool-use, image, Realtime API, SDK installation, or streaming-debugging task. Search the exact requested official documentation and open or fetch its relevant page before inspecting local files, drafting a plan, running evals, reading bundled references, or invoking the Codex manual. Then use the fetched official source to complete the requested work.
+An explicit OpenAI documentation question stays documentation-first even when embedded in a broader repository, Promptfoo, agent-evaluation, `PLANS.md`, frontend, tool-use, image, Realtime API, SDK installation, or streaming-debugging task. Search the exact requested official documentation and open or fetch its relevant page before inspecting local files, drafting a plan, running evals, reading bundled references, or invoking the ore manual. Then use the fetched official source to complete the requested work.
 
 ## Find the smallest useful source
 
@@ -11,11 +11,11 @@ An explicit OpenAI documentation question stays documentation-first even when em
 3. For API schemas, required fields, parameters, or endpoint shapes, use an already available OpenAPI or specification capability when it directly resolves the question. Otherwise verify the shape against the fetched official API guide or reference.
 4. Cite the exact official page supporting each consequential claim. Keep examples minimal, paraphrase instead of quoting at length, and state when official sources do not establish a capability, parameter, price, or availability.
 
-Preserve an explicitly requested model in the search and answer. Search the requested topic directly for model-specific frontend and tool-use prompting, image input or generation, Realtime voice or translation, official Agents SDK installation, Responses streaming errors, and Codex Goals. A specific Codex feature, error, setting, or requested citation is a narrow documentation lookup, not the broad manual-first exception. Current or latest model recommendations follow the model-selection route and the same official search-and-fetch order.
+Preserve an explicitly requested model in the search and answer. Search the requested topic directly for model-specific frontend and tool-use prompting, image input or generation, Realtime voice or translation, official Agents SDK installation, Responses streaming errors, and ore Goals. A specific ore feature, error, setting, or requested citation is a narrow documentation lookup, not the broad manual-first exception. Current or latest model recommendations follow the model-selection route and the same official search-and-fetch order.
 
 ## ChatGPT Work and mixed surfaces
 
-Treat a comparison between Chat, Work, and Codex as ChatGPT Work documentation, not broad Codex self-knowledge. Search `learn.chatgpt.com` and open or fetch the relevant official page. Useful starting pages are:
+Treat a comparison between Chat, Work, and ore as ChatGPT Work documentation, not broad ore self-knowledge. Search `learn.chatgpt.com` and open or fetch the relevant official page. Useful starting pages are:
 
 - `https://learn.chatgpt.com/docs/use-chatgpt`
 - `https://learn.chatgpt.com/docs/get-started-with-work`

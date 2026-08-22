@@ -57,7 +57,7 @@ struct HistoryByteAnchor {
 
 /// File metadata that must remain unchanged before a byte position can be reused.
 ///
-/// Byte positions are only reused for uncapped histories, which Codex writes append-only. Capped
+/// Byte positions are only reused for uncapped histories, which ore writes append-only. Capped
 /// histories can be rewritten in place when they are trimmed, so their cursors always fall back to
 /// an offset scan. Filesystems without a modification time also fall back to an offset scan.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,0 +1,1175 @@
+# Builds, signs and publishes an ore release. Same product set as upstream
+# Codex, minus Windows (Phase 3), WinGet, R2/CDN, the developer-website deploy
+# hook, the python runtime wheels, the latest-alpha-cli branch update, and the
+# argument-comment-lint assets -- each of those is either private OpenAI
+# infrastructure or of no value to ore users.
+#
+# Tags are `ore-v*`, never `rust-v*`: a tag push runs the workflow files present
+# at the tagged commit, and this tree carries upstream's rust-release.yml with
+# no owner guard, so an upstream-named tag here would launch OpenAI's release
+# pipeline out of ore's tree.
+#
+# Release tags must be cut on `main`. `main` is the assembled branch, and three
+# things the pipeline depends on -- the `ore` entrypoint stem, the `ore` help
+# name, the `ore` npm bin key -- only exist there. tag-check proves it by
+# looking at the tree rather than at the branch a tag happens to be reachable
+# from.
+#
+# Two prerequisite releases must already exist in THIS repository:
+#   * `ore-zsh-v*` (ore-zsh-release.yml) -- every bundle fetches the patched
+#     zsh through its DotSlash manifest, with no fallback, and verifies the
+#     manifest against CODEX_ZSH_MANIFEST_SHA256 below.
+#   * `ore-rusty-v8-v*` (ore-rusty-v8-mirror.yml), once the assemble-time
+#     substitution repoints setup-rusty-v8 at the mirror.
+name: ore-release
+
+on:
+  push:
+    tags:
+      - "ore-v*"
+
+env:
+  # scripts/codex_package/targets.py raises at import time when this is unset
+  # (added upstream in 0.147), and every packaging step plus the inline helper
+  # that fetches rg/zsh imports it.
+  CODEX_REPO_ROOT: ${{ github.workspace }}
+  # ore's OWN zsh sidecar release, not upstream's codex-zsh-v0.1.0: the
+  # download below is scoped to ${GITHUB_REPOSITORY}.
+  CODEX_ZSH_RELEASE_TAG: ore-zsh-v0.1.0
+  # PLACEHOLDER -- fill after the first ore-zsh-v0.1.0 publish with:
+  #   curl -fsSL https://github.com/ore-cli/ore/releases/download/ore-zsh-v0.1.0/codex-zsh | shasum -a 256
+  # ore's manifest embeds ore's own download URLs, so its digest necessarily
+  # differs from upstream's. tag-check refuses to build while this is not a
+  # 64-character lowercase hex digest, so the failure arrives in 30 seconds
+  # rather than as a checksum mismatch 90 minutes into the matrix.
+  CODEX_ZSH_MANIFEST_SHA256: "08daa8bcbd79148d524c408b26dc08e9f9e9b128bd44c912916111de8f85d1c5"
+
+concurrency:
+  group: ${{ github.workflow }}::${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tag-check:
+    name: validate tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+      make_latest: ${{ steps.check.outputs.make_latest }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Validate the tag against the tree
+        id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # ore-v<version>, where <version> is exactly the grammar
+          # scripts/install/install.sh accepts. A tag install.sh would reject is
+          # a release nobody can install.
+          if [[ ! "$TAG" =~ ^ore-v([0-9]+\.[0-9]+\.[0-9]+(-(alpha(\.[0-9]+){0,2}|beta(\.[0-9]+)?))?)$ ]]; then
+            echo "::error::Tag $TAG is not ore-v<x.y.z[-alpha[.N[.M]]|-beta[.N]]>."
+            exit 1
+          fi
+          # Captured now: a later [[ ]] resets BASH_REMATCH.
+          version="${BASH_REMATCH[1]}"
+          prerelease_marker="${BASH_REMATCH[2]:-}"
+
+          # Scoped to the [workspace.package] table: a bare first match would
+          # silently pick up any earlier `version` key upstream adds. The
+          # workspace version is written by fork/assemble.sh from fork/VERSION,
+          # never by a series commit, so this equality is what ties the tag to
+          # the fork's single version source.
+          workspace_version="$(awk -F'"' '/^\[workspace.package\]/{f=1; next} f && /^version *=/{print $2; exit}' codex-rs/Cargo.toml)"
+          if [[ "$version" != "$workspace_version" ]]; then
+            echo "::error::Tag says $version but codex-rs/Cargo.toml [workspace.package] says $workspace_version."
+            exit 1
+          fi
+
+          # On-main proof, in three greps over three independently substituted
+          # files. The packaging stem is what puts `bin/ore` in the bundle; the
+          # clap bin_name is what `ore --help` prints; the npm bin key is what
+          # `npm i -g` links. A tag cut on `delta` (where the substitutions have
+          # not run) fails on the second and third.
+          missing=0
+          grep -q 'executable_stem="ore"' scripts/codex_package/targets.py || {
+            echo "::error::scripts/codex_package/targets.py has no ore entrypoint stem."; missing=1; }
+          grep -q 'name = "ore"' codex-rs/cli/src/main.rs || {
+            echo "::error::codex-rs/cli/src/main.rs still names the binary codex."; missing=1; }
+          grep -q '"ore": "bin/' codex-cli/package.json || {
+            echo "::error::codex-cli/package.json has no ore bin entry."; missing=1; }
+          if [[ "$missing" -ne 0 ]]; then
+            echo "::error::This tag is not on main. Release tags must be cut on the assembled branch."
+            exit 1
+          fi
+
+          # Fail here rather than 90 minutes into the build matrix.
+          if [[ ! "${CODEX_ZSH_MANIFEST_SHA256}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::CODEX_ZSH_MANIFEST_SHA256 is still a placeholder. Publish ${CODEX_ZSH_RELEASE_TAG} first, then pin the digest of its codex-zsh manifest asset in this workflow."
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          # A stable tag is what releases/latest resolves to, which is the URL
+          # install.sh follows when asked for `latest`.
+          if [[ -n "$prerelease_marker" ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "make_latest=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Releasing ore ${version}"
+
+      # The same three greps plus the fork/VERSION coherence the release path
+      # has no other check for: fork/VERSION is the single version source, and
+      # a tag that agrees with codex-rs/Cargo.toml but not with fork/VERSION
+      # means assemble ran against a different version than the one being cut.
+      - name: Cross-check the tag against the fork's own verifier
+        run: |
+          python3 fork/verify/version_check.py \
+            --tag "${GITHUB_REF_NAME}" --on-main-proof --tree-only
+
+  build:
+    name: build ${{ matrix.artifact_name }}
+    needs: tag-check
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      # cosign signs keylessly against Sigstore using a GitHub OIDC token.
+      id-token: write
+    # x86_64-apple-darwin is the long pole at ~90 min on the slowest free
+    # runner class; a batch 40% off pace blew the old 120.
+    timeout-minutes: 240
+    defaults:
+      run:
+        working-directory: codex-rs
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macos-latest is Apple Silicon; macos-15-intel is the free standard
+          # Intel label. Neither is a billed `-large`/`-xlarge` runner, and
+          # neither is a self-hosted group -- a free org has access to neither.
+          #
+          # `binaries` are CARGO bin-target names. The entrypoint target is
+          # still `codex`; `ore` appears only in the shipped file names and in
+          # the package layout.
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            bundle: primary
+            artifact_name: aarch64-apple-darwin
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy"
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            bundle: app-server
+            artifact_name: aarch64-apple-darwin-app-server
+            binaries: "codex-app-server codex-code-mode-host"
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundle: primary
+            artifact_name: x86_64-apple-darwin
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy"
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundle: app-server
+            artifact_name: x86_64-apple-darwin-app-server
+            binaries: "codex-app-server codex-code-mode-host"
+          # Linux ships musl-linked binaries, as upstream does.
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            bundle: primary
+            artifact_name: x86_64-unknown-linux-musl
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy bwrap"
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            bundle: app-server
+            artifact_name: x86_64-unknown-linux-musl-app-server
+            binaries: "codex-app-server codex-code-mode-host"
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            bundle: primary
+            artifact_name: aarch64-unknown-linux-musl
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy bwrap"
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            bundle: app-server
+            artifact_name: aarch64-unknown-linux-musl-app-server
+            binaries: "codex-app-server codex-code-mode-host"
+    env:
+      # Pin the floor rather than inheriting the runner's SDK. macos-latest is
+      # mid-migration to macOS 26; without this the minimum macOS an ore user
+      # needs would drift upward silently.
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+      # codex-rs/Cargo.toml sets split-debuginfo = "off", but
+      # archive-release-symbols-and-strip-binaries.sh exits 1 when a macOS dSYM
+      # is missing. Upstream overrides the profile per target for this reason.
+      CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: ${{ contains(matrix.target, 'apple-darwin') && 'packed' || 'off' }}
+      # macOS runners have intermittently failed to fetch nested git submodules
+      # through libgit2/SecureTransport.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Linux bwrap build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            binutils pkg-config libcap-dev
+
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Use a hermetic Cargo home (musl)
+        if: contains(matrix.target, 'musl')
+        run: |
+          set -euo pipefail
+          cargo_home="${GITHUB_WORKSPACE}/.cargo-home"
+          mkdir -p "${cargo_home}/bin"
+          echo "CARGO_HOME=${cargo_home}" >> "$GITHUB_ENV"
+          echo "${cargo_home}/bin" >> "$GITHUB_PATH"
+          : > "${cargo_home}/config.toml"
+
+      - name: Install Zig
+        if: contains(matrix.target, 'musl')
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.14.0
+          use-cache: false
+
+      # Builds libcap from pinned source against musl and writes its own
+      # libcap.pc, because apt's libcap is glibc-linked and codex-bwrap probes
+      # for it through pkg-config.
+      - name: Install musl build tools
+        if: contains(matrix.target, 'musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash "${GITHUB_WORKSPACE}/.github/scripts/install-musl-build-tools.sh"
+
+      - name: Disable aws-lc jitter entropy (musl)
+        if: contains(matrix.target, 'musl')
+        run: |
+          set -euo pipefail
+          echo "AWS_LC_SYS_NO_JITTER_ENTROPY=1" >> "$GITHUB_ENV"
+          target_no_jitter="AWS_LC_SYS_NO_JITTER_ENTROPY_${{ matrix.target }}"
+          echo "${target_no_jitter//-/_}=1" >> "$GITHUB_ENV"
+
+      # Mandatory before any cargo invocation: code-mode-runtime enables the v8
+      # crate's sandbox feature, whose prebuilt variant exists only in the
+      # artifacts this action fetches.
+      - name: Configure rusty_v8 artifacts
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: ${{ matrix.target }}
+
+      # ORDER IS LOAD-BEARING. codex-rs/linux-sandbox/build.rs embeds
+      # CODEX_BWRAP_SHA256 and the runtime verifies the bundled bwrap against
+      # it, so bwrap has to be built, stripped and hashed before the binary that
+      # carries its digest. Hash after stripping: the digest must cover the
+      # bytes that ship. (The env var keeps its upstream name -- it is read by
+      # upstream's build.rs, which the fork does not patch.)
+      - name: Build bwrap and export its digest
+        if: contains(matrix.binaries, 'bwrap')
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          cargo build --target "$target" --release --bin bwrap
+
+          bwrap_path="target/${target}/release/bwrap"
+          [[ -f "$bwrap_path" ]] || { echo "::error::bwrap not built"; exit 1; }
+
+          strip --strip-debug --strip-unneeded "$bwrap_path"
+          digest="$(sha256sum "$bwrap_path" | awk '{print $1}')"
+          echo "CODEX_BWRAP_SHA256=${digest}" >> "$GITHUB_ENV"
+          echo "bwrap sha256:${digest}"
+
+      - name: Cargo build
+        env:
+          BINARIES: ${{ matrix.binaries }}
+        run: |
+          set -euo pipefail
+          build_args=()
+          for binary in ${BINARIES}; do
+            # Already built above, and rebuilding would change its bytes.
+            [[ "$binary" == "bwrap" ]] && continue
+            build_args+=(--bin "$binary")
+          done
+          cargo build --target "${{ matrix.target }}" --release "${build_args[@]}"
+
+      - name: Build symbols archive and strip binaries
+        env:
+          BINARIES: ${{ matrix.binaries }}
+        run: |
+          set -euo pipefail
+          symbol_binaries=()
+          for binary in ${BINARIES}; do
+            # bwrap is already stripped; its symbols are not worth a second pass.
+            [[ "$binary" == "bwrap" ]] && continue
+            symbol_binaries+=("$binary")
+          done
+          bash "${GITHUB_WORKSPACE}/.github/scripts/archive-release-symbols-and-strip-binaries.sh" \
+            --target "${{ matrix.target }}" \
+            --artifact-name "${{ matrix.artifact_name }}" \
+            --release-dir "target/${{ matrix.target }}/release" \
+            --archive-dir "symbols-dist/${{ matrix.artifact_name }}" \
+            --binaries "${symbol_binaries[*]}"
+
+      # ---- Linux: cosign, package, stage -----------------------------------
+      - name: Cosign Linux artifacts
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-code-sign
+        with:
+          target: ${{ matrix.target }}
+          artifacts-dir: ${{ github.workspace }}/codex-rs/target/${{ matrix.target }}/release
+          binaries: ${{ matrix.binaries }}
+
+      - name: Download and verify the packaged zsh manifest
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 5 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${CODEX_ZSH_RELEASE_TAG}/codex-zsh" \
+            -o "${RUNNER_TEMP}/codex-zsh"
+          bash "${GITHUB_WORKSPACE}/.github/scripts/verify-zsh-manifest.sh" \
+            "${RUNNER_TEMP}/codex-zsh" "$CODEX_ZSH_MANIFEST_SHA256"
+
+      # Unmodified upstream script: `bin/ore` inside the bundle comes from
+      # scripts/codex_package/targets.py's executable_stem, not from anything
+      # this workflow passes.
+      - name: Build the ore package archive
+        if: runner.os == 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLE: ${{ matrix.bundle }}
+        run: |
+          set -euo pipefail
+          bash "${GITHUB_WORKSPACE}/.github/scripts/build-codex-package-archive.sh" \
+            --target "$TARGET" --bundle "$BUNDLE" \
+            --entrypoint-dir "target/${TARGET}/release" \
+            --archive-dir "dist/${TARGET}" \
+            --zsh-manifest "${RUNNER_TEMP}/codex-zsh"
+
+      - name: Stage standalone Linux binaries
+        if: runner.os == 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLE: ${{ matrix.bundle }}
+          BINARIES: ${{ matrix.binaries }}
+        run: |
+          set -euo pipefail
+          # THE ONLY PLACE a standalone asset is renamed. The cargo bin target
+          # stays `codex` everywhere else in this pipeline -- entitlements
+          # lookup, symbols archive and package layout all key on it.
+          asset_name() {
+            case "$1" in
+              codex) printf 'ore' ;;
+              *) printf '%s' "$1" ;;
+            esac
+          }
+
+          dest="dist/${TARGET}"
+          mkdir -p "$dest"
+          for binary in ${BINARIES}; do
+            # Both bundles build the host; only primary publishes it standalone,
+            # or the two rows collide on one release asset name.
+            if [[ "${BUNDLE}" == "app-server" && "$binary" == "codex-code-mode-host" ]]; then
+              continue
+            fi
+            name="$(asset_name "$binary")-${TARGET}"
+            cp "target/${TARGET}/release/${binary}" "$dest/$name"
+            # Upstream ships compressed standalone archives, not bare binaries:
+            # a tarball preserves the executable bit, a raw asset does not.
+            tar -C "$dest" -czf "$dest/${name}.tar.gz" "$name"
+            zstd -q -T0 -19 --rm "$dest/$name"
+            cp "target/${TARGET}/release/${binary}.sigstore" "$dest/${name}.sigstore"
+          done
+
+      # ---- macOS: hand the unsigned binaries to the signing job -------------
+      - name: Stage unsigned macOS binaries
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+          BINARIES: ${{ matrix.binaries }}
+        run: |
+          set -euo pipefail
+          # tar, because GitHub artifacts do not preserve the executable bit.
+          dest="unsigned-dist/${TARGET}"
+          mkdir -p "$dest"
+          for binary in ${BINARIES}; do
+            tar -C "target/${TARGET}/release" -czf "${dest}/${binary}.tar.gz" "$binary"
+          done
+
+      - name: Upload unsigned macOS binaries
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ matrix.artifact_name }}-unsigned
+          path: codex-rs/unsigned-dist/${{ matrix.target }}/*
+          if-no-files-found: error
+
+      - name: Upload Linux release artifacts
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: codex-rs/dist/${{ matrix.target }}/*
+          if-no-files-found: error
+
+      - name: Upload symbols
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ matrix.artifact_name }}-symbols
+          path: codex-rs/symbols-dist/${{ matrix.artifact_name }}/*
+          if-no-files-found: error
+
+  # A separate job so `environment: release` -- and the 1Password token it
+  # carries -- is scoped to the steps that need it rather than to all eight
+  # build rows.
+  sign-macos:
+    name: sign ${{ matrix.artifact_name }}
+    needs: [tag-check, build]
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: codex-rs
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            bundle: primary
+            artifact_name: aarch64-apple-darwin
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy"
+            build_dmg: "true"
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            bundle: app-server
+            artifact_name: aarch64-apple-darwin-app-server
+            binaries: "codex-app-server codex-code-mode-host"
+            build_dmg: "false"
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundle: primary
+            artifact_name: x86_64-apple-darwin
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy"
+            build_dmg: "true"
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundle: app-server
+            artifact_name: x86_64-apple-darwin-app-server
+            binaries: "codex-app-server codex-code-mode-host"
+            build_dmg: "false"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ matrix.artifact_name }}-unsigned
+          path: codex-rs/unsigned
+
+      - name: Restore the unsigned binaries
+        env:
+          TARGET: ${{ matrix.target }}
+          BINARIES: ${{ matrix.binaries }}
+        run: |
+          set -euo pipefail
+          dest="target/${TARGET}/release"
+          mkdir -p "$dest"
+          for binary in ${BINARIES}; do
+            tar -xzf "unsigned/${binary}.tar.gz" -C "$dest"
+            chmod 0755 "${dest}/${binary}"
+          done
+
+      # The notarization scripts drive rcodesign, which is not preinstalled.
+      # Upstream now fetches its build from a private Azure blob a fork cannot
+      # reach; fork/release/install-rcodesign.sh takes the public GitHub release
+      # and verifies it against a sha256 literal committed in the script.
+      - name: Install rcodesign
+        run: bash "${GITHUB_WORKSPACE}/fork/release/install-rcodesign.sh"
+
+      - name: Load signing credentials
+        id: op
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          MACOS_CERTIFICATE_P12: op://ore-cli/apple-developer-id/p12_base64
+          MACOS_CERTIFICATE_PASSWORD: op://ore-cli/apple-developer-id/password
+          MACOS_SIGNING_IDENTITY: op://ore-cli/apple-developer-id/identity
+          APPLE_NOTARIZATION_KEY_P8: op://ore-cli/apple-notarization/p8_base64
+          APPLE_NOTARIZATION_KEY_ID: op://ore-cli/apple-notarization/key_id
+          APPLE_NOTARIZATION_ISSUER_ID: op://ore-cli/apple-notarization/issuer_id
+
+      - name: Import the Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_P12: ${{ steps.op.outputs.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ steps.op.outputs.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="${RUNNER_TEMP}/ore-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "${RUNNER_TEMP}/cert.p12"
+          security import "${RUNNER_TEMP}/cert.p12" \
+            -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "${RUNNER_TEMP}/cert.p12"
+
+          # Without this codesign blocks on a GUI prompt and the job times out.
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+
+          # Deliberately unquoted: the existing search list is many paths, and
+          # replacing it wholesale would evict the login keychain.
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$keychain"
+
+      - name: Sign and notarize the macOS binaries
+        env:
+          TARGET: ${{ matrix.target }}
+          BINARIES: ${{ matrix.binaries }}
+          ARTIFACT_NAME: ${{ matrix.artifact_name }}
+          MACOS_SIGNING_IDENTITY: ${{ steps.op.outputs.MACOS_SIGNING_IDENTITY }}
+          APPLE_NOTARIZATION_KEY_P8: ${{ steps.op.outputs.APPLE_NOTARIZATION_KEY_P8 }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ steps.op.outputs.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ steps.op.outputs.APPLE_NOTARIZATION_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          signing="${GITHUB_WORKSPACE}/.github/scripts/macos-signing"
+          release_dir="target/${TARGET}/release"
+          reports="${GITHUB_WORKSPACE}/signing-reports/${ARTIFACT_NAME}"
+
+          for binary in ${BINARIES}; do
+            target_path="${release_dir}/${binary}"
+            # Entitlements are looked up by the CARGO bin name, so the
+            # entrypoint keeps using upstream's codex.entitlements.plist -- its
+            # contents are what ore needs, and adding a renamed copy would
+            # diverge from .github/scripts/test_macos_signing_entitlements.py.
+            entitlements="${signing}/${binary}.entitlements.plist"
+            [[ -f "$entitlements" ]] || {
+              echo "::error::Entitlements ${entitlements} not found for ${binary}"; exit 1; }
+
+            # The code-signing identifier is user-visible (Gatekeeper dialogs,
+            # `codesign -d`), so the entrypoint signs as `ore`.
+            identifier="$binary"
+            [[ "$binary" == "codex" ]] && identifier="ore"
+
+            report="${reports}/${binary}"
+            mkdir -p "$report"
+
+            "${signing}/sign_macos_code.sh" \
+              --target "$target_path" --identity "$MACOS_SIGNING_IDENTITY" \
+              --deep false --identifier "$identifier" --options runtime \
+              --timestamp true --entitlements "$entitlements"
+
+            rcodesign print-signature-info "$target_path" >"${report}/signature-info.yaml"
+            bash "${GITHUB_WORKSPACE}/fork/release/macos-signing/notarize_macos_binary_with_rcodesign.sh" \
+              --binary "$target_path" --report-dir "$report"
+          done
+
+      # Both bundles: scripts/codex_package/layout.py copies rg into every
+      # package variant, and zsh comes from ore's own sidecar release.
+      - name: Fetch, sign and notarize the bundled helpers
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT_NAME: ${{ matrix.artifact_name }}
+          MACOS_SIGNING_IDENTITY: ${{ steps.op.outputs.MACOS_SIGNING_IDENTITY }}
+          APPLE_NOTARIZATION_KEY_P8: ${{ steps.op.outputs.APPLE_NOTARIZATION_KEY_P8 }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ steps.op.outputs.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ steps.op.outputs.APPLE_NOTARIZATION_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          signing="${GITHUB_WORKSPACE}/.github/scripts/macos-signing"
+          signed_root="${GITHUB_WORKSPACE}/signed-resources/${TARGET}"
+          mkdir -p "$signed_root"
+
+          curl -fsSL --retry 3 --retry-delay 5 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${CODEX_ZSH_RELEASE_TAG}/codex-zsh" \
+            -o "${RUNNER_TEMP}/codex-zsh"
+          bash "${GITHUB_WORKSPACE}/.github/scripts/verify-zsh-manifest.sh" \
+            "${RUNNER_TEMP}/codex-zsh" "$CODEX_ZSH_MANIFEST_SHA256"
+
+          PYTHONPATH="${GITHUB_WORKSPACE}/scripts" python3 - "$TARGET" "$signed_root" "${RUNNER_TEMP}/codex-zsh" <<'PY'
+          import shutil
+          import sys
+          from pathlib import Path
+
+          from codex_package.ripgrep import fetch_rg
+          from codex_package.targets import TARGET_SPECS
+          from codex_package.zsh import resolve_zsh_bin
+
+          spec = TARGET_SPECS[sys.argv[1]]
+          signed_root = Path(sys.argv[2])
+          zsh_bin = resolve_zsh_bin(spec, Path(sys.argv[3]))
+          if zsh_bin is None:
+              raise RuntimeError(f"Pinned zsh release is missing {spec.target}")
+          shutil.copy2(fetch_rg(spec), signed_root / "rg")
+          shutil.copy2(zsh_bin, signed_root / "zsh")
+          PY
+
+          for resource in rg zsh; do
+            binary="${signed_root}/${resource}"
+            report="${GITHUB_WORKSPACE}/signing-reports/${ARTIFACT_NAME}/${resource}"
+            mkdir -p "$report"
+            chmod 0755 "$binary"
+
+            # No entitlements: third-party helpers, neither needs JIT.
+            "${signing}/sign_macos_code.sh" \
+              --target "$binary" --identity "$MACOS_SIGNING_IDENTITY" \
+              --deep false --identifier "io.github.ore-cli.ore.${resource}" \
+              --options runtime --timestamp true
+
+            rcodesign print-signature-info "$binary" >"${report}/signature-info.yaml"
+            bash "${GITHUB_WORKSPACE}/fork/release/macos-signing/notarize_macos_binary_with_rcodesign.sh" \
+              --binary "$binary" --report-dir "$report"
+          done
+
+      - name: Build the ore package archive
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLE: ${{ matrix.bundle }}
+        run: |
+          set -euo pipefail
+          # --zsh-bin and --zsh-manifest are mutually exclusive, and the
+          # manifest is what tells the packager to fetch zsh itself -- exactly
+          # what the signing above exists to prevent. Pass the signed copies.
+          signed="${GITHUB_WORKSPACE}/signed-resources/${TARGET}"
+          bash "${GITHUB_WORKSPACE}/.github/scripts/build-codex-package-archive.sh" \
+            --target "$TARGET" --bundle "$BUNDLE" \
+            --entrypoint-dir "target/${TARGET}/release" \
+            --archive-dir "dist/${TARGET}" \
+            --rg-bin "${signed}/rg" \
+            --zsh-bin "${signed}/zsh"
+
+      - name: Stage standalone macOS binaries
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLE: ${{ matrix.bundle }}
+          BINARIES: ${{ matrix.binaries }}
+        run: |
+          set -euo pipefail
+          # Same single rename point as the Linux staging step.
+          asset_name() {
+            case "$1" in
+              codex) printf 'ore' ;;
+              *) printf '%s' "$1" ;;
+            esac
+          }
+
+          dest="dist/${TARGET}"
+          mkdir -p "$dest"
+          for binary in ${BINARIES}; do
+            if [[ "${BUNDLE}" == "app-server" && "$binary" == "codex-code-mode-host" ]]; then
+              continue
+            fi
+            name="$(asset_name "$binary")-${TARGET}"
+            cp "target/${TARGET}/release/${binary}" "$dest/$name"
+            tar -C "$dest" -czf "$dest/${name}.tar.gz" "$name"
+            zstd -q -T0 -19 --rm "$dest/$name"
+          done
+
+      # A bare Mach-O cannot hold a stapled ticket; a disk image can. Built from
+      # the already-signed binaries so the image holds the bytes we notarized.
+      - name: Build, sign, notarize and staple the DMG
+        if: matrix.build_dmg == 'true'
+        env:
+          TARGET: ${{ matrix.target }}
+          BINARIES: ${{ matrix.binaries }}
+          ARTIFACT_NAME: ${{ matrix.artifact_name }}
+          MACOS_SIGNING_IDENTITY: ${{ steps.op.outputs.MACOS_SIGNING_IDENTITY }}
+          APPLE_NOTARIZATION_KEY_P8: ${{ steps.op.outputs.APPLE_NOTARIZATION_KEY_P8 }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ steps.op.outputs.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ steps.op.outputs.APPLE_NOTARIZATION_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          asset_name() {
+            case "$1" in
+              codex) printf 'ore' ;;
+              *) printf '%s' "$1" ;;
+            esac
+          }
+
+          signing="${GITHUB_WORKSPACE}/.github/scripts/macos-signing"
+          report="${GITHUB_WORKSPACE}/signing-reports/${ARTIFACT_NAME}/dmg"
+          dmg_root="${RUNNER_TEMP}/ore-dmg-root-${TARGET}"
+          dmg_path="dist/${TARGET}/ore-${TARGET}.dmg"
+          mkdir -p "$report" "dist/${TARGET}"
+
+          rm -rf "$dmg_root"; mkdir -p "$dmg_root"
+          for binary in ${BINARIES}; do
+            ditto "target/${TARGET}/release/${binary}" "${dmg_root}/$(asset_name "$binary")"
+          done
+
+          rm -f "$dmg_path"
+          hdiutil create -format UDZO -srcfolder "$dmg_root" -volname "ore (${TARGET})" "$dmg_path"
+
+          "${signing}/sign_macos_code.sh" \
+            --target "$dmg_path" --identity "$MACOS_SIGNING_IDENTITY" \
+            --deep false --identifier "io.github.ore-cli.ore.dmg" --timestamp true
+
+          bash "${GITHUB_WORKSPACE}/fork/release/macos-signing/notarize_macos_dmg_with_rcodesign.sh" \
+            --dmg "$dmg_path" --report-dir "$report"
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: codex-rs/dist/${{ matrix.target }}/*
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: always()
+        with:
+          name: ${{ matrix.artifact_name }}-signing-reports
+          path: signing-reports/${{ matrix.artifact_name }}/**
+          if-no-files-found: warn
+
+  # Re-verifies on a clean runner, after download, so a mismatch between what
+  # was signed and what was uploaded cannot pass. Upstream's finalize-macos does
+  # this for the same reason; folding it into the signing job would lose it.
+  verify-macos:
+    name: verify ${{ matrix.artifact_name }}
+    needs: sign-macos
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            arch: arm64
+            artifact_name: aarch64-apple-darwin
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy"
+            check_dmg: "true"
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            arch: arm64
+            artifact_name: aarch64-apple-darwin-app-server
+            binaries: "codex-app-server"
+            check_dmg: "false"
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: x86_64
+            artifact_name: x86_64-apple-darwin
+            binaries: "codex codex-code-mode-host codex-responses-api-proxy"
+            check_dmg: "true"
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: x86_64
+            artifact_name: x86_64-apple-darwin-app-server
+            binaries: "codex-app-server"
+            check_dmg: "false"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: signed
+
+      - name: Verify architecture, signature and entitlements
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+          BINARIES: ${{ matrix.binaries }}
+        run: |
+          set -euo pipefail
+          asset_name() {
+            case "$1" in
+              codex) printf 'ore' ;;
+              *) printf '%s' "$1" ;;
+            esac
+          }
+
+          signing=".github/scripts/macos-signing"
+          for binary in ${BINARIES}; do
+            name="$(asset_name "$binary")-${TARGET}"
+            archive="signed/${name}.tar.gz"
+            [[ -f "$archive" ]] || { echo "::error::${archive} missing"; exit 1; }
+            # Verify what actually ships, unpacked the way a user would.
+            rm -rf "extracted/${name}"; mkdir -p "extracted/${name}"
+            tar -xzf "$archive" -C "extracted/${name}"
+            path="extracted/${name}/${name}"
+            chmod 0755 "$path"
+
+            lipo "$path" -verify_arch "$ARCH"
+            codesign --verify --strict --verbose=2 "$path"
+
+            # A signature can be valid while carrying the wrong entitlements,
+            # which is how a JIT-using binary ships broken. Diff them.
+            expected="${signing}/${binary}.entitlements.plist"
+            actual="$(mktemp)"; norm_a="$(mktemp)"; norm_e="$(mktemp)"
+            codesign -d --entitlements :- "$path" >"$actual"
+            plutil -convert xml1 -o "$norm_a" "$actual"
+            plutil -convert xml1 -o "$norm_e" "$expected"
+            diff -u "$norm_e" "$norm_a"
+            echo "ok  $binary"
+          done
+
+      - name: Verify the DMG is stapled
+        if: matrix.check_dmg == 'true'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          dmg="signed/ore-${TARGET}.dmg"
+          [[ -f "$dmg" ]] || { echo "::error::${dmg} missing"; exit 1; }
+          codesign --verify --strict --verbose=2 "$dmg"
+          # Proves the ticket travelled with the file rather than needing Apple.
+          xcrun stapler validate "$dmg"
+
+  release:
+    name: publish
+    needs: [tag-check, build, sign-macos, verify-macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ github.ref_name }}
+      version: ${{ needs.tag-check.outputs.version }}
+      npm_tag: ${{ steps.npm_settings.outputs.npm_tag }}
+      should_publish_npm: ${{ steps.npm_settings.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: staged
+
+      - name: Collect assets
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # Signing reports and the unsigned hand-off are diagnostics, not
+          # release assets.
+          find staged -type f \
+            -not -path '*-signing-reports/*' \
+            -not -path '*-unsigned/*' \
+            -exec cp {} dist/ \;
+          # No install.ps1 until Phase 3 ships Windows binaries for it to fetch.
+          cp scripts/install/install.sh dist/
+          cp codex-rs/core/config.schema.json dist/config-schema.json
+          ls -la dist
+
+      # scripts/install/install.sh looks for exactly this filename and verifies
+      # the package archive against it, so the name is a contract, not a choice.
+      - name: Add the package checksum manifest
+        run: |
+          set -euo pipefail
+          manifest="dist/codex-package_SHA256SUMS"
+          tmp="$(mktemp)"
+          find dist -type f \
+            \( -name 'codex-package-*.tar.gz' -o -name 'codex-app-server-package-*.tar.gz' \) \
+            -print | sort | while IFS= read -r archive; do
+              sha256sum "$archive" | awk -v n="$(basename "$archive")" '{ print $1 "  " n }'
+            done > "$tmp"
+          [[ -s "$tmp" ]] || { echo "::error::No package archives found for the manifest"; exit 1; }
+          mv "$tmp" "$manifest"
+          cat "$manifest"
+
+      - name: Determine npm publish settings
+        id: npm_settings
+        env:
+          VERSION: ${{ needs.tag-check.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Same policy as upstream: stable and numbered alphas publish, bare
+          # `-alpha` and every beta do not.
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "npm_tag=" >> "$GITHUB_OUTPUT"
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "npm_tag=alpha" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "npm_tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # DORMANT. scripts/stage_npm_packages.py hard-requires all six platform
+      # archives, win32-x64 and win32-arm64 included, so staging cannot succeed
+      # before Phase 3 lands Windows builds. The steps ship now so the first
+      # Windows-complete release is a variable flip rather than a rewrite; set
+      # the repository variable ORE_NPM_STAGE=true to arm them. Staging must
+      # live inside this job because its tarballs are release assets.
+      - name: Setup pnpm
+        if: vars.ORE_NPM_STAGE == 'true'
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+        with:
+          run_install: false
+
+      - name: Setup Node.js for npm packaging
+        if: vars.ORE_NPM_STAGE == 'true'
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        if: vars.ORE_NPM_STAGE == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Root package plus the six platform variants only: ore publishes no
+      # responses-api-proxy or SDK package.
+      - name: Stage npm packages
+        if: vars.ORE_NPM_STAGE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.tag-check.outputs.version }}
+        run: |
+          set -euo pipefail
+          workflow_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          ./scripts/stage_npm_packages.py \
+            --release-version "$RELEASE_VERSION" \
+            --workflow-url "$workflow_url" \
+            --artifacts-dir "${GITHUB_WORKSPACE}/dist" \
+            --package codex
+
+      # Fork-added: upstream publishes only codex-package_SHA256SUMS, which
+      # covers the bundle archives alone. fork/release/render_homebrew_formula.sh
+      # reads this one, and it is the only manifest that covers the standalone
+      # binaries, the DMGs and the symbol archives. Basenames, because release
+      # assets are flat however deep dist/ nests.
+      - name: Checksum every asset
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          ( cd dist && find . -type f -print | sort | while IFS= read -r f; do
+              sha256sum "$f" | awk -v n="$(basename "$f")" '{ print $1 "  " n }'
+            done ) > "$tmp"
+          mv "$tmp" dist/SHA256SUMS
+          cat dist/SHA256SUMS
+
+      - name: Create the GitHub Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ore ${{ needs.tag-check.outputs.version }}
+          files: dist/**
+          prerelease: ${{ needs.tag-check.outputs.prerelease }}
+          make_latest: ${{ needs.tag-check.outputs.make_latest }}
+          generate_release_notes: true
+
+  publish-dotslash:
+    name: dotslash manifests
+    needs: [tag-check, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: ${{ github.ref_name }}
+          config: .github/dotslash-config.json
+
+  # Stable tags only: a prerelease must not become what `brew install` gives you.
+  homebrew-tap:
+    name: homebrew formula
+    needs: [tag-check, release]
+    if: needs.tag-check.outputs.prerelease == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Load the tap token
+        id: op
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HOMEBREW_TAP_TOKEN: op://ore-cli/ore-cli-github-homebrew-tap/credential
+
+      # persist-credentials stays on here: the push below uses them.
+      - name: Check out the tap
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ore-cli/homebrew-tap
+          token: ${{ steps.op.outputs.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Render and push the formula
+        env:
+          VERSION: ${{ needs.tag-check.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash fork/release/render_homebrew_formula.sh \
+            --version "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --out tap/Formula/ore.rb
+
+          cd tap
+          # --quiet reports no change for an untracked file, so stage first.
+          git add Formula/ore.rb
+          if git diff --quiet --cached -- Formula/ore.rb; then
+            echo "Formula already at $VERSION."
+            exit 0
+          fi
+          git config user.name "ore release"
+          git config user.email "noreply@github.com"
+          git commit -m "ore $VERSION"
+          git push
+
+  # DORMANT, like the staging steps above: set ORE_NPM_PUBLISH=true only after
+  # the first Windows-complete release, and only once @ore-cli/ore has had its
+  # first manual `--access public` publish and npm trusted publishing is
+  # configured for this repository and this workflow file.
+  publish-npm:
+    name: publish-npm
+    needs: release
+    if: >-
+      ${{
+        !cancelled() &&
+        vars.ORE_NPM_PUBLISH == 'true' &&
+        needs.release.result == 'success' &&
+        needs.release.outputs.should_publish_npm == 'true'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      id-token: write # OIDC, for npm trusted publishing
+      contents: read
+    steps:
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          # Node 24 bundles npm >= 11.5.1, which trusted publishing requires.
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          scope: "@ore-cli"
+
+      - name: Download npm tarballs from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/npm
+          patterns=(
+            "codex-npm-${RELEASE_VERSION}.tgz"
+            "codex-npm-linux-*-${RELEASE_VERSION}.tgz"
+            "codex-npm-darwin-*-${RELEASE_VERSION}.tgz"
+            "codex-npm-win32-*-${RELEASE_VERSION}.tgz"
+          )
+          for pattern in "${patterns[@]}"; do
+            gh release download "$RELEASE_TAG" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern "$pattern" \
+              --dir dist/npm
+          done
+
+      # No NODE_AUTH_TOKEN: publishing goes through OIDC.
+      - name: Publish to npm
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          NPM_TAG: ${{ needs.release.outputs.npm_tag }}
+        run: |
+          set -euo pipefail
+          prefix=""
+          if [[ -n "${NPM_TAG}" ]]; then
+            prefix="${NPM_TAG}-"
+          fi
+
+          root_tarball="dist/npm/codex-npm-${VERSION}.tgz"
+          # Keep this list in step with CODEX_PLATFORM_PACKAGES in
+          # codex-cli/scripts/build_npm_package.py. The root wrapper advances
+          # the `latest` dist-tag as soon as it publishes, so every platform
+          # package it aliases must already exist in the registry first.
+          platform_tarballs=(
+            "dist/npm/codex-npm-linux-x64-${VERSION}.tgz"
+            "dist/npm/codex-npm-linux-arm64-${VERSION}.tgz"
+            "dist/npm/codex-npm-darwin-x64-${VERSION}.tgz"
+            "dist/npm/codex-npm-darwin-arm64-${VERSION}.tgz"
+            "dist/npm/codex-npm-win32-x64-${VERSION}.tgz"
+            "dist/npm/codex-npm-win32-arm64-${VERSION}.tgz"
+          )
+
+          for required_tarball in "${platform_tarballs[@]}" "${root_tarball}"; do
+            if [[ ! -f "${required_tarball}" ]]; then
+              echo "::error::Missing npm tarball: ${required_tarball}"
+              exit 1
+            fi
+          done
+
+          # npm returns HTTP 409 when concurrent publishes update the same
+          # packument, and every platform tarball is a version of the same
+          # package, so publish serially.
+          for tarball in "${platform_tarballs[@]}" "${root_tarball}"; do
+            filename="$(basename "${tarball}")"
+            case "${filename}" in
+              codex-npm-linux-*|codex-npm-darwin-*|codex-npm-win32-*)
+                platform="${filename#codex-npm-}"
+                platform="${platform%-"${VERSION}".tgz}"
+                tag="${prefix}${platform}"
+                ;;
+              *)
+                tag="${NPM_TAG}"
+                ;;
+            esac
+
+            publish_cmd=(npm publish "${GITHUB_WORKSPACE}/${tarball}")
+            if [[ -n "${tag}" ]]; then
+              publish_cmd+=(--tag "${tag}")
+            fi
+
+            echo "+ ${publish_cmd[*]}"
+            set +e
+            publish_output="$("${publish_cmd[@]}" 2>&1)"
+            publish_status=$?
+            set -e
+
+            echo "${publish_output}"
+            if [[ ${publish_status} -eq 0 ]]; then
+              continue
+            fi
+            if grep -qiE "previously published|cannot publish over|version already exists" <<< "${publish_output}"; then
+              echo "Skipping already-published ${filename}"
+              continue
+            fi
+            exit "${publish_status}"
+          done

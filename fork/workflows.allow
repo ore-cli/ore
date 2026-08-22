@@ -1,0 +1,35 @@
+# fork/workflows.allow — the ONLY basenames permitted to remain in .github/workflows/.
+#
+# Deny-by-default: fork/relocate_workflows.py moves every .github/workflows/*.yml|*.yaml
+# whose basename is NOT listed here into fork/upstream-workflows/ during assembly, so a
+# brand-new upstream workflow (~1/month at current churn) is neutralized with zero
+# configuration and can only go live via a reviewed edit to this file.
+#
+# Non-workflow files in .github/workflows/ — README.md, Dockerfile.bazel, zstd — are not
+# YAML and are never relocated. `zstd` is load-bearing: .github/scripts/
+# build-codex-package-archive.sh:174-175 prepends .github/workflows to PATH to find the
+# bundled zstd binary when the runner has none.
+#
+# repo-checks.yml is deliberately NOT allowlisted: its python verifiers
+# (.github/scripts/verify_cargo_workspace_manifests.py and friends) are invoked directly
+# as ore-ci steps, so the upstream caller adds nothing but an extra live workflow name.
+
+# --- fork-owned (added by the delta series; must carry the ore- prefix) ---
+ore-ci.yml
+ore-release.yml
+ore-release-windows.yml
+ore-zsh-release.yml
+ore-rusty-v8-mirror.yml
+ore-windows-probe.yml
+ore-sync.yml
+ore-sync-finalize.yml
+
+# --- upstream, kept ONLY because ore-ci.yml `uses:` them ---
+# Reusable workflows must live in .github/workflows/ to be callable (GitHub does not
+# support subdirectories), so these cannot be relocated and reused. All three are
+# `workflow_call`-only, secret-free and free-runner; fork/verify asserts every sync that
+# their `on:` stays workflow_call-only, so an upstream edit cannot make them self-firing
+# without failing verify.
+blob-size-policy.yml
+cargo-deny.yml
+codespell.yml

@@ -268,7 +268,7 @@ impl PreparedMcpCall {
     }
 
     /// Runs irreversible call preparation and execution under the authority of
-    /// this call's exact catalog revision and the extensions owned by the Codex session.
+    /// this call's exact catalog revision and the extensions owned by the ore session.
     /// A caller-supplied timeout can further restrict the server's configured timeout.
     #[expect(
         clippy::await_holding_invalid_type,

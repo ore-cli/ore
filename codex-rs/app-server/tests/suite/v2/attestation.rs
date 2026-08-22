@@ -77,7 +77,7 @@ async fn attestation_generate_round_trip_adds_header_to_responses_websocket_hand
         mcp.initialize_with_capabilities(
             ClientInfo {
                 name: "codex_desktop".to_string(),
-                title: Some("Codex Desktop".to_string()),
+                title: Some("ore Desktop".to_string()),
                 version: "0.1.0".to_string(),
             },
             Some(InitializeCapabilities {

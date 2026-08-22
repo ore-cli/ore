@@ -1,0 +1,68 @@
+# fork/egress.yaml — classification of egress URL literals in Rust sources.
+#
+# Consumed by fork/semantic-review.py: every https?:// literal that is NEW in
+# .rs files between the base and target tags is classified here so a sync PR
+# never merges an unreviewed phone-home. Entries are case-insensitive
+# substrings matched against the URL with the scheme stripped.
+#
+# The LONGEST matching pattern wins across all lists; ties break
+# kill > decide > keep (so the desktop appcast kill under the otherwise-kept
+# chatgpt.com/backend-api wins, and the kept rusty-v8 asset path under the
+# decide-listed github.com/openai/ prefix wins). Reserved-name hosts
+# (.example/.invalid/.test/localhost, RFC 2606/6761) are recognized as test
+# fixtures without needing entries. A NEW url matching nothing is flagged
+# needs-decision: add it to a list here in the same sync PR that introduces it.
+
+# KILL — must not survive un-neutralised into a shipped ore binary. This is the
+# telemetry kill set (dead at the config seam or stripped) plus every
+# upstream-coordinates update/install/announcement endpoint the update-repoint
+# series replaces or hides. A NEW url landing here means upstream grew another
+# phone-home: check the owning series covers it before merge.
+kill:
+  - ab.chatgpt.com                                     # Statsig OTLP metrics ingestion
+  - sentry.io                                          # feedback crate DSN (o33249.ingest.us.sentry.io)
+  - /codex/analytics-events/events                     # product analytics POST path
+  - raw.githubusercontent.com/openai/codex             # announcement tips, fetched every TUI start
+  - api.github.com/repos/openai/codex/releases         # TUI/doctor update check
+  - github.com/openai/codex/releases/latest            # update hint URLs in doctor output
+  - registry.npmjs.org/@openai                         # npm registry version probe
+  - formulae.brew.sh/api/cask/codex.json               # Homebrew cask version probe
+  - chatgpt.com/codex/install.sh                       # daemon hourly `curl | sh` self-update
+  - chatgpt.com/codex/install.ps1
+  - chatgpt.com/backend-api/wham/app/appcast           # desktop app appcast probe
+  - persistent.oaistatic.com                           # desktop DMG download
+
+# DECIDE — default-on or third-party-visible egress the fork has not (yet)
+# ruled on; each occurrence in a sync diff needs a human verdict.
+decide:
+  - github.com/openai/plugins                          # curated plugins startup git-fetch (feature default TRUE)
+  - api.github.com/repos/openai/plugins                # its API fallback
+  - chatgpt.com/backend-api/plugins/export/curated     # its last-resort export
+  - api.chatgpt.com/v1/analytics                       # API-key turn-cost worker (150s loop in app-server)
+  - chatgpt.com/oauth/codex                            # CIMD client metadata handed to third-party MCP OAuth servers
+  - github.com/openai/                                 # any OTHER new openai coordinate: flag it (specific keeps/kills above win)
+
+# KEEP — provider traffic and the ChatGPT sign-in surface (byte-identical by
+# the auth-fence policy), plus inert hosts that dominate test fixtures and
+# docs. rusty-v8 release assets stay on upstream's releases by decision.
+keep:
+  - auth.openai.com
+  - api.openai.com
+  - openai.azure.com                                   # Azure OpenAI provider endpoints (BYO-key provider traffic)
+  - chatgpt.com/backend-api
+  - chatgpt.com/codex                                  # deep links (open-app, device flow) inside the fence
+  - learn.chatgpt.com                                  # static docs hyperlinks in help text
+  - github.com/openai/codex/releases/download/rusty-v8 # prebuilt V8 archives ore keeps consuming
+  - openai.com/policies
+  - platform.openai.com
+  - developers.openai.com
+  - example.openai.com                                 # doc placeholder that is not a reserved TLD
+  - json-schema.org
+  - www.w3.org
+  - crates.io
+  - github.com/openai/codex#                           # README/doc anchors
+  - github.com/openai/codex/issues
+  - github.com/openai/codex/blob
+  - docs.github.com
+  - modelcontextprotocol.io
+  - mozilla.org

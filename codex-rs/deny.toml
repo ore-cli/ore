@@ -241,7 +241,7 @@ deny = [
         # Intentional exception: gRPC uses reqwest directly as tonic's HTTP/2 transport.
         "codex-code-mode",
         # Intentional exception: this standalone, privileged Responses API proxy owns its blocking
-        # upstream HTTP transport independently of Codex.
+        # upstream HTTP transport independently of ore.
         "codex-responses-api-proxy",
         # Temporary migration exceptions.
         "codex-otel",

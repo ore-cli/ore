@@ -545,7 +545,7 @@ fn sanitize_json_schema(value: &mut JsonValue) {
 
 /// Sanitize a schema definition table before deserializing into `JsonSchema`.
 ///
-/// Definition tables must be objects. Codex keeps valid definition tables and
+/// Definition tables must be objects. ore keeps valid definition tables and
 /// recursively applies the same compatibility lowering used for inline schemas,
 /// but drops malformed tables so `strict: false` tool registration degrades
 /// gracefully instead of failing on an unreachable or invalid definition table.

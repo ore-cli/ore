@@ -76,13 +76,13 @@ pub(super) fn endpoint_check(inspection: EndpointInspection) -> DoctorCheck {
         "security.endpoint",
         "security",
         CheckStatus::Warning,
-        "endpoint protection detected; Codex exclusions are unverified",
+        "endpoint protection detected; ore exclusions are unverified",
     )
     .detail(format!("endpoint products: {}", products.join(", ")))
     .detail(format!("exclusion targets: {targets}"))
-    .detail("Codex exclusions: not verified")
+    .detail("ore exclusions: not verified")
     .remediation(
-        "ask your security administrator to verify Codex exclusions and required helper allowances",
+        "ask your security administrator to verify ore exclusions and required helper allowances",
     );
     if visibility_incomplete {
         check = check.detail("additional endpoint products: unavailable");
@@ -91,33 +91,31 @@ pub(super) fn endpoint_check(inspection: EndpointInspection) -> DoctorCheck {
     for product in products {
         let remedy = match product {
             "CrowdStrike Falcon" => {
-                "CrowdStrike Falcon: Add a certificate or IOA exclusion for Codex. If sensor overhead continues, exclude the Codex agent from sensor visibility. Keep monitoring descendant processes."
+                "CrowdStrike Falcon: Add a certificate or IOA exclusion for ore. If sensor overhead continues, exclude the ore agent from sensor visibility. Keep monitoring descendant processes."
             }
             "BeyondTrust Privilege Management" => {
-                "BeyondTrust: Remove Codex from application blocking rules. Add allow rules for Codex helper executables. Do not grant administrator privileges."
+                "BeyondTrust: Remove ore from application blocking rules. Add allow rules for ore helper executables. Do not grant administrator privileges."
             }
             "Microsoft Defender" => {
-                "Microsoft Defender: Add a certificate or executable-path exclusion for Codex and its helpers. If Attack Surface Reduction blocks Codex, add a rule exclusion. If Controlled Folder Access blocks Codex, allow the app."
+                "Microsoft Defender: Add a certificate or executable-path exclusion for ore and its helpers. If Attack Surface Reduction blocks ore, add a rule exclusion. If Controlled Folder Access blocks ore, allow the app."
             }
             "SentinelOne" => {
-                "SentinelOne: Add a signer, file-hash, or executable-path exclusion for Codex and its helpers."
+                "SentinelOne: Add a signer, file-hash, or executable-path exclusion for ore and its helpers."
             }
             "Jamf Protect" => {
                 "Jamf Protect: Add an Override Threat Prevention exception for Codex app and helper signing identities. If analytics cause delays, add an Ignore System Events for Analytics exception."
             }
-            _ => {
-                "Add an exclusion for Codex and its helpers. Use the endpoint product instructions."
-            }
+            _ => "Add an exclusion for ore and its helpers. Use the endpoint product instructions.",
         };
         check = check.issue(
             DoctorIssue::new(
                 CheckStatus::Warning,
-                format!("{product} can interfere with Codex. Verify Codex exclusions."),
+                format!("{product} can interfere with ore. Verify ore exclusions."),
             )
             .measured("not verified")
             .expected("Codex application and helper exclusions")
             .remedy(remedy)
-            .field("Codex exclusions"),
+            .field("ore exclusions"),
         );
     }
 
