@@ -45,13 +45,11 @@ pending = true
 pattern = 'o33249\.ingest\.us\.sentry\.io'
 reason = "Sentry ingest host for feedback reports (codex-rs/feedback/src/lib.rs:46-47); DSN strip ratified with decision 3"
 removed_by = "series:telemetry-feedback-off"
-pending = true
 
 [[kill]]
 pattern = 'ae32ed50620d7a7792c1ce5df38b3e3e'
 reason = "Sentry DSN public key (codex-rs/feedback/src/lib.rs:47)"
 removed_by = "series:telemetry-feedback-off"
-pending = true
 
 [[kill]]
 pattern = 'raw\.githubusercontent\.com/openai/codex/main/announcement_tip\.toml'
