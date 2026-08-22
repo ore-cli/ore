@@ -94,7 +94,7 @@ class InstallPs1Test(unittest.TestCase):
 
         result = run_driver(
             ["Normalize-Version"],
-            'Write-Output (Normalize-Version -RawVersion $args[2])',
+            "Write-Output (Normalize-Version -RawVersion $args[2])",
             [f"{prefix}1.149.0"],
         )
 
@@ -114,7 +114,7 @@ class InstallPs1Test(unittest.TestCase):
             with self.subTest(raw=raw):
                 result = run_driver(
                     ["Normalize-Version"],
-                    'Write-Output (Normalize-Version -RawVersion $args[2])',
+                    "Write-Output (Normalize-Version -RawVersion $args[2])",
                     [raw],
                 )
 
@@ -172,7 +172,7 @@ class InstallPs1Test(unittest.TestCase):
 
             result = run_driver(
                 ["Get-VersionFromBinary"],
-                'Write-Output (Get-VersionFromBinary -CodexPath $args[2])',
+                "Write-Output (Get-VersionFromBinary -CodexPath $args[2])",
                 [str(binary)],
             )
 
@@ -191,7 +191,7 @@ class InstallPs1Test(unittest.TestCase):
 
             result = run_driver(
                 ["Get-VersionFromBinary"],
-                'Write-Output (Get-VersionFromBinary -CodexPath $args[2])',
+                "Write-Output (Get-VersionFromBinary -CodexPath $args[2])",
                 [str(binary)],
             )
 
@@ -203,7 +203,7 @@ class InstallPs1Test(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             result = run_driver(
                 ["Get-VersionFromBinary"],
-                'Write-Output (Get-VersionFromBinary -CodexPath $args[2])',
+                "Write-Output (Get-VersionFromBinary -CodexPath $args[2])",
                 [str(Path(temp_dir) / "absent.exe")],
             )
 
