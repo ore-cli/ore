@@ -243,10 +243,11 @@ categories:
       replace: 'brew upgrade ${brew_tap}/${brew_formula}'
 
     - name: update-tag-prefix-parse
+      note: bare prefix, not just the strip_prefix call, so the rust-v1.5.0 test literal in update_versions.rs tracks the prefix the function strips.
       globs: ["codex-rs/tui/src/update_versions.rs", "codex-rs/cli/src/doctor/updates.rs"]
       rust_literals_only: false
-      pattern: 'strip_prefix\("rust-v"\)'
-      replace: 'strip_prefix("${tag_prefix}")'
+      pattern: 'rust-v'
+      replace: '${tag_prefix}'
 
   # ------------------------------------------------------------------ installers
   installers:
