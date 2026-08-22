@@ -42,6 +42,10 @@
 #   local git fixture exactly as upstream's hard-coded repo did.
 
 # --- (3) feedback force-off -------------------------------------------------
+# Passes `-c analytics.enabled=true` and expects three or more POSTs to
+# /events; the seam pins analytics_enabled to Some(false), so no queue is built
+# and nothing is ever sent. This is the behaviour codex-fork-invariants asserts.
+package(codex-exec) & test(shutdown_flushes_completed_turn_and_file_diff)
 # Asserts `feedback_enabled == true` for a default `[feedback]` table.
 package(codex-core) & test(feedback_enabled_defaults_to_true)
 # Drives feedback/upload through a failing proxy and asserts a -32603 transport
@@ -51,6 +55,12 @@ package(codex-app-server) & test(feedback_upload_reports_transport_failure_as_js
 package(codex-tui) & test(feedback_selection_popup_snapshot)
 
 # --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# Both configure `[otel] metrics_exporter = { otlp-http = ... }` against a local
+# collector and assert a flush on shutdown. The analytics seam gates metrics
+# regardless of which exporter is configured, so a user's own endpoint receives
+# nothing -- which is Caveat A exactly, ratified with decision 3.
+package(codex-cli) & test(local_exec_server_flushes_telemetry_on_stdio_disconnect)
+package(codex-cli) & test(remote_exec_server_gracefully_stops_when_parent_stdin_closes)
 # Asserts codex.thread.started reaches a user otlp-http collector.
 package(codex-app-server) & test(account_switch_reloads_telemetry_collectors_and_preserves_trace_context)
 # guardian_v2: every test routes through guardian_v2_routes_tool_approvals,
