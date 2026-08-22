@@ -271,12 +271,20 @@ jobs:
       # that GitHub then rejected outright (`runner` context in a job-level
       # `env:`), which surfaces only as a run that fails in 0s and is attributed
       # to the push. actionlint is the tool that actually knows the schema.
-      - uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532 # v2.62.49
-        with:
-          tool: actionlint
-
       - name: Lint the fork's workflows
-        run: actionlint .github/workflows/ore-*.yml
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          # Pinned by digest rather than installed through a third-party action:
+          # the release asset is two lines to fetch and verify, and it cannot
+          # fail for reasons that have nothing to do with this repository.
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL "$url" -o /tmp/actionlint.tar.gz
+          echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint .github/workflows/ore-*.yml
 
       - name: Run the static invariant suite
         run: python3 fork/verify/run.py --suite static
