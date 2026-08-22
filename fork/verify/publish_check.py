@@ -5,8 +5,11 @@
 
 Scope: files the FORK added or rewrote -- everything absent from the upstream
 base tag, plus the handful of root files the fork owns outright.  Upstream's own
-tree is not policed here; it is full of `/Users/alice/...` test fixtures that are
-upstream's business and are already public.
+tree is not policed here; its test fixtures are full of invented home-directory
+paths that are upstream's business and are already public.
+
+Describing those fixtures without quoting one is deliberate: this file is itself
+in scope, and a literal example would make the check fail on its own docstring.
 
 This check exists because of an incident, and the incident is the argument for
 it.  `fork/reference/` was published to a public repository carrying verbatim
