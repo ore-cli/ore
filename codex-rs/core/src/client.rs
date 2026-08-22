@@ -2063,6 +2063,28 @@ impl ModelClientSession {
                 )
                 .await
             }
+            // Boxed so the added state machines cannot grow this future: the
+            // Responses arm already runs close to the default test stack.
+            WireApi::Chat => {
+                Box::pin(self.stream_chat_completions(
+                    prompt,
+                    model_info,
+                    session_telemetry,
+                    effort,
+                    inference_trace,
+                ))
+                .await
+            }
+            WireApi::Anthropic => {
+                Box::pin(self.stream_anthropic_messages(
+                    prompt,
+                    model_info,
+                    session_telemetry,
+                    effort,
+                    inference_trace,
+                ))
+                .await
+            }
         }
     }
 
@@ -2727,6 +2749,11 @@ impl WebsocketTelemetry for ApiTelemetry {
             .record_websocket_event(result, duration);
     }
 }
+
+#[path = "client_anthropic.rs"]
+mod anthropic;
+#[path = "client_chat.rs"]
+mod chat;
 
 #[cfg(test)]
 #[path = "client_tests.rs"]
