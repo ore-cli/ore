@@ -82,6 +82,14 @@ jobs:
           # Captured now: a later [[ ]] resets BASH_REMATCH.
           version="${BASH_REMATCH[1]}"
           prerelease_marker="${BASH_REMATCH[2]:-}"
+          # Compare the BASE version. A tag may carry -alpha.N/-beta.N, but
+          # [workspace.package] never does: assemble writes it from fork/VERSION,
+          # the bare x.y.z, and CARGO_PKG_VERSION is wire-visible so it must not
+          # gain a suffix. Comparing the full match rejected every prerelease --
+          # including ore-v1.149.0-alpha.1, the designated first release. The
+          # `version` OUTPUT stays full: the release title, the npm publish
+          # policy and the formula renderer all want the suffix.
+          base_version="${version%"$prerelease_marker"}"
 
           # Scoped to the [workspace.package] table: a bare first match would
           # silently pick up any earlier `version` key upstream adds. The
@@ -89,8 +97,8 @@ jobs:
           # never by a series commit, so this equality is what ties the tag to
           # the fork's single version source.
           workspace_version="$(awk -F'"' '/^\[workspace.package\]/{f=1; next} f && /^version *=/{print $2; exit}' codex-rs/Cargo.toml)"
-          if [[ "$version" != "$workspace_version" ]]; then
-            echo "::error::Tag says $version but codex-rs/Cargo.toml [workspace.package] says $workspace_version."
+          if [[ "$base_version" != "$workspace_version" ]]; then
+            echo "::error::Tag says $base_version but codex-rs/Cargo.toml [workspace.package] says $workspace_version."
             exit 1
           fi
 
