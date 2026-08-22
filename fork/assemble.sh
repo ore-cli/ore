@@ -399,6 +399,25 @@ grep -v "can't set \`imports_granularity = Item\`" "$fmt_out" >>"$PASSES_LOG" ||
 rm -f "$fmt_out"
 end_pass
 
+# --- 3c2. ruff format --------------------------------------------------------
+# The same reasoning as cargo fmt, for the other language the substitutions
+# reach. This was missing, and the first ore-ci run on a generated main caught
+# it: rewriting URLs and names in scripts/**.py reflows lines, and three files
+# landed on main that `just fmt-check` then rejected.
+#
+# Scoped to scripts/ because that is the only Python the manifest touches --
+# sdk/** is in the manifest's skip_paths -- and it uses the exact invocation
+# scripts/format.py uses for that group, so the two cannot drift apart.
+begin_pass "ruff format"
+command -v uv >/dev/null \
+  || fail_pass "ruff format: uv is not installed, so the assembled tree cannot be proven fmt-clean"
+ruff_out=$(mktemp)
+( cd "$WORKTREE" && uv run --frozen --project scripts ruff format scripts ) \
+  >"$ruff_out" 2>&1 || { cat "$ruff_out" >>"$PASSES_LOG"; rm -f "$ruff_out"; fail_pass "ruff format"; }
+cat "$ruff_out" >>"$PASSES_LOG"
+rm -f "$ruff_out"
+end_pass
+
 # --- 3d. scheme-C version + lock regeneration --------------------------------
 # fork/VERSION is the single source: 1.{upstream_minor}.{ore_patch}. On a new
 # base the minor auto-derives and the patch resets; respins bump the patch by
