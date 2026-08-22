@@ -20,6 +20,7 @@ ore-release.yml
 ore-release-windows.yml
 ore-zsh-release.yml
 ore-rusty-v8-mirror.yml
+ore-windows-probe.yml
 ore-sync.yml
 ore-sync-finalize.yml
 

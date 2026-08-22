@@ -99,6 +99,11 @@ package(codex-app-server) & test(turn_steer_returns_active_turn_id)
 package(codex-app-server) & test(external_agent_config_import_completed_tracks_analytics_event)
 package(codex-app-server) & test(external_agent_config_import_reports_session_config_error_subtype)
 package(codex-app-server) & test(external_agent_config_import_reinstalls_plugins_from_known_marketplaces)
+# Polls the analytics capture file in a loop for
+# codex_onboarding_external_agent_import_complete rather than going through
+# the shared await helper, so it spins to nextest's 60s timeout instead of
+# failing an assertion. Same cause as its three siblings above.
+package(codex-app-server) & test(external_agent_config_import_reports_failed_sync_import_in_completion)
 # suite/v2/executor_skills.rs — only the ExplicitOnly scenario awaits analytics.
 package(codex-app-server) & test(explicit_executor_skill_can_read_referenced_file)
 # suite/v2/plugin_install.rs
