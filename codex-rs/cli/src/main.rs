@@ -164,7 +164,11 @@ enum Subcommand {
     RemoteControl(RemoteControlCommand),
 
     /// Launch the Desktop app (opens the app installer if missing).
+    // ore: hidden — the installer fetches OpenAI's desktop app, which ore
+    // does not ship. The variant stays so the dispatch match and the derived
+    // subcommand list keep their upstream shape.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[clap(hide = true)]
     App(app_cmd::AppCommand),
 
     /// Generate shell completion scripts.
@@ -1391,12 +1395,12 @@ async fn cli_main(
         }
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         Some(Subcommand::App(app_cli)) => {
-            reject_remote_mode_for_subcommand(
-                root_remote.as_deref(),
-                root_remote_auth_token_env.as_deref(),
-                "app",
-            )?;
-            app_cmd::run_app(app_cli).await?;
+            // ore: never reach the installer — it downloads OpenAI's desktop
+            // app, which ore does not ship. The binding keeps `run_app` and
+            // the desktop_app module it pulls in live for dead-code analysis,
+            // so those upstream files need no edits.
+            let _ = (app_cli, app_cmd::run_app);
+            anyhow::bail!("the desktop app is not available in ore");
         }
         Some(Subcommand::Resume(ResumeCommand {
             session_id,

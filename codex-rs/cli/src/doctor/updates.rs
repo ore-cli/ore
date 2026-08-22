@@ -13,35 +13,24 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use codex_core::config::Config;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use codex_http_client::ClientRouteClass;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use codex_http_client::RouteAwareClientPool;
 use codex_install_context::InstallContext;
 use codex_install_context::InstallMethod;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use http::Method;
 use serde::Deserialize;
 #[cfg(target_os = "macos")]
 use url::Url;
 
 use super::CheckStatus;
 use super::DoctorCheck;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use super::DoctorIssue;
 use super::NpmRootCheck;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use super::desktop::platform::InstalledApp;
 use super::doctor_install_context;
 use super::doctor_managed_by_npm;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use super::network;
 use super::npm_global_root_check;
 use super::run_command;
 
 const VERSION_FILE_NAME: &str = "version.json";
 const GITHUB_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
-const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const DESKTOP_UPDATE_URL: &str = "https://persistent.oaistatic.com/codex-app-prod/appcast-x64.xml";
 #[cfg(all(target_os = "macos", not(target_arch = "x86_64")))]
@@ -183,92 +172,12 @@ pub(super) async fn append_desktop_update(
     let desktop_update_display_url = desktop_update_url
         .split_once('?')
         .map_or(desktop_update_url, |(endpoint, _)| endpoint);
-    let client = RouteAwareClientPool::new_without_request_logging(
-        config.http_client_factory(),
-        ClientRouteClass::Other,
-    );
-    let outcome = match client
-        .request(Method::GET, desktop_update_url)
-        .timeout(deadline.saturating_duration_since(tokio::time::Instant::now()))
-        .send()
-        .await
-    {
-        Ok(response) => {
-            let status = response.status().as_u16();
-            #[cfg(target_os = "windows")]
-            if status == 404 && response.url().scheme() == "https" {
-                checks[reachability_index].details.push(format!(
-                    "desktop assets CDN: {desktop_update_display_url} reachable (HTTP 404; no update available)"
-                ));
-                return;
-            }
-            if cfg!(target_os = "windows") && response.url().scheme() != "https" {
-                Err("update manifest redirected to a non-HTTPS URL".to_string())
-            } else if status == 407 {
-                Err("proxy authentication required (HTTP 407)".to_string())
-            } else if !(200..=299).contains(&status) {
-                Err(format!("HTTP {status}"))
-            } else {
-                checks[reachability_index].details.push(format!(
-                    "desktop assets CDN: {desktop_update_display_url} reachable (HTTP {status})"
-                ));
-                #[cfg(target_os = "windows")]
-                if let Some(update) = checks.iter_mut().find(|check| check.id == "updates.status") {
-                    match response.bytes().await {
-                        Ok(body) => match windows_store_update(&body, &application.version) {
-                            Ok(Some(build)) => update.details.extend([
-                                "desktop update status: available".to_string(),
-                                format!("desktop latest build: {build}"),
-                                format!("desktop application: {}", application.identity),
-                            ]),
-                            Ok(None) => {}
-                            Err(error) => {
-                                update.status = update.status.max(CheckStatus::Warning);
-                                update
-                                    .details
-                                    .push(format!("desktop update manifest: {error}"));
-                            }
-                        },
-                        Err(_) => {
-                            update.status = update.status.max(CheckStatus::Warning);
-                            update
-                                .details
-                                .push("desktop update manifest: response could not be read".into());
-                        }
-                    }
-                }
-                Ok(())
-            }
-        }
-        Err(error) => Err(network::request_error(error)),
-    };
-
-    if let Err(error) = outcome {
-        let reachability = &mut checks[reachability_index];
-        reachability.details.push(format!(
-            "desktop assets CDN: {desktop_update_display_url} {error} (optional)"
-        ));
-        if reachability.status == CheckStatus::Ok {
-            reachability.status = CheckStatus::Warning;
-            reachability.summary = "desktop update and runtime CDN is unreachable".to_string();
-        }
-        reachability.issues.push(
-            DoctorIssue::new(
-                CheckStatus::Warning,
-                "desktop update and runtime CDN is unreachable",
-            )
-            .measured(format!("{desktop_update_display_url} {error}"))
-            .expected("desktop update and runtime CDN reachable over HTTPS")
-            .remedy(
-                if desktop_update_display_url.starts_with("https://chatgpt.com/") {
-                    "check proxy, firewall, DNS, and certificate access to chatgpt.com"
-                } else {
-                    "check proxy, firewall, DNS, and certificate access to persistent.oaistatic.com"
-                },
-            )
-            .field("desktop assets CDN"),
-        );
-    }
+    // ore: the appcast serves OpenAI's desktop app, which ore does not ship —
+    // report the probe as skipped instead of contacting the host.
+    let _ = (deadline, config, application);
+    checks[reachability_index].details.push(format!(
+        "desktop assets CDN: {desktop_update_display_url} skipped (ore does not ship the desktop app)"
+    ));
 }
 
 #[cfg(target_os = "macos")]
@@ -321,6 +230,8 @@ fn macos_desktop_update_url(home: &Path, application: &InstalledApp, os_version:
 }
 
 #[cfg(any(target_os = "windows", test))]
+// ore: with the appcast probe skipped, this is reachable only from tests.
+#[allow(dead_code)]
 fn windows_store_update(
     manifest: &[u8],
     installed_version: &str,
