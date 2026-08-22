@@ -1,0 +1,170 @@
+# Mirrors openai/codex's prebuilt rusty_v8 artifacts into this repository's own
+# releases, so ore can build even when upstream's assets move, expire, or are
+# pruned.
+#
+# Why a mirror is needed at all: codex-code-mode-runtime enables the v8 crate's
+# `v8_enable_sandbox` feature, which forces the `_ptrcomp_sandbox` prebuilt
+# variant. denoland publishes no such artifact and the published crate bundles
+# no matching `src_binding_*.rs`, so every cargo build/check/clippy/test over
+# the workspace needs RUSTY_V8_ARCHIVE + RUSTY_V8_SRC_BINDING_PATH pointing at
+# the artifacts openai/codex builds. Today the only public source of those is
+# openai/codex's own `rusty-v8-v<version>` prerelease.
+#
+# THE TAG MUST NOT BE `rusty-v8-v*`. A tag push runs the workflow files present
+# at the tagged commit, and this tree carries upstream's rusty-v8-release.yml,
+# whose trigger is exactly `rusty-v8-v*`. Creating that tag here would launch
+# upstream's 14-row V8 build (self-hosted runner groups, BuildBuddy) out of
+# ore's tree. `ore-rusty-v8-v<version>` fires nothing: it matches neither
+# `ore-v*` (ore-release.yml) nor `ore-zsh-v*.*.*` (ore-zsh-release.yml), and it
+# is inside the `ore-*` namespace the fork's tag ruleset permits.
+#
+# Consuming the mirror is two substitution points, both applied at assemble:
+# the base URL in .github/actions/setup-rusty-v8/action.yml and the same URL in
+# scripts/codex_package/v8.py. Re-run this workflow whenever upstream bumps the
+# pinned v8 crate version in codex-rs/Cargo.lock (the sync semantic review
+# flags that change).
+name: ore-rusty-v8-mirror
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "v8 crate version to mirror (e.g. 150.4.0). Blank resolves it from codex-rs/Cargo.lock."
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: mirror rusty_v8
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Resolve the version to mirror
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${INPUT_VERSION}"
+          if [[ -z "${version}" ]]; then
+            # Same resolver .github/actions/setup-rusty-v8 uses, so the mirror
+            # and the consumer can never disagree about which version is meant.
+            version="$(python3 "${GITHUB_WORKSPACE}/.github/scripts/rusty_v8_bazel.py" resolved-v8-crate-version)"
+          fi
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Resolved v8 version '${version}' is not X.Y.Z."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=ore-rusty-v8-v${version}" >> "$GITHUB_OUTPUT"
+          echo "Mirroring rusty_v8 ${version}"
+
+      # These artifacts are consumed by digest from every build that links V8,
+      # so replacing one in place would silently change what past builds
+      # resolve to. Publish a corrected set under a new version instead.
+      - name: Ensure the mirror release does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.resolve.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release ${RELEASE_TAG} already exists; mirrors are immutable."
+            exit 1
+          fi
+
+      # Asset names and the .sha256 format are read straight off
+      # .github/actions/setup-rusty-v8/action.yml: profile `ptrcomp_sandbox_release`,
+      # `librusty_v8_<profile>_<target>.a.gz` (or `rusty_v8_<profile>_<target>.lib.gz`
+      # on MSVC), `src_binding_<profile>_<target>.rs`, and a two-line
+      # `rusty_v8_<profile>_<target>.sha256` manifest in `sha256sum -c` format
+      # that may carry CRLF line endings because it was produced on Windows.
+      - name: Download and verify every artifact triplet
+        id: download
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          profile="ptrcomp_sandbox_release"
+          base="https://github.com/openai/codex/releases/download/rusty-v8-v${VERSION}"
+          dist="${GITHUB_WORKSPACE}/dist"
+          mkdir -p "${dist}"
+
+          targets=(
+            x86_64-unknown-linux-gnu
+            aarch64-unknown-linux-gnu
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
+            x86_64-apple-darwin
+            aarch64-apple-darwin
+            x86_64-pc-windows-msvc
+            aarch64-pc-windows-msvc
+          )
+
+          for target in "${targets[@]}"; do
+            if [[ "${target}" == *-pc-windows-msvc ]]; then
+              archive="rusty_v8_${profile}_${target}.lib.gz"
+            else
+              archive="librusty_v8_${profile}_${target}.a.gz"
+            fi
+            binding="src_binding_${profile}_${target}.rs"
+            checksums="rusty_v8_${profile}_${target}.sha256"
+
+            for name in "${archive}" "${binding}" "${checksums}"; do
+              echo "::group::${name}"
+              curl -fsSL --retry 3 --retry-delay 5 "${base}/${name}" -o "${dist}/${name}"
+              echo "::endgroup::"
+            done
+
+            if [[ "$(wc -l < "${dist}/${checksums}")" -ne 2 ]]; then
+              echo "::error::${checksums} does not carry exactly two checksums."
+              exit 1
+            fi
+            ( cd "${dist}" && tr -d '\r' < "${checksums}" | sha256sum -c - )
+          done
+
+          # Digest every mirrored file, upstream manifest included, so a
+          # reviewer can compare this release against openai/codex's without
+          # re-downloading either. This goes in the release body, not into an
+          # asset: the asset set stays byte-identical to the upstream subset.
+          notes="${RUNNER_TEMP}/release-notes.md"
+          {
+            echo "Mirror of \`openai/codex\` release \`rusty-v8-v${VERSION}\` (\`${profile}\` profile only)."
+            echo
+            echo "Every archive was verified against the \`.sha256\` manifest published beside it"
+            echo "before upload. Asset names are unchanged so \`.github/actions/setup-rusty-v8\`"
+            echo "works against this release with only its base URL substituted."
+            echo
+            echo '```'
+            ( cd "${dist}" && sha256sum -- * )
+            echo '```'
+          } > "${notes}"
+          echo "notes=${notes}" >> "$GITHUB_OUTPUT"
+
+          echo "Mirrored $(find "${dist}" -type f | wc -l) files."
+
+      - name: Publish the mirror release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
+        with:
+          tag_name: ${{ steps.resolve.outputs.release_tag }}
+          name: ${{ steps.resolve.outputs.release_tag }}
+          body_path: ${{ steps.download.outputs.notes }}
+          files: dist/*
+          # A build dependency must never become this repository's "latest
+          # release" and be mistaken for an ore release.
+          prerelease: true
+          make_latest: "false"
