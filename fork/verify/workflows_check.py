@@ -101,7 +101,7 @@ def extract_on(text: str, yamlmin) -> dict | None:
             continue
         inline = strip_comment(m.group(1)).strip()
         if inline:
-            value = yamlmin.safe_load(f"on: {inline}")["on"]
+            value = _trigger_block(yamlmin.safe_load(f"on: {inline}"))
         else:
             block = ["on:"]
             for follow in lines[i + 1:]:
@@ -109,7 +109,7 @@ def extract_on(text: str, yamlmin) -> dict | None:
                     block.append(follow)
                     continue
                 break
-            value = yamlmin.safe_load("\n".join(block) + "\n")["on"]
+            value = _trigger_block(yamlmin.safe_load("\n".join(block) + "\n"))
         if isinstance(value, str):
             return {value: None}
         if isinstance(value, list):
@@ -153,6 +153,20 @@ def read_upstream_meta(root: Path) -> dict:
             return tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError):
         return {}
+
+
+def _trigger_block(doc: dict):
+    """Return a workflow's `on:` mapping regardless of which YAML the loader used.
+
+    `on` is a YAML 1.1 boolean, so PyYAML parses the key as True while the
+    fork's dependency-free loader keeps it as the string "on". The fork's Macs
+    have no PyYAML and ubuntu-24.04's runners do, so this diverged exactly
+    between a green laptop and a red CI job.
+    """
+    for key in ("on", True):
+        if key in doc:
+            return doc[key]
+    raise KeyError("on")
 
 
 def upstream_workflow_set(root: Path, commit: str, rep: Report) -> set[str] | None:
