@@ -34,8 +34,8 @@ RCODESIGN_VERSION="0.29.0"
 # whatever is pasted here becomes the root of trust. Lowercase hex only —
 # the placeholder guard below accepts nothing else.
 # ---------------------------------------------------------------------------
-SHA256_AARCH64="FILL-ME-sha256-of-apple-codesign-0.29.0-aarch64-apple-darwin.tar.gz"
-SHA256_X86_64="FILL-ME-sha256-of-apple-codesign-0.29.0-x86_64-apple-darwin.tar.gz"
+SHA256_AARCH64="d1a532150adaf90048260d76359261aa716abafc45c53c5dc18845029184334a"
+SHA256_X86_64="14ef11bedd51a8d95eafd767939ae96d5900e5a61511bef75bb21db6e7c74140"
 
 usage() {
   cat >&2 <<'USAGE'
