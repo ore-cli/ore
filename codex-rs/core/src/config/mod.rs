@@ -4321,11 +4321,8 @@ impl Config {
             // managed/MDM, project, profile, `-c`) can re-enable the analytics
             // queue or the Statsig metrics gate. `[analytics]` still parses.
             analytics_enabled: Some(false),
-            feedback_enabled: cfg
-                .feedback
-                .as_ref()
-                .and_then(|feedback| feedback.enabled)
-                .unwrap_or(true),
+            // ore: same force-off for feedback upload; `[feedback]` still parses.
+            feedback_enabled: false,
             tool_suggest,
             tui_notifications: cfg
                 .tui

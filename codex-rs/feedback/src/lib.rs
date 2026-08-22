@@ -54,8 +54,6 @@ pub const CODEX_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME: &str = "codex-app-direc
 /// Filename used for the Windows sandbox log feedback attachment.
 pub const WINDOWS_SANDBOX_LOG_ATTACHMENT_FILENAME: &str = "windows-sandbox.log";
 const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024; // 4 MiB
-const SENTRY_DSN: &str =
-    "https://ae32ed50620d7a7792c1ce5df38b3e3e@o33249.ingest.us.sentry.io/4510195390611458";
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 300);
 // Raw collection budgets used by the report API, not the interactive upload.
 pub const MAX_ATTACHMENT_BYTES: usize = 64 * 1024 * 1024;
@@ -553,15 +551,17 @@ impl FeedbackSnapshot {
         options: FeedbackUploadOptions<'_>,
         http_client_factory: &HttpClientFactory,
     ) -> Result<()> {
-        self.upload_feedback_with_dsn(
-            options,
-            http_client_factory,
-            SENTRY_DSN,
-            Instant::now() + UPLOAD_TIMEOUT,
-        )
-        .await
+        // ore: the fork ships no feedback destination — the upstream Sentry
+        // DSN constant is deleted, so this path can never reach the network.
+        // The signature stays so the `feedback/upload` RPC keeps compiling and
+        // reports the failure to the client.
+        let _ = (options, http_client_factory);
+        Err(anyhow!("sending feedback is disabled"))
     }
 
+    // ore: reachable only from this crate's tests now; the allow keeps the
+    // upstream upload body and its helpers live under `-D warnings`.
+    #[allow(dead_code)]
     async fn upload_feedback_with_dsn(
         &self,
         options: FeedbackUploadOptions<'_>,
