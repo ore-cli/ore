@@ -1,5 +1,8 @@
 <div align="center">
 
+<img src=".github/ore-splash.gif" width="870"
+     alt="A crystal cluster on a vein of gold-flecked rock, drawn in ASCII characters, turning slowly." />
+
 <h1>ore</h1>
 
 <p><em><strong>ore</strong>, n. (Mining) A native metal or its compound with the rock in<br />
