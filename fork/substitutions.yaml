@@ -100,6 +100,17 @@ engine:
     # only the remote breaks the derivation. Nothing else in the file is brand
     # text.
     - codex-rs/cloud-tasks/src/env_detect_tests.rs
+    # The fork-authored art pipeline. These scripts already say "ore" wherever
+    # they mean ore; their remaining "Codex"/"OpenAI" mentions name upstream's
+    # own wordmark art and screenshot, so rewriting them produces false prose
+    # ("Upstream ships ten variants of the ore wordmark") -- the README problem
+    # again. The baked frames carry no brand strings at all (the renderer is
+    # invoked with an empty --label), and they are generated output: the
+    # generator, not the rebrand, is what owns their bytes.
+    - scripts/ore_art.py
+    - scripts/generate-ore-frames.py
+    - scripts/generate-ore-hero.py
+    - codex-rs/tui/frames/ore-*
     - sdk/*
     - .codex/*
   skip_suffixes: [.png, .jpg, .jpeg, .gif, .ico, .woff, .woff2, .zip, .gz, .zst, .snap, .patch]

@@ -62,8 +62,31 @@ impl AsciiAnimation {
         }
     }
 
+    /// Current frame of the variant this animation was constructed with.
+    ///
+    /// Retained as upstream defines it: ore's onboarding needs to choose a
+    /// frame *size* at render time, so it calls `current_frame_in` instead, but
+    /// a future upstream consumer of this type would expect this to exist.
+    #[expect(
+        dead_code,
+        reason = "upstream's accessor; ore renders via current_frame_in"
+    )]
     pub(crate) fn current_frame(&self) -> &'static str {
-        let frames = self.frames();
+        self.current_frame_in(self.variants)
+    }
+
+    /// Same animation clock and variant, rendered from a different frame set.
+    ///
+    /// Lets a caller swap the crystal's *size* as the terminal resizes without
+    /// restarting the spin or losing which ramp the user cycled to.
+    pub(crate) fn current_frame_in(
+        &self,
+        variants: &'static [&'static [&'static str]],
+    ) -> &'static str {
+        if variants.is_empty() {
+            return "";
+        }
+        let frames = variants[self.variant_idx.min(variants.len() - 1)];
         if frames.is_empty() {
             return "";
         }
@@ -88,10 +111,6 @@ impl AsciiAnimation {
         self.variant_idx = next;
         self.request_frame.schedule_frame();
         true
-    }
-
-    fn frames(&self) -> &'static [&'static str] {
-        self.variants[self.variant_idx]
     }
 }
 
