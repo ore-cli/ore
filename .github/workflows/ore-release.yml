@@ -42,7 +42,7 @@ env:
   # differs from upstream's. tag-check refuses to build while this is not a
   # 64-character lowercase hex digest, so the failure arrives in 30 seconds
   # rather than as a checksum mismatch 90 minutes into the matrix.
-  CODEX_ZSH_MANIFEST_SHA256: "FILL-ME-sha256-of-ore-zsh-v0.1.0-codex-zsh-manifest"
+  CODEX_ZSH_MANIFEST_SHA256: "08daa8bcbd79148d524c408b26dc08e9f9e9b128bd44c912916111de8f85d1c5"
 
 concurrency:
   group: ${{ github.workflow }}::${{ github.ref_name }}
