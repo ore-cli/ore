@@ -1022,7 +1022,7 @@ jobs:
           export-env: false
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          HOMEBREW_TAP_TOKEN: op://ore-cli/github-homebrew-tap/credential
+          HOMEBREW_TAP_TOKEN: op://ore-cli/ore-cli-github-homebrew-tap/credential
 
       # persist-credentials stays on here: the push below uses them.
       - name: Check out the tap
