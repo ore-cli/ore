@@ -158,12 +158,16 @@ def read_upstream_meta(root: Path) -> dict:
 def upstream_workflow_set(root: Path, commit: str, rep: Report) -> set[str] | None:
     try:
         out = subprocess.run(
-            ["git", "-C", str(root), "ls-tree", "-r", "--name-only", commit, "--", ".github/workflows"],
+            ["git", "-C", str(root), "ls-tree", "-r", "--name-only", commit, "--",
+             ".github/workflows", ".github/dependabot.yaml", ".github/dependabot.yml"],
             capture_output=True, text=True, check=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError) as err:
         rep.notes.append(f"git ls-tree {commit} failed ({err}); base-tag workflow set unavailable")
         return None
+    # dependabot.yaml is relocated alongside the workflows even though it lives one
+    # directory up: leaving it in place keeps Dependabot opening version-update PRs
+    # against upstream's dependency policy on a tree the fork controls.
     return {Path(p).name for p in out.splitlines() if p.endswith((".yml", ".yaml"))}
 
 
