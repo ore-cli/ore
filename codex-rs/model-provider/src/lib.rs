@@ -1,4 +1,5 @@
 mod amazon_bedrock;
+mod anthropic;
 mod auth;
 mod bearer_auth_provider;
 mod models_endpoint;
@@ -6,6 +7,12 @@ mod provider;
 mod shared_state;
 
 pub use amazon_bedrock::is_supported_amazon_bedrock_region;
+pub use anthropic::AnthropicModelFacts;
+pub use anthropic::anthropic_model_facts;
+pub use anthropic::info::ANTHROPIC_API_KEY_ENV_VAR;
+pub use anthropic::info::ANTHROPIC_DEFAULT_BASE_URL;
+pub use anthropic::info::ANTHROPIC_PROVIDER_ID;
+pub use anthropic::info::create_anthropic_provider;
 pub use auth::AgentIdentitySessionFallback;
 pub use auth::ProviderAuthScope;
 pub use auth::ResolvedProviderAuth;
