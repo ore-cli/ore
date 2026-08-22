@@ -258,11 +258,22 @@ jobs:
         working-directory: codex-rs
         env:
           KNOWN_FAILING: ${{ github.workspace }}/fork/verify/known-failing
+          # Upstream's suite does not pass at upstream's own release tags: its
+          # snapshots are recorded against main, where the workspace version is
+          # 0.0.0. Excluding those separately keeps the two categories apart --
+          # one file is what the fork broke, the other is what arrived broken.
+          KNOWN_FAILING_UPSTREAM: ${{ github.workspace }}/fork/verify/known-failing-upstream
           RUST_MIN_STACK: "8388608"
         run: |
           set -euo pipefail
           args=(--workspace --no-fail-fast)
-          if [[ -f "$KNOWN_FAILING" ]]; then
+          merged="$RUNNER_TEMP/known-failing.merged"
+          : > "$merged"
+          for f in "$KNOWN_FAILING_UPSTREAM" "$KNOWN_FAILING"; do
+            [[ -f "$f" ]] && cat "$f" >> "$merged"
+          done
+          KNOWN_FAILING="$merged"
+          if [[ -s "$KNOWN_FAILING" ]]; then
             filter="$(grep -v '^[[:space:]]*#' "$KNOWN_FAILING" \
               | grep -v '^[[:space:]]*$' \
               | paste -sd'|' - \
