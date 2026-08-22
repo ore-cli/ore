@@ -113,7 +113,7 @@ fallback should `cargo install` UX ever require it.
 | `relocate_workflows.py` | deny-by-default relocation of upstream workflows into `fork/upstream-workflows/` |
 | `verify/` | the invariant suite (`run.py` + checks + data files) |
 | `release/` | release scripts upstream deleted or never had (rcodesign notarization, Homebrew renderer) |
-| `reference/` | prior art and audit records; never executed |
+| `sync-notes.md` | measured cost of a real upstream hop, and the verify red-team |
 | `upstream-workflows/` | generated on `main` only; byte-identical copies of relocated upstream workflows |
 
 ## Working on the series
