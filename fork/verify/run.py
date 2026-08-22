@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Orchestrator for the ore invariant suite (registry: manifest.toml).
 
-  run.py --suite {static,artifact,egress,all} [--artifact-dir DIR] [--bin PATH]
-         [--root DIR] [--api] [--assume-release]
+  run.py --suite {static,crate,artifact,egress,all} [--artifact-dir DIR]
+         [--bin PATH] [--root DIR] [--api] [--assume-release] [--release-gate]
 
 Runs each selected check in manifest order and prints one status line per
 check.  Statuses:
@@ -25,6 +25,11 @@ the fork's patches are present — a green debug run proves nothing (fork/README
 "Why the invariants must test --release builds").  Point --bin at a
 target/release/ build, or pass --assume-release for a binary whose path does
 not reveal its profile (never for one under target/debug/).
+
+--release-gate says this run IS the pre-publish gate: every check carrying
+release_rerun gets that argv appended, which is how a check that is honest in
+debug but has one debug-degenerate assertion (the crate suite's Statsig route
+strip) gets its release-profile re-run without becoming release_required.
 """
 
 from __future__ import annotations
@@ -35,7 +40,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-SUITES = ("static", "artifact", "egress", "all")
+SUITES = ("static", "crate", "artifact", "egress", "all")
 SEVERITIES = ("hard", "warn")
 
 STATUS_OK, STATUS_FAIL, STATUS_SKIP, STATUS_PENDING = 0, 1, 2, 3
@@ -51,9 +56,14 @@ def load_manifest(here: Path) -> list[dict]:
         if not cid or cid in seen:
             raise SystemExit(f"manifest.toml: missing or duplicate check id: {cid!r}")
         seen.add(cid)
-        for field in ("script", "suite", "severity", "reason"):
+        for field in ("suite", "severity", "reason"):
             if not c.get(field):
                 raise SystemExit(f"manifest.toml: check {cid}: {field} is mandatory")
+        if bool(c.get("script")) == bool(c.get("command")):
+            raise SystemExit(
+                f"manifest.toml: check {cid}: exactly one of script (a file under fork/verify/) "
+                "or command (argv run in the cargo workspace) is mandatory"
+            )
         if c["suite"] not in SUITES:
             raise SystemExit(f"manifest.toml: check {cid}: suite {c['suite']!r} not in {SUITES}")
         if c["severity"] not in SEVERITIES:
@@ -90,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="let checks that support it query the GitHub API (workflow disablement)")
     ap.add_argument("--assume-release", action="store_true",
                     help="vouch that --bin is a release build when its path does not show it")
+    ap.add_argument("--release-gate", action="store_true",
+                    help="this run is the pre-publish gate: append each check's release_rerun argv")
     args = ap.parse_args(argv)
 
     here = Path(__file__).resolve().parent
@@ -118,8 +130,8 @@ def main(argv: list[str] | None = None) -> int:
             counts[status] += 1
             print(f"{status} {cid}" + (f": {reason}" if reason else ""))
 
-        script = here / check["script"]
-        if not script.is_file():
+        script = here / check["script"] if check.get("script") else None
+        if script is not None and not script.is_file():
             if pending_check:
                 record("PENDING", f"{check['script']} not present yet (lands with a later fork-verify commit)")
             elif severity == "warn":
@@ -149,17 +161,26 @@ def main(argv: list[str] | None = None) -> int:
             )
             continue
 
-        argv_check = [sys.executable, str(script)] if script.suffix == ".py" else [str(script)]
+        cwd = None
+        if script is None:
+            # A command row is a cargo invocation; cargo picks its workspace from the cwd,
+            # and run.py is invoked from the repo root, which carries no Cargo.toml.
+            argv_check = substitute(check["command"], mapping)
+            cwd = root / "codex-rs"
+        else:
+            argv_check = [sys.executable, str(script)] if script.suffix == ".py" else [str(script)]
         argv_check += substitute(check.get("args", []), mapping)
         if use_artifacts:
             argv_check += substitute(check["args_artifacts"], mapping)
         elif use_bin:
             argv_check += substitute(check["args_bin"], mapping)
+        if args.release_gate:
+            argv_check += substitute(check.get("release_rerun", []), mapping)
         if args.api and check.get("accepts_api"):
             argv_check.append("--api")
 
         try:
-            proc = subprocess.run(argv_check, capture_output=True, text=True, timeout=1800)
+            proc = subprocess.run(argv_check, capture_output=True, text=True, timeout=1800, cwd=cwd)
         except (OSError, subprocess.TimeoutExpired) as err:
             record("FAIL", f"could not execute: {err}")
             continue

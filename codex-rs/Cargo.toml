@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "fork-invariants",
     "aws-auth",
     "analytics",
     "agent-graph-store",
