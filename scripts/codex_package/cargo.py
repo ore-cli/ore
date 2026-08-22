@@ -81,7 +81,9 @@ def build_source_binaries(
     outputs = SourceBuildOutputs(
         entrypoint_bin=resolve_output_path(
             entrypoint_bin,
-            output_dir / variant.entrypoint_name(spec),
+            # cargo emits `cargo_bin`; `executable_stem` is the shipped name that
+            # layout.py renames to on copy, so it must not be used to look this up.
+            output_dir / f"{variant.cargo_bin}{spec.exe_suffix}",
         ),
         code_mode_host_bin=(
             code_mode_host_bin.resolve()
