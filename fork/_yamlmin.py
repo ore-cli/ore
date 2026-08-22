@@ -316,17 +316,22 @@ def load(text: str) -> Any:
 
 
 def safe_load(text: str) -> Any:
-    """PyYAML-compatible entry point (PyYAML wins when it is importable)."""
-    try:
-        import yaml  # type: ignore
-    except ModuleNotFoundError:
-        return load(text)
-    return yaml.safe_load(text)
+    """Parse with this module, always.
+
+    This used to hand off to PyYAML when it was importable, on the theory that
+    the better parser should win. What that actually bought was a fork whose
+    checks behave differently depending on what happens to be installed -- and
+    the two parsers disagree in a way that matters here. PyYAML implements
+    YAML 1.1, where `on`, `off`, `yes` and `no` are booleans, so a workflow's
+    `on:` key parses as True; this module keeps it the string "on".
+
+    The fork's Macs have no PyYAML and ubuntu-24.04's runners ship it, so the
+    workflow check passed every local run and raised KeyError('on') in CI on the
+    first push. A tool this repository relies on to be deterministic should not
+    change behaviour because a dependency is present.
+    """
+    return load(text)
 
 
 def loader_name() -> str:
-    try:
-        import yaml  # type: ignore  # noqa: F401
-    except ModuleNotFoundError:
-        return "fork/_yamlmin"
-    return "PyYAML"
+    return "fork/_yamlmin"
