@@ -3,4 +3,8 @@
 skip = .git*,vendor,*-lock.yaml,*.lock,.codespellrc,*test.ts,*.jsonl,frame*.txt,*.snap,*.snap.new
 check-hidden = true
 ignore-regex = ^\s*"image/\S+": ".*|\b(afterAll)\b
-ignore-words-list = ratatui,ser,iTerm,iterm2,iterm,te,TE,PASE,SEH
+# `ore` is the product name; codespell reads it as a misspelling of `or`.
+# `propert` is a deliberate prefix in codex-rs/core/src/client_chat.rs, so one
+# literal matches both "property" and "properties" in provider error text.
+# `WRONLY` is the POSIX O_WRONLY flag, in upstream's exec-server sources.
+ignore-words-list = ratatui,ser,iTerm,iterm2,iterm,te,TE,PASE,SEH,ore,propert,wronly

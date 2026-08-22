@@ -1,4 +1,4 @@
-"""Canonical Codex package directory layout."""
+"""Canonical ore package directory layout."""
 
 import json
 import shutil

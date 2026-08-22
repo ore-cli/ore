@@ -1,4 +1,4 @@
-//! Shared formatting for user-facing `codex resume` command hints.
+//! Shared formatting for user-facing `ore resume` command hints.
 
 use codex_protocol::ThreadId;
 use codex_shell_command::parse_command::shlex_join;
@@ -12,9 +12,9 @@ pub fn resume_command(thread_name: Option<&str>, thread_id: Option<ThreadId>) ->
         let needs_double_dash = target.starts_with('-');
         let escaped = shlex_join(&[target]);
         if needs_double_dash {
-            format!("codex resume -- {escaped}")
+            format!("ore resume -- {escaped}")
         } else {
-            format!("codex resume {escaped}")
+            format!("ore resume {escaped}")
         }
     })
 }
@@ -23,7 +23,7 @@ pub fn resume_hint(thread_name: Option<&str>, thread_id: Option<ThreadId>) -> Op
     let thread_id = thread_id?;
     match thread_name.filter(|name| !name.is_empty()) {
         Some(thread_name) => Some(format!(
-            "codex resume, then select {thread_name} ({thread_id})"
+            "ore resume, then select {thread_name} ({thread_id})"
         )),
         None => resume_command(/*thread_name*/ None, Some(thread_id)),
     }
@@ -38,7 +38,7 @@ mod tests {
     fn prefers_name_over_id() {
         let thread_id = ThreadId::from_string("123e4567-e89b-12d3-a456-426614174000").unwrap();
         let command = resume_command(Some("my-thread"), Some(thread_id));
-        assert_eq!(command, Some("codex resume my-thread".to_string()));
+        assert_eq!(command, Some("ore resume my-thread".to_string()));
     }
 
     #[test]
@@ -47,7 +47,7 @@ mod tests {
         let command = resume_command(/*thread_name*/ None, Some(thread_id));
         assert_eq!(
             command,
-            Some("codex resume 123e4567-e89b-12d3-a456-426614174000".to_string())
+            Some("ore resume 123e4567-e89b-12d3-a456-426614174000".to_string())
         );
     }
 
@@ -60,16 +60,13 @@ mod tests {
     #[test]
     fn quotes_thread_names_when_needed() {
         let command = resume_command(Some("-starts-with-dash"), /*thread_id*/ None);
-        assert_eq!(
-            command,
-            Some("codex resume -- -starts-with-dash".to_string())
-        );
+        assert_eq!(command, Some("ore resume -- -starts-with-dash".to_string()));
 
         let command = resume_command(Some("two words"), /*thread_id*/ None);
-        assert_eq!(command, Some("codex resume 'two words'".to_string()));
+        assert_eq!(command, Some("ore resume 'two words'".to_string()));
 
         let command = resume_command(Some("quote'case"), /*thread_id*/ None);
-        assert_eq!(command, Some("codex resume \"quote'case\"".to_string()));
+        assert_eq!(command, Some("ore resume \"quote'case\"".to_string()));
     }
 
     #[test]
@@ -79,7 +76,7 @@ mod tests {
         assert_eq!(
             hint,
             Some(
-                "codex resume, then select my-thread (123e4567-e89b-12d3-a456-426614174000)"
+                "ore resume, then select my-thread (123e4567-e89b-12d3-a456-426614174000)"
                     .to_string()
             )
         );
@@ -91,7 +88,7 @@ mod tests {
         let hint = resume_hint(/*thread_name*/ None, Some(thread_id));
         assert_eq!(
             hint,
-            Some("codex resume 123e4567-e89b-12d3-a456-426614174000".to_string())
+            Some("ore resume 123e4567-e89b-12d3-a456-426614174000".to_string())
         );
     }
 

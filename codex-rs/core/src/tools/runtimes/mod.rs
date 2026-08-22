@@ -99,7 +99,7 @@ fn prepend_path_entry(env: &mut HashMap<String, String>, path_entry: &str) -> Op
     }
 }
 
-/// PATH entries owned by Codex runtime setup.
+/// PATH entries owned by ore runtime setup.
 ///
 /// These are applied to the live exec environment immediately and replayed after
 /// restoring a shell snapshot, unless the user explicitly overrides `PATH`.
@@ -228,7 +228,7 @@ pub(crate) fn disable_powershell_profile_for_elevated_windows_sandbox(
 /// runtime-only vars like `CODEX_THREAD_ID` without pretending they came from
 /// the explicit override policy.
 ///
-/// `runtime_path_prepends` contains Codex-owned PATH entries already applied to
+/// `runtime_path_prepends` contains ore-owned PATH entries already applied to
 /// the live `env`; snapshot wrapping replays them after restoring the snapshot
 /// PATH unless the user explicitly overrides `PATH`.
 pub(crate) fn maybe_wrap_shell_lc_with_snapshot(

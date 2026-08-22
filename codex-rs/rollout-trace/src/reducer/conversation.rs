@@ -57,7 +57,7 @@ impl TraceReducer {
 
         let previous_response_id = payload.get("previous_response_id").and_then(Value::as_str);
         // After compaction, the next full request is compared against the installed replacement
-        // history, not the pre-compaction prompt. Any repeated developer/context prefix that Codex
+        // history, not the pre-compaction prompt. Any repeated developer/context prefix that ore
         // reinjects must therefore become a fresh post-compaction conversation item.
         let post_compaction_snapshot = if previous_response_id.is_none() {
             self.pending_compaction_replacement_item_ids

@@ -4,7 +4,7 @@
 //! does not expose its configured screen buffer through terminal metadata, so it usually lands in
 //! the fallback bucket.
 //!
-//! These caps are deliberately conservative: Codex is rebuilding normal terminal scrollback, not an
+//! These caps are deliberately conservative: ore is rebuilding normal terminal scrollback, not an
 //! internal virtual transcript. Replaying more rows than the terminal retains wastes work and can
 //! make interactive resize feel worse without giving the user more usable history.
 

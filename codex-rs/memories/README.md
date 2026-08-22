@@ -23,7 +23,7 @@ Memory prompt templates live with the crate that uses them:
   - `write/templates/memories/stage_one_system.md`
   - `write/templates/memories/stage_one_input.md`
   - `write/templates/memories/consolidation.md`
-- In `codex`, edit those undated template files in place.
+- In `ore`, edit those undated template files in place.
 - The dated snapshot-copy workflow is used in the separate `openai/project/agent_memory/write` harness repo, not here.
 
 ## When it runs

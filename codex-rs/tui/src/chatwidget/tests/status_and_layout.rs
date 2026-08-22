@@ -207,7 +207,7 @@ async fn status_line_git_summary_items_render_values() {
     chat.status_line_git_summary = Some(StatusLineGitSummary {
         pull_request: Some(crate::branch_summary::StatusLinePullRequest {
             number: 20_252,
-            url: "https://github.com/openai/codex/pull/20252".to_string(),
+            url: "https://github.com/ore-cli/ore/pull/20252".to_string(),
         }),
         branch_change_stats: Some(crate::branch_summary::GitBranchDiffStats {
             additions: 143,
@@ -270,7 +270,7 @@ async fn stale_status_line_git_summary_update_is_ignored() {
         StatusLineGitSummary {
             pull_request: Some(crate::branch_summary::StatusLinePullRequest {
                 number: 20_252,
-                url: "https://github.com/openai/codex/pull/20252".to_string(),
+                url: "https://github.com/ore-cli/ore/pull/20252".to_string(),
             }),
             branch_change_stats: Some(crate::branch_summary::GitBranchDiffStats {
                 additions: 143,
@@ -423,14 +423,14 @@ async fn completed_plan_table_tail_skips_provisional_history_insert() {
     );
     controller.push("| Step | Owner |\n");
     controller.push("| --- | --- |\n");
-    controller.push("| Verify | Codex |\n");
+    controller.push("| Verify | ore |\n");
     assert!(
         controller.has_live_tail(),
         "expected plan table holdback to leave a live tail",
     );
     chat.plan_stream_controller = Some(controller);
     chat.transcript.plan_delta_buffer =
-        "| Step | Owner |\n| --- | --- |\n| Verify | Codex |\n".to_string();
+        "| Step | Owner |\n| --- | --- |\n| Verify | ore |\n".to_string();
 
     while rx.try_recv().is_ok() {}
 
@@ -1794,7 +1794,7 @@ async fn workspace_owner_limit_states_render_state_specific_messages() {
         (
             RateLimitReachedType::WorkspaceOwnerCreditsDepleted,
             RateLimitErrorKind::Generic,
-            "You're out of credits. Your workspace is out of credits. Add credits to continue using Codex.",
+            "You're out of credits. Your workspace is out of credits. Add credits to continue using ore.",
         ),
         (
             RateLimitReachedType::WorkspaceOwnerUsageLimitReached,

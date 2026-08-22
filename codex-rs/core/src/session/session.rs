@@ -99,7 +99,7 @@ pub(crate) struct SessionConfiguration {
 
     /// Legacy thread cwd used when a turn does not select an environment.
     pub(super) legacy_fallback_cwd: AbsolutePathBuf,
-    /// Directory containing all Codex state for this session.
+    /// Directory containing all ore state for this session.
     pub(super) codex_home: AbsolutePathBuf,
     /// Optional user-facing name for the thread, updated during the session.
     pub(super) thread_name: Option<String>,

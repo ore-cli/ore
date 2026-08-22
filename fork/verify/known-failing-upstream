@@ -1,0 +1,79 @@
+# fork/verify/known-failing-upstream — tests that already fail at the base tag.
+#
+# A DIFFERENT list from `known-failing`, with a different meaning and a different
+# maintenance rule. `known-failing` records tests the FORK's seams turn red, and
+# every entry there must pass at the base tag. This file records the opposite:
+# tests that fail on upstream's own tree, at upstream's own release tag, before
+# ore changes anything.
+#
+# They exist because upstream records its snapshots against `main`, where
+# `[workspace.package] version` is 0.0.0, and cuts release tags as off-main
+# commits that set the real version. Every status card and update-available
+# snapshot therefore differs by that one string at any `rust-v*` tag. The rest
+# are TLS-fallback, stack-depth and network-dependent tests that fail the same
+# way on both sides.
+#
+# Every entry below was verified by running that exact test against the base tag
+# in a clean worktree and observing it fail there too. Nothing goes in this file
+# on suspicion -- if a test fails only on delta, it belongs in `known-failing`
+# with a cause, or it is a bug.
+#
+# Re-derive after a sync: run the suite at the new base tag and diff.
+
+
+# --- codex-core --------------------------------------------------------
+package(codex-core) & test(=suite::compact_resume_fork::snapshot_rollback_past_compaction_replays_append_only_history)
+package(codex-core) & test(=suite::hooks::async_hook_finishing_while_idle_waits_for_the_next_turn)
+package(codex-core) & test(=suite::unified_exec::unified_exec_formats_large_output_summary)
+
+# --- codex-git-attribution ---------------------------------------------
+package(codex-git-attribution) & test(=tests::policy_resolution_retries_after_auth_refresh)
+
+# --- codex-http-client -------------------------------------------------
+package(codex-http-client) & test(=route_aware_client_pool::tests::request_failures_classify_real_untrusted_certificate_handshakes)
+package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::does_not_retry_a_non_replayable_streaming_request)
+package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::retries_a_native_tls_failure_after_another_request_caches_rustls)
+package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::retries_a_native_tls_protocol_failure_once_with_rustls)
+package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::retries_a_tls_protocol_failure_when_request_url_contains_certificate_markers)
+package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::successful_rustls_fallback_replays_the_request_and_reuses_the_destination)
+
+# --- codex-mcp-server --------------------------------------------------
+package(codex-mcp-server) & test(=suite::codex_tool::test_codex_tool_forwards_skills_extension_warnings)
+package(codex-mcp-server) & test(=suite::codex_tool::test_codex_tool_passes_base_instructions)
+package(codex-mcp-server) & test(=suite::codex_tool::test_patch_approval_triggers_elicitation)
+package(codex-mcp-server) & test(=suite::codex_tool::test_shell_command_approval_triggers_elicitation)
+
+# --- codex-skills-extension --------------------------------------------
+package(codex-skills-extension) & test(=host_roots::tests::repo_ancestry_without_project_marker_does_not_walk_parents)
+
+# --- codex-tui ---------------------------------------------------------
+package(codex-tui) & test(=chatwidget::rendering::tests::initial_session_header_starts_at_the_top_of_the_viewport)
+package(codex-tui) & test(=history_cell::tests::pnpm_update_available_history_cell_snapshot)
+package(codex-tui) & test(=history_cell::tests::session_info_availability_nux_tooltip_snapshot)
+package(codex-tui) & test(=history_cell::tests::standalone_unix_update_available_history_cell_snapshot)
+package(codex-tui) & test(=history_cell::tests::standalone_windows_update_available_history_cell_snapshot)
+package(codex-tui) & test(=startup_draft::tests::startup_draft_clears_loading_status_when_starting_fresh)
+package(codex-tui) & test(=startup_draft::tests::startup_draft_renders_full_empty_and_multiline_composer_frames)
+package(codex-tui) & test(=startup_draft::tests::startup_draft_waits_for_onboarding_before_accepting_input)
+package(codex-tui) & test(=status::tests::status_snapshot_cached_limits_hide_credits_without_flag)
+package(codex-tui) & test(=status::tests::status_snapshot_includes_credits_and_limits)
+package(codex-tui) & test(=status::tests::status_snapshot_includes_enterprise_monthly_credit_limit)
+package(codex-tui) & test(=status::tests::status_snapshot_includes_forked_from)
+package(codex-tui) & test(=status::tests::status_snapshot_includes_monthly_limit)
+package(codex-tui) & test(=status::tests::status_snapshot_includes_reasoning_details)
+package(codex-tui) & test(=status::tests::status_snapshot_shows_active_user_defined_profile)
+package(codex-tui) & test(=status::tests::status_snapshot_shows_auto_review_permissions)
+package(codex-tui) & test(=status::tests::status_snapshot_shows_chatgpt_plan_without_email)
+package(codex-tui) & test(=status::tests::status_snapshot_shows_missing_limits_message)
+package(codex-tui) & test(=status::tests::status_snapshot_shows_refreshing_limits_notice)
+package(codex-tui) & test(=status::tests::status_snapshot_shows_stale_limits_message)
+package(codex-tui) & test(=status::tests::status_snapshot_shows_unavailable_limits_message)
+package(codex-tui) & test(=status::tests::status_snapshot_treats_refreshing_empty_limits_as_unavailable)
+package(codex-tui) & test(=status::tests::status_snapshot_truncates_halfwidth_kana_in_narrow_terminal)
+package(codex-tui) & test(=status::tests::status_snapshot_truncates_in_narrow_terminal)
+package(codex-tui) & test(=status::tests::status_snapshot_uses_default_reasoning_when_config_empty)
+package(codex-tui) & test(=status::tests::status_snapshot_uses_generic_limit_labels_for_unsupported_windows)
+package(codex-tui) & test(=status::tests::transcript_overlay_remeasures_status_after_rate_limit_refresh)
+
+# --- codex-v8-poc ------------------------------------------------------
+package(codex-v8-poc) & test(=tests::sandbox_feature_matches_linked_v8)

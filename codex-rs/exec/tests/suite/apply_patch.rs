@@ -12,7 +12,7 @@ use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
 
-/// While we may add an `apply-patch` subcommand to the `codex` CLI multitool
+/// While we may add an `apply-patch` subcommand to the `ore` CLI multitool
 /// at some point, we must ensure that the smaller `codex-exec` CLI can still
 /// emulate the `apply_patch` CLI.
 #[test]

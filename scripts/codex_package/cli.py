@@ -1,4 +1,4 @@
-"""Command-line interface for building Codex package directories."""
+"""Command-line interface for building ore package directories."""
 
 import argparse
 import re
@@ -46,7 +46,7 @@ def parse_package_version(value: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build a canonical Codex package directory and optional archive.",
+        description="Build a canonical ore package directory and optional archive.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -232,9 +232,9 @@ def main() -> int:
     for archive_output in args.archive_output:
         archive_path = archive_output.resolve()
         write_archive(package_dir, archive_path, force=args.force)
-        print(f"Built Codex package archive at {archive_path}")
+        print(f"Built ore package archive at {archive_path}")
 
-    print(f"Built Codex package directory at {package_dir}")
+    print(f"Built ore package directory at {package_dir}")
     return 0
 
 

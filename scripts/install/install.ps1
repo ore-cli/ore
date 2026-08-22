@@ -12,13 +12,13 @@ if ([string]::IsNullOrWhiteSpace($Release)) {
 }
 
 $NonInteractive = $env:CODEX_NON_INTERACTIVE -match "^(?i:1|true|yes)$"
-$DefaultPreferReleasesOpenAICom = $true
+$DefaultPreferReleasesOpenAICom = $false
 $PreferReleasesOpenAICom = if ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALLER_USE_RELEASES_OPENAI_COM)) {
     $DefaultPreferReleasesOpenAICom
 } else {
     $env:CODEX_INSTALLER_USE_RELEASES_OPENAI_COM -match "^(?i:1|true|yes)$"
 }
-$ReleasesBaseUri = "https://releases.openai.com/codex"
+$ReleasesBaseUri = ""
 $ReleasesMetadataTimeoutSec = 30
 $ReleasesAssetTimeoutSec = 300
 
@@ -64,8 +64,8 @@ function Normalize-Version {
         return "latest"
     }
 
-    if ($RawVersion.StartsWith("rust-v")) {
-        return $RawVersion.Substring(6)
+    if ($RawVersion.StartsWith("ore-v")) {
+        return $RawVersion.Substring(5)
     }
 
     if ($RawVersion.StartsWith("v")) {
@@ -81,7 +81,7 @@ function Assert-ValidReleaseVersion {
     )
 
     if ($Version -cne "latest" -and $Version -cnotmatch "^[0-9]+\.[0-9]+\.[0-9]+(?:-alpha(?:\.[0-9]+){0,2}|-beta(?:\.[0-9]+)?)?$") {
-        throw "Invalid Codex release version: $Version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]."
+        throw "Invalid ore release version: $Version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]."
     }
 }
 
@@ -172,9 +172,9 @@ function Resolve-ReleaseAssetSelection {
     $checksumFallbackUrl = $null
     if ($ResolvedRelease.Source -eq "ReleasesOpenAICom") {
         $packageUrl = "$ReleasesBaseUri/releases/$version/$packageAsset"
-        $packageFallbackUrl = "https://github.com/openai/codex/releases/download/rust-v$version/$packageAsset"
+        $packageFallbackUrl = "https://github.com/ore-cli/ore/releases/download/ore-v$version/$packageAsset"
         $checksumUrl = "$ReleasesBaseUri/releases/$version/$checksumAsset"
-        $checksumFallbackUrl = "https://github.com/openai/codex/releases/download/rust-v$version/$checksumAsset"
+        $checksumFallbackUrl = "https://github.com/ore-cli/ore/releases/download/ore-v$version/$checksumAsset"
     }
 
     $packageMetadata = Find-ReleaseAssetMetadata -AssetName $packageAsset -ReleaseMetadata $releaseMetadata -Url $packageUrl -FallbackUrl $packageFallbackUrl
@@ -193,11 +193,11 @@ function Resolve-ReleaseAssetSelection {
     $packageFallbackUrl = $null
     if ($ResolvedRelease.Source -eq "ReleasesOpenAICom") {
         $packageUrl = "$ReleasesBaseUri/releases/$version/$packageAsset"
-        $packageFallbackUrl = "https://github.com/openai/codex/releases/download/rust-v$version/$packageAsset"
+        $packageFallbackUrl = "https://github.com/ore-cli/ore/releases/download/ore-v$version/$packageAsset"
     }
     $packageMetadata = Find-ReleaseAssetMetadata -AssetName $packageAsset -ReleaseMetadata $releaseMetadata -Url $packageUrl -FallbackUrl $packageFallbackUrl
     if ($null -eq $packageMetadata) {
-        throw "Could not find Codex package or platform npm release assets for Codex $version."
+        throw "Could not find ore package or platform npm release assets for ore $version."
     }
 
     return [PSCustomObject]@{
@@ -216,7 +216,7 @@ function Test-ArchiveDigest {
 
     $actualDigest = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualDigest -ne $ExpectedDigest) {
-        throw "Downloaded Codex archive checksum did not match expected digest. Expected $ExpectedDigest but got $actualDigest."
+        throw "Downloaded ore archive checksum did not match expected digest. Expected $ExpectedDigest but got $actualDigest."
     }
 }
 
@@ -317,7 +317,7 @@ function Resolve-VersionFromReleaseMetadata {
     )
 
     if (-not $ReleaseMetadata.tag_name) {
-        throw "Failed to resolve the latest Codex release version."
+        throw "Failed to resolve the latest ore release version."
     }
 
     $resolvedVersion = Normalize-Version -RawVersion $ReleaseMetadata.tag_name
@@ -332,17 +332,17 @@ function Resolve-ReleaseFromGitHub {
 
     if ($NormalizedVersion -eq "latest") {
         $requestedRelease = "latest"
-        $metadataUri = "https://api.github.com/repos/openai/codex/releases/latest"
+        $metadataUri = "https://api.github.com/repos/ore-cli/ore/releases/latest"
     } else {
         $resolvedVersion = $NormalizedVersion
         $requestedRelease = $resolvedVersion
-        $metadataUri = "https://api.github.com/repos/openai/codex/releases/tags/rust-v$resolvedVersion"
+        $metadataUri = "https://api.github.com/repos/ore-cli/ore/releases/tags/ore-v$resolvedVersion"
     }
 
     try {
         $releaseMetadata = Invoke-RestMethod -Uri $metadataUri
     } catch {
-        throw "Could not fetch GitHub release metadata for Codex $requestedRelease. GitHub API may be unavailable or rate limited. $($_.Exception.Message)"
+        throw "Could not fetch GitHub release metadata for ore $requestedRelease. GitHub API may be unavailable or rate limited. $($_.Exception.Message)"
     }
 
     if ($NormalizedVersion -eq "latest") {
@@ -371,7 +371,7 @@ function Resolve-ReleaseFromReleases {
         $releaseMetadata = [string]$metadataResponse.Content | ConvertFrom-Json -ErrorAction Stop
         $resolvedVersion = Resolve-VersionFromReleaseMetadata -ReleaseMetadata $releaseMetadata
         if ($NormalizedVersion -ne "latest" -and $resolvedVersion -cne $NormalizedVersion) {
-            throw "Release metadata version did not match requested Codex version $NormalizedVersion."
+            throw "Release metadata version did not match requested ore version $NormalizedVersion."
         }
         $resolvedRelease = [PSCustomObject]@{
             Version = $resolvedVersion
@@ -427,12 +427,12 @@ function Get-CurrentInstalledVersion {
         [string]$StandaloneCurrentDir
     )
 
-    $standaloneVersion = Get-VersionFromBinary -CodexPath (Join-Path $StandaloneCurrentDir "bin\codex.exe")
+    $standaloneVersion = Get-VersionFromBinary -CodexPath (Join-Path $StandaloneCurrentDir "bin\ore.exe")
     if (-not [string]::IsNullOrWhiteSpace($standaloneVersion)) {
         return $standaloneVersion
     }
 
-    $standaloneVersion = Get-VersionFromBinary -CodexPath (Join-Path $StandaloneCurrentDir "codex.exe")
+    $standaloneVersion = Get-VersionFromBinary -CodexPath (Join-Path $StandaloneCurrentDir "ore.exe")
     if (-not [string]::IsNullOrWhiteSpace($standaloneVersion)) {
         return $standaloneVersion
     }
@@ -458,7 +458,7 @@ function Test-OldStandaloneBinLayout {
         return $false
     }
 
-    $requiredFiles = @("codex.exe", "rg.exe")
+    $requiredFiles = @("ore.exe", "rg.exe")
     foreach ($fileName in $requiredFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $VisibleBinDir $fileName) -PathType Leaf)) {
             return $false
@@ -466,7 +466,7 @@ function Test-OldStandaloneBinLayout {
     }
 
     $knownFiles = @(
-        "codex.exe",
+        "ore.exe",
         "rg.exe",
         "codex-command-runner.exe",
         "codex-windows-sandbox.exe",
@@ -494,9 +494,9 @@ function Move-OldStandaloneBinIfApproved {
         return $null
     }
 
-    Write-Step "We found an older Codex install at $VisibleBinDir"
-    Write-WarningStep "To continue, Codex needs to update the install at this path."
-    if (-not (Prompt-YesNo "Replace it with the current Codex setup now?")) {
+    Write-Step "We found an older ore install at $VisibleBinDir"
+    Write-WarningStep "To continue, ore needs to update the install at this path."
+    if (-not (Prompt-YesNo "Replace it with the current ore setup now?")) {
         throw "Cannot replace older standalone install without confirmation: $VisibleBinDir"
     }
 
@@ -702,7 +702,7 @@ function Test-PackageContentsAreComplete {
 
     $expectedFiles = @(
         "codex-package.json",
-        "bin\codex.exe",
+        "bin\ore.exe",
         "bin\codex-code-mode-host.exe",
         "codex-path\rg.exe",
         "codex-resources\codex-command-runner.exe",
@@ -727,7 +727,7 @@ function Test-LegacyPlatformNpmContentsAreComplete {
     }
 
     $expectedFiles = @(
-        "codex.exe",
+        "ore.exe",
         "codex-resources\codex-command-runner.exe",
         "codex-resources\codex-windows-sandbox-setup.exe",
         "codex-resources\rg.exe"
@@ -754,16 +754,16 @@ function Test-ReleaseIsComplete {
             if (-not (Test-PackageContentsAreComplete -PackageDir $ReleaseDir)) {
                 return $false
             }
-            $codexPath = Join-Path $ReleaseDir "bin\codex.exe"
+            $codexPath = Join-Path $ReleaseDir "bin\ore.exe"
         }
         "LegacyPlatformNpm" {
             if (-not (Test-LegacyPlatformNpmContentsAreComplete -PackageDir $ReleaseDir)) {
                 return $false
             }
-            $codexPath = Join-Path $ReleaseDir "codex.exe"
+            $codexPath = Join-Path $ReleaseDir "ore.exe"
         }
         default {
-            throw "Unknown Codex installer layout: $Layout"
+            throw "Unknown ore installer layout: $Layout"
         }
     }
 
@@ -816,8 +816,8 @@ function Get-ConflictingInstall {
         return $null
     }
 
-    Write-Step "Detected existing $manager-managed Codex at $existingPath"
-    Write-WarningStep "Multiple managed Codex installs can be ambiguous because PATH order decides which one runs."
+    Write-Step "Detected existing $manager-managed ore at $existingPath"
+    Write-WarningStep "Multiple managed ore installs can be ambiguous because PATH order decides which one runs."
 
     return [PSCustomObject]@{
         Manager = $manager
@@ -837,21 +837,21 @@ function Maybe-HandleConflictingInstall {
     $manager = $Conflict.Manager
 
     $uninstallArgs = if ($manager -eq "bun") {
-        @("remove", "-g", "@openai/codex")
+        @("remove", "-g", "@ore-cli/ore")
     } else {
-        @("uninstall", "-g", "@openai/codex")
+        @("uninstall", "-g", "@ore-cli/ore")
     }
     $uninstallCommand = if ($manager -eq "bun") { "bun" } else { "npm" }
 
-    if (Prompt-YesNo "Uninstall the existing $manager-managed Codex now?") {
+    if (Prompt-YesNo "Uninstall the existing $manager-managed ore now?") {
         Write-Step "Running: $uninstallCommand $($uninstallArgs -join ' ')"
         try {
             & $uninstallCommand @uninstallArgs
         } catch {
-            Write-WarningStep "Failed to uninstall the existing $manager-managed Codex. Continuing with the standalone install."
+            Write-WarningStep "Failed to uninstall the existing $manager-managed ore. Continuing with the standalone install."
         }
     } else {
-        Write-WarningStep "Leaving the existing $manager-managed Codex installed. PATH order will determine which codex runs."
+        Write-WarningStep "Leaving the existing $manager-managed ore installed. PATH order will determine which codex runs."
     }
 }
 
@@ -860,10 +860,10 @@ function Test-VisibleCodexCommand {
         [string]$VisibleBinDir
     )
 
-    $codexCommand = Join-Path $VisibleBinDir "codex.exe"
+    $codexCommand = Join-Path $VisibleBinDir "ore.exe"
     & $codexCommand --version *> $null
     if ($LASTEXITCODE -ne 0) {
-        throw "Installed Codex command failed verification: $codexCommand --version"
+        throw "Installed ore command failed verification: $codexCommand --version"
     }
 }
 
@@ -873,7 +873,7 @@ if ($env:OS -ne "Windows_NT") {
 }
 
 if (-not [Environment]::Is64BitOperatingSystem) {
-    Write-Error "Codex requires a 64-bit version of Windows."
+    Write-Error "ore requires a 64-bit version of Windows."
     exit 1
 }
 
@@ -908,7 +908,7 @@ $releasesDir = Join-Path $standaloneRoot "releases"
 $currentDir = Join-Path $standaloneRoot "current"
 $lockPath = Join-Path $standaloneRoot "install.lock"
 
-$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\Codex\bin"
+$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\ore\bin"
 if ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_DIR)) {
     $visibleBinDir = $defaultVisibleBinDir
 } else {
@@ -923,11 +923,11 @@ $releaseName = "$resolvedVersion-$target"
 $releaseDir = Join-Path $releasesDir $releaseName
 
 if (-not [string]::IsNullOrWhiteSpace($currentVersion) -and $currentVersion -ne $resolvedVersion) {
-    Write-Step "Updating Codex CLI from $currentVersion to $resolvedVersion"
+    Write-Step "Updating ore CLI from $currentVersion to $resolvedVersion"
 } elseif (-not [string]::IsNullOrWhiteSpace($currentVersion)) {
-    Write-Step "Updating Codex CLI"
+    Write-Step "Updating ore CLI"
 } else {
-    Write-Step "Installing Codex CLI"
+    Write-Step "Installing ore CLI"
 }
 Write-Step "Detected platform: $platformLabel"
 Write-Step "Resolved version: $resolvedVersion"
@@ -957,7 +957,7 @@ try {
             $checksumPath = Join-Path $tempDir $checksumAsset
             $stagingDir = Join-Path $releasesDir ".staging.$releaseName.$PID"
 
-            Write-Step "Downloading Codex CLI"
+            Write-Step "Downloading ore CLI"
             if ($installLayout -eq "Package") {
                 Invoke-WebRequestWithFallback -Metadata $checksumMetadata -OutFile $checksumPath -ExpectedDigest $checksumMetadata.Sha256 -AssetName $checksumAsset -ReleaseVersion $resolvedVersion -RequiredManifestAsset $packageAsset
                 $expectedPackageDigest = Get-PackageArchiveDigest -ManifestPath $checksumPath -AssetName $packageAsset
@@ -974,7 +974,7 @@ try {
             if ($installLayout -eq "Package") {
                 tar -xzf $archivePath -C $stagingDir
                 if (-not (Test-PackageContentsAreComplete -PackageDir $stagingDir)) {
-                    throw "Downloaded Codex package archive did not contain the expected package layout."
+                    throw "Downloaded ore package archive did not contain the expected package layout."
                 }
             } else {
                 $extractDir = Join-Path $tempDir "extract"
@@ -985,7 +985,7 @@ try {
                 $resourcesDir = Join-Path $stagingDir "codex-resources"
                 New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
                 $copyMap = @{
-                    "codex/codex.exe" = "codex.exe"
+                    "codex/ore.exe" = "ore.exe"
                     "codex/codex-command-runner.exe" = "codex-resources\codex-command-runner.exe"
                     "codex/codex-windows-sandbox-setup.exe" = "codex-resources\codex-windows-sandbox-setup.exe"
                     "path/rg.exe" = "codex-resources\rg.exe"
@@ -996,7 +996,7 @@ try {
                 }
 
                 if (-not (Test-LegacyPlatformNpmContentsAreComplete -PackageDir $stagingDir)) {
-                    throw "Downloaded Codex npm archive did not contain the expected legacy platform package layout."
+                    throw "Downloaded ore npm archive did not contain the expected legacy platform package layout."
                 }
             }
 
@@ -1007,7 +1007,7 @@ try {
         }
 
         if (-not (Test-ReleaseIsComplete -ReleaseDir $releaseDir -ExpectedVersion $resolvedVersion -ExpectedTarget $target -Layout $installLayout)) {
-            throw "Installed Codex command did not report expected version $resolvedVersion."
+            throw "Installed ore command did not report expected version $resolvedVersion."
         }
 
         New-Item -ItemType Directory -Force -Path $standaloneRoot | Out-Null
@@ -1080,10 +1080,10 @@ if ($prioritizeVisibleBin) {
 
 Write-Step "Current PowerShell session: codex"
 Write-Step "Future PowerShell windows: open a new PowerShell window and run: codex"
-Write-Host "Codex CLI $resolvedVersion installed successfully."
+Write-Host "ore CLI $resolvedVersion installed successfully."
 
-$codexCommand = Join-Path $visibleBinDir "codex.exe"
-if (Prompt-YesNo "Start Codex now?") {
-    Write-Step "Launching Codex"
+$codexCommand = Join-Path $visibleBinDir "ore.exe"
+if (Prompt-YesNo "Start ore now?") {
+    Write-Step "Launching ore"
     & $codexCommand
 }

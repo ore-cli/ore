@@ -1,0 +1,204 @@
+# Publishes the patched zsh that ore's releases bundle. A prerequisite for
+# ore-release.yml, which curls the DotSlash manifest this workflow emits from
+# this repository's own releases -- with no fallback.
+#
+# The tag namespace is `ore-zsh-v*`, never upstream's `codex-zsh-v*`: a tag push
+# runs the workflow files present at the tagged commit, so creating a
+# `codex-zsh-v*` tag here would fire upstream's rust-release-zsh.yml out of the
+# tree instead of this file.
+#
+# The ARTIFACT names deliberately stay `codex-zsh-<target>.tar.gz`: they are
+# upstream packaging's to name, and .github/dotslash-zsh-config.json plus
+# scripts/codex_package/zsh.py both key on them.
+#
+# Re-run only when ZSH_COMMIT or the patch changes. After the first publish,
+# record the sha256 of the published `codex-zsh` manifest asset into
+# CODEX_ZSH_MANIFEST_SHA256 in ore-release.yml -- ore's manifest embeds this
+# repository's download URLs, so its digest differs from upstream's.
+name: ore-zsh-release
+
+on:
+  push:
+    tags:
+      - "ore-zsh-v*.*.*"
+
+env:
+  ZSH_COMMIT: 77045ef899e53b9598bebc5a41db93a548a40ca6
+  ZSH_PATCH: codex-rs/shell-escalation/patches/zsh-exec-wrapper.patch
+
+concurrency:
+  group: ${{ github.workflow }}::${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: validate tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      release_tag: ${{ steps.release_tag.outputs.release_tag }}
+    steps:
+      - name: Validate release tag
+        id: release_tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^ore-zsh-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match ore-zsh-vX.Y.Z."
+            exit 1
+          fi
+          echo "release_tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
+
+      # Every ore release that bundles these artifacts references the manifest
+      # by digest, so replacing one in place would silently change what past
+      # releases resolve to.
+      - name: Ensure release does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release_tag.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release ${RELEASE_TAG} already exists; publish changed artifacts under a new tag."
+            exit 1
+          fi
+
+  linux:
+    name: zsh ${{ matrix.target }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    container:
+      image: ${{ matrix.image }}
+    # The container's default shell is dash, which has no `set -o pipefail`.
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The musl suffix is a label, not a link mode: upstream builds these
+          # against the container's glibc and names them for the release rows
+          # that consume them.
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            image: ubuntu:24.04
+            archive_name: codex-zsh-x86_64-unknown-linux-musl.tar.gz
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            image: arm64v8/ubuntu:24.04
+            archive_name: codex-zsh-aarch64-unknown-linux-musl.tar.gz
+    steps:
+      # Before checkout: the bare container image has no git for the checkout
+      # action to use, and no CA bundle for it to fetch over TLS.
+      - name: Install build prerequisites
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            autoconf bison build-essential ca-certificates gettext git libncursesw5-dev
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Build, smoke-test, and stage zsh
+        run: |
+          "${GITHUB_WORKSPACE}/.github/scripts/build-zsh-release-artifact.sh" \
+            "dist/zsh/${{ matrix.target }}/${{ matrix.archive_name }}"
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: codex-zsh-${{ matrix.target }}
+          path: dist/zsh/${{ matrix.target }}/*
+          if-no-files-found: error
+
+  darwin:
+    name: zsh ${{ matrix.target }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macos-latest is Apple Silicon only, so the Intel target needs its
+          # own runner. `macos-15-intel` is a standard (free) label -- only the
+          # `-large`/`-xlarge` suffixes are billed larger runners, which a free
+          # org cannot use. Upstream uses macos-15-large/macos-15-xlarge here.
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            archive_name: codex-zsh-aarch64-apple-darwin.tar.gz
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            archive_name: codex-zsh-x86_64-apple-darwin.tar.gz
+    env:
+      # Pin the floor rather than inheriting whatever SDK the runner ships.
+      # `macos-latest` is mid-migration to macOS 26, and without this the
+      # deployment target would drift with it and quietly raise the minimum
+      # macOS an ore user needs.
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+    steps:
+      - name: Install build prerequisites
+        run: |
+          set -euo pipefail
+          command -v autoconf >/dev/null 2>&1 || brew install autoconf
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Build, smoke-test, and stage zsh
+        run: |
+          "${GITHUB_WORKSPACE}/.github/scripts/build-zsh-release-artifact.sh" \
+            "dist/zsh/${{ matrix.target }}/${{ matrix.archive_name }}"
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: codex-zsh-${{ matrix.target }}
+          path: dist/zsh/${{ matrix.target }}/*
+          if-no-files-found: error
+
+  publish-release:
+    name: publish
+    needs: [metadata, linux, darwin]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
+        with:
+          tag_name: ${{ needs.metadata.outputs.release_tag }}
+          name: ${{ needs.metadata.outputs.release_tag }}
+          files: dist/**
+          # Prerelease so a bundled build dependency never becomes this
+          # repository's "latest release" and gets mistaken for an ore release.
+          prerelease: true
+          make_latest: "false"
+
+      # Emits the `codex-zsh` DotSlash manifest that ore-release.yml consumes.
+      # The action self-references this repository's release URLs, so ore's
+      # manifest points at ore's own assets.
+      - name: Publish DotSlash manifest
+        uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: ${{ needs.metadata.outputs.release_tag }}
+          config: .github/dotslash-zsh-config.json

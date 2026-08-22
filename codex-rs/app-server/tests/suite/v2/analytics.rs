@@ -318,7 +318,7 @@ async fn assert_plugin_measurement_analytics(runtime: PluginMetricsRuntime) -> R
     skip_if_no_network!(Ok(()));
     skip_if_remote!(
         Ok(()),
-        "trusted plugin metrics fixture uses a local Codex home cache"
+        "trusted plugin metrics fixture uses a local ore home cache"
     );
     skip_if_wine_exec!(Ok(()), "plugin metrics fixture is Unix-only");
 

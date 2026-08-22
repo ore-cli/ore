@@ -360,8 +360,13 @@ impl MessageProcessor {
         let models_manager = thread_manager.get_models_manager();
         let models_refresh_worker =
             crate::models_refresh_worker::spawn(&models_manager, config.http_client_factory());
-        let turn_cost_worker =
-            TurnCostWorker::spawn(Arc::clone(&config), Arc::clone(&auth_manager));
+        // The worker polls the ChatGPT analytics turn-cost endpoint every 150s
+        // for API-key users; ore never starts it. The spawn stays referenced so
+        // the worker keeps compiling behind a future opt-in.
+        const TURN_COST_POLLING_ENABLED: bool = false;
+        let turn_cost_worker = TURN_COST_POLLING_ENABLED
+            .then(|| TurnCostWorker::spawn(Arc::clone(&config), Arc::clone(&auth_manager)))
+            .flatten();
         thread_manager
             .plugins_manager()
             .set_analytics_events_client(analytics_events_client.clone());

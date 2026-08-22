@@ -39,12 +39,14 @@ mod additional_context;
 mod agent_execution;
 mod agent_websocket;
 mod agents_md;
+mod anthropic;
 mod apply_patch_cli;
 #[cfg(not(target_os = "windows"))]
 mod approvals;
 mod audio_truncation;
 mod auto_review;
 mod catalog_permission_messages;
+mod chat_completions;
 mod cli_stream;
 mod client;
 mod client_websockets;

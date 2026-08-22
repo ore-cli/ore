@@ -1,0 +1,137 @@
+# fork/verify/known-failing — upstream tests that legitimately go red under the
+# fork's seams (series commits telemetry-analytics-off, telemetry-feedback-off,
+# telemetry-statsig-strip, telemetry-defaults-none).
+#
+# Format: one nextest filterset expression per line ('#' comments, blank lines
+# ignored).  Consumers OR the expressions together, e.g. to exclude them from
+# the required-green set:
+#   cargo nextest run -E "not ($(grep -v '^#' known-failing | grep . | paste -sd'|' - | sed 's/|/ or /g'))"
+#
+# Provenance: the telemetry-seam verification pass, then re-derived
+# test-by-test against
+# the rust-v0.149.0 tree by the seam commit itself, which seeded this file;
+# each later series commit adds its own cause group.
+# Three causes:
+#   (1) analytics force-off — `Config.analytics_enabled` is `Some(false)` for
+#       every config layer, so `AnalyticsEventsClient` never builds a queue and
+#       every test awaiting a POST to /codex/analytics-events/events times out;
+#   (2) accepted Caveat A — `otel_init.rs` nulls the WHOLE metrics exporter
+#       when analytics is off, user BYO OTLP collectors included, so tests that
+#       await their own /metrics endpoint time out;
+#   (3) feedback force-off — `Config.feedback_enabled` is `false`, so the
+#       `/feedback` TUI command and the `feedback/upload` RPC report disabled.
+#
+# NOT in this list, deliberately (verified to keep passing):
+# * mcp-server lib.rs default-analytics assertions and app-server
+#   v2/analytics.rs :56/:81 — they assert an untouched constant or reset
+#   `analytics_enabled` themselves after load;
+# * cli clap flag tests — parsing only;
+# * otel crate unit/suite tests — they build `OtelSettings` directly with
+#   explicit exporters, and `resolve_exporter(Statsig)` already returned None
+#   under debug_assertions before the strip;
+# * app-server v2/remote_control.rs — passes `default_analytics_enabled` to the
+#   spawn helper but never awaits an analytics POST;
+# * app-server v2/turn_steer.rs `turn_steer_rejects_oversized_text_input` and
+#   `turn_steer_rejects_context_only_input_without_merging_context` — they
+#   mount the analytics capture server but never await it;
+# * core config_tests.rs `metrics_exporter_defaults_to_*` — the seam commit
+#   flips that expectation in place (the one upstream test it edits);
+# * app-server v2/curated_mcp_sync.rs
+#   `existing_thread_loads_api_curated_mcp_after_auth_switch_sync` — its
+#   fixture opts back in via ORE_CURATED_PLUGINS_REPO, so the sync clones the
+#   local git fixture exactly as upstream's hard-coded repo did.
+
+# --- (3) feedback force-off -------------------------------------------------
+# Passes `-c analytics.enabled=true` and expects three or more POSTs to
+# /events; the seam pins analytics_enabled to Some(false), so no queue is built
+# and nothing is ever sent. This is the behaviour codex-fork-invariants asserts.
+package(codex-exec) & test(shutdown_flushes_completed_turn_and_file_diff)
+# Asserts `feedback_enabled == true` for a default `[feedback]` table.
+package(codex-core) & test(feedback_enabled_defaults_to_true)
+# Drives feedback/upload through a failing proxy and asserts a -32603 transport
+# error; the config gate now rejects it first with "disabled by configuration".
+package(codex-app-server) & test(feedback_upload_reports_transport_failure_as_json_rpc_error)
+# Snapshot of the /feedback category popup; the disabled notice renders instead.
+package(codex-tui) & test(feedback_selection_popup_snapshot)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# Both configure `[otel] metrics_exporter = { otlp-http = ... }` against a local
+# collector and assert a flush on shutdown. The analytics seam gates metrics
+# regardless of which exporter is configured, so a user's own endpoint receives
+# nothing -- which is Caveat A exactly, ratified with decision 3.
+package(codex-cli) & test(local_exec_server_flushes_telemetry_on_stdio_disconnect)
+package(codex-cli) & test(remote_exec_server_gracefully_stops_when_parent_stdin_closes)
+# Asserts codex.thread.started reaches a user otlp-http collector.
+package(codex-app-server) & test(account_switch_reloads_telemetry_collectors_and_preserves_trace_context)
+# guardian_v2: every test routes through guardian_v2_routes_tool_approvals,
+# which awaits a codex.guardian_v2.classification metric on its own /metrics
+# endpoint (suite/v2/guardian_v2.rs:354).
+package(codex-app-server) & test(guardian_v2_low_risk_actions_skip_subsequent_reviews)
+package(codex-app-server) & test(guardian_v2_high_risk_actions_require_full_reviews)
+package(codex-app-server) & test(guardian_v2_threshold_score_requires_full_reviews)
+package(codex-app-server) & test(guardian_v2_required_model_honors_low_risk_assessment)
+package(codex-app-server) & test(guardian_v2_required_model_high_risk_requires_full_review)
+package(codex-app-server) & test(resumed_thread_starts_without_guardian_score)
+package(codex-app-server) & test(forked_thread_starts_without_guardian_score)
+
+# --- (1) codex-app-server: tests awaiting an analytics POST -----------------
+# suite/v2/analytics.rs — the five plugin-measurement tests share
+# assert_plugin_measurement_analytics.
+package(codex-app-server) & test(classic_plugin_script_emits_measurement_analytics)
+package(codex-app-server) & test(unified_plugin_script_emits_measurement_analytics)
+package(codex-app-server) & test(remote_unified_plugin_script_emits_measurement_analytics)
+package(codex-app-server) & test(unified_background_plugin_script_emits_measurements_after_turn_completion)
+package(codex-app-server) & test(remote_unified_background_plugin_script_emits_measurements_after_turn_completion)
+# suite/v2/thread_start.rs, thread_resume.rs, thread_fork.rs, thread_archive.rs
+package(codex-app-server) & test(thread_start_tracks_thread_initialized_analytics)
+package(codex-app-server) & test(thread_resume_tracks_thread_initialized_analytics)
+package(codex-app-server) & test(thread_resume_running_thread_tracks_thread_originator_in_analytics)
+package(codex-app-server) & test(thread_goal_lifecycle_emits_analytics_and_clear_deletes_goal)
+package(codex-app-server) & test(thread_fork_tracks_thread_initialized_analytics)
+package(codex-app-server) & test(thread_archive_succeeds_when_descendant_archive_fails)
+# suite/v2/turn_start.rs, turn_steer.rs
+package(codex-app-server) & test(turn_start_tracks_thread_originator_in_analytics)
+package(codex-app-server) & test(code_mode_exec_emits_correlated_production_analytics)
+package(codex-app-server) & test(turn_profile_tracks_blocking_tool_and_follow_up_sampling)
+package(codex-app-server) & test(turn_steer_requires_active_turn)
+package(codex-app-server) & test(turn_steer_returns_active_turn_id)
+# suite/v2/external_agent_config.rs
+package(codex-app-server) & test(external_agent_config_import_completed_tracks_analytics_event)
+package(codex-app-server) & test(external_agent_config_import_reports_session_config_error_subtype)
+package(codex-app-server) & test(external_agent_config_import_reinstalls_plugins_from_known_marketplaces)
+# Polls the analytics capture file in a loop for
+# codex_onboarding_external_agent_import_complete rather than going through
+# the shared await helper, so it spins to nextest's 60s timeout instead of
+# failing an assertion. Same cause as its three siblings above.
+package(codex-app-server) & test(external_agent_config_import_reports_failed_sync_import_in_completion)
+# suite/v2/executor_skills.rs — only the ExplicitOnly scenario awaits analytics.
+package(codex-app-server) & test(explicit_executor_skill_can_read_referenced_file)
+# suite/v2/plugin_install.rs
+package(codex-app-server) & test(plugin_install_tracks_analytics_when_remote_detail_fetch_fails)
+package(codex-app-server) & test(plugin_install_tracks_analytics_when_remote_install_is_rate_limited)
+package(codex-app-server) & test(plugin_install_rejects_remote_plugin_disabled_by_admin_before_download)
+package(codex-app-server) & test(plugin_install_rejects_remote_plugin_not_available)
+package(codex-app-server) & test(plugin_install_tracks_analytics_when_marketplace_file_cannot_be_read)
+package(codex-app-server) & test(plugin_install_tracks_analytics_event)
+package(codex-app-server) & test(plugin_install_failure_tracks_analytics_event)
+package(codex-app-server) & test(plugin_install_tracks_remote_plugin_analytics_event)
+package(codex-app-server) & test(plugin_install_preserves_status_when_remote_bundle_error_body_is_too_large)
+# suite/v2/plugin_uninstall.rs
+package(codex-app-server) & test(plugin_uninstall_tracks_analytics_event)
+package(codex-app-server) & test(plugin_uninstall_writes_remote_plugin_to_cloud_when_remote_plugin_enabled)
+
+# --- (1) codex-core: integration tests awaiting analytics events ------------
+# tests/suite/plugins.rs :472, :1352, :1401, :1480 (the first and last are
+# #[test_case]-parameterised; the substring filter covers every variant).
+package(codex-core) & test(persisted_remote_plugin_command_attribution_flows_through_turn_context)
+package(codex-core) & test(explicit_plugin_mentions_track_plugin_used_analytics)
+package(codex-core) & test(explicit_plugin_skill_invocation_tracks_remote_plugin_id)
+package(codex-core) & test(implicit_plugin_skill_invocation_tracks_remote_plugin_id)
+# tests/suite/skills_extension.rs — wait_for_analytics_events at :1037, :1062,
+# :1337, :1873.
+package(codex-core) & test(explicit_only_orchestrator_skill_is_hidden_but_can_be_invoked)
+package(codex-core) & test(executor_skill_invocation_is_environment_scoped_and_deduplicated)
+package(codex-core) & test(production_turn_uses_provider_host_catalog_and_core_snapshot_injection)
+# tests/suite/request_plugin_install.rs :840 — the wait lives in the shared
+# helper run_remote_plugin_install_metadata_case, whose only caller is:
+package(codex-core) & test(endpoint_recommendation_hydrates_install_identity_after_selection)

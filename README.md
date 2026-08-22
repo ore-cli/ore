@@ -1,81 +1,136 @@
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
-<p align="center">
-  <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
-</p>
-</br>
-If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE.</a>
-</br>If you want the desktop app experience, run <code>codex app</code> or visit <a href="https://chatgpt.com/codex?app-landing-page=true">the Codex App page</a>.
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
+<div align="center">
+
+<img src=".github/ore-splash.gif" width="870"
+     alt="A crystal cluster on a vein of gold-flecked rock, drawn in ASCII characters, turning slowly." />
+
+<h1>ore</h1>
+
+<p><em><strong>ore</strong>, n. (Mining) A native metal or its compound with the rock in<br />
+which it occurs, after it has been picked over to throw out what is worthless.</em></p>
+
+<p><sub>— Webster's Revised Unabridged Dictionary, 1913</sub></p>
+
+</div>
 
 ---
 
-## Quickstart
+A coding agent for the terminal. `ore` is a fork of
+[OpenAI Codex](https://github.com/openai/codex) that tracks upstream's stable
+releases. It keeps the agent and drops the telemetry.
 
-### Installing and running Codex CLI
+Bring your own key: any endpoint that speaks the OpenAI Responses API can be
+configured as a provider, exactly as in Codex — Ollama and LM Studio included.
+A restored Chat Completions wire (`wire_api = "chat"`, which upstream removed)
+and a built-in Anthropic provider are planned, not yet shipped.
 
-Run the following on Mac or Linux to install Codex CLI:
+## Install
 
-```shell
-curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```bash
+curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh
 ```
 
-Run the following on Windows to install Codex CLI:
+macOS and Linux, Apple Silicon and x86_64. It installs `ore` into
+`~/.local/bin`; set `CODEX_INSTALL_DIR` to put it somewhere else.
 
-```shell
-powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
+Or with Homebrew:
+
+```bash
+brew install ore-cli/tap/ore
 ```
 
-The standalone installers download from `https://releases.openai.com/codex` by default and fall back to GitHub Releases if a metadata or asset download is unavailable. To force GitHub Releases, set `CODEX_INSTALLER_USE_RELEASES_OPENAI_COM` to `false` (`0` and `no` are also accepted):
+npm is not yet published: upstream's package layout requires binaries for every
+platform including Windows, so `@ore-cli/ore` arrives with the first
+Windows-complete release.
 
-```shell
-curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_INSTALLER_USE_RELEASES_OPENAI_COM=false sh
+Or build it yourself:
+
+```bash
+git clone https://github.com/ore-cli/ore.git
+cd ore/codex-rs
+cargo build --release --bin codex
+install -m 755 target/release/codex ~/.local/bin/ore
 ```
 
-```powershell
-$env:CODEX_INSTALLER_USE_RELEASES_OPENAI_COM='false'; irm https://chatgpt.com/codex/install.ps1 | iex
+The cargo target is still named `codex` — the rename to `ore` happens at
+packaging time, which is what lets upstream's tests and build graph run
+unmodified.
+
+## What changed
+
+| Area         | Codex                                                                                                                                                                                  | ore                                                                                                                                                                                                                                                                                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Telemetry    | OpenTelemetry metrics exported to a Statsig endpoint; product analytics events (fingerprints of accepted diff lines, a hash of your git remote); Sentry reports carrying buffered logs | None. Analytics and feedback reporting are hard-disabled for every config layer, the Statsig export route and its endpoint and key constants are deleted, and the exporter defaults are off. The telemetry libraries stay linked but unreachable; CI pins the dependency set to a frozen baseline and watches a release build for silence on the wire |
+| Config home  | `~/.codex`                                                                                                                                                                             | `~/.ore` (move it with `ORE_HOME`; `CODEX_HOME` still works). An existing `~/.codex/config.toml` is read as a base layer underneath, so a Codex setup carries over without copying; `~/.ore` always wins where they disagree. A project's local `.codex/` directory keeps its name — it is baked into the sandbox policy                              |
+| Versioning   | `rust-v0.149.0`                                                                                                                                                                        | its own release line, `ore-v1.149.0` — `1.<upstream minor>.<ore patch>`, explained below                                                                                                                                                                                                                                                              |
+| Updates      | checks OpenAI's release feeds; a background daemon re-runs OpenAI's installer hourly                                                                                                   | the startup check reads ore's own releases; the hourly self-updater is off, and the desktop-app integration is hidden                                                                                                                                                                                                                                 |
+| Distribution | npm under the `@openai` scope, a Homebrew cask, installers on `chatgpt.com`                                                                                                            | GitHub Releases on [`ore-cli/ore`](https://github.com/ore-cli/ore/releases) with `install.sh` as a release asset, a Homebrew formula in `ore-cli/homebrew-tap`; npm under `@ore-cli` once Windows binaries ship. Release tags are `ore-v*`                                                                                                            |
+
+Every remaining runtime fetch — the update check, the announcement feed —
+points at this repository.
+
+### Why the version looks like that
+
+`ore 1.149.0` is Codex `rust-v0.149.0` plus ore's changes; fixes on the same
+base are `1.149.1`, `1.149.2`, and the next upstream base bumps the minor. The
+version number is visible on the wire, and the backend gates model
+availability on a minimum client version — a `0.x` line would present as an
+ancient client. So the leading `1` clears the gates while the minor names the
+upstream base. The exact base is never lost:
+
+```
+$ ore --version
+ore 1.149.0
+codex-base: rust-v0.149.0 (758ef40f50)
 ```
 
-Codex CLI can also be installed via the following package managers:
+## Signing in with ChatGPT
 
-```shell
-# Install using npm
-npm install -g @openai/codex
-```
+The entire sign-in and credential path is kept byte-identical to upstream —
+endpoints, client identity, token handling, storage — and CI enforces that
+fence. A visible consequence: the sign-in screens still say Codex and OpenAI.
+That is deliberate, not a missed rename. You are authenticating to OpenAI's
+service, and ore does not present itself to that service, or to you, as
+anything other than what upstream ships. The difference is subtractive only:
+your account behaves exactly as it does in Codex, minus the analytics.
 
-```shell
-# Install using Homebrew
-brew install --cask codex
-```
+OpenAI's maintainers have said forks are welcome under the Apache-2.0 license;
+they have published no position on ChatGPT sign-in from forks specifically. If
+you would rather not lean on that, an API key works the same as in Codex.
 
-Then simply run `codex` to get started.
+## Tracking upstream
 
-<details>
-<summary>You can also go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and download the appropriate binary for your platform.</summary>
+ore follows Codex stable release tags; the current base is recorded in
+[fork/UPSTREAM](./fork/UPSTREAM) and on line 2 of `ore --version`. Two
+branches:
 
-Each GitHub Release contains many executables, but in practice, you likely want one of these:
+- **`delta`** — the fork's changes: small, single-purpose, hand-authored
+  commits on the pinned upstream tag.
+- **`main`** — generated by CI on every sync: upstream tag, then the `delta`
+  series, then the generated passes (rebrand, lockfiles, snapshots), landing
+  as one merge commit so upstream history stays reachable. Never commit to
+  `main` by hand; changes go to `delta`.
 
-- macOS
-  - Apple Silicon/arm64: `codex-aarch64-apple-darwin.tar.gz`
-  - x86_64 (older Mac hardware): `codex-x86_64-apple-darwin.tar.gz`
-- Linux
-  - x86_64: `codex-x86_64-unknown-linux-musl.tar.gz`
-  - arm64: `codex-aarch64-unknown-linux-musl.tar.gz`
-
-Each archive contains a single entry with the platform baked into the name (e.g., `codex-x86_64-unknown-linux-musl`), so you likely want to rename it to `codex` after extracting it.
-
-</details>
-
-### Using Codex with your ChatGPT plan
-
-Run `codex` and select **Sign in with ChatGPT**. We recommend signing into your ChatGPT account to use Codex as part of your Plus, Pro, Business, Edu, or Enterprise plan. [Learn more about what's included in your ChatGPT plan](https://help.openai.com/en/articles/11369540-codex-in-chatgpt).
-
-You can also use Codex with an API key, but this requires [additional setup](https://developers.openai.com/codex/auth#sign-in-with-an-api-key).
+This README is the one file that deliberately replaces upstream's, so each
+sync resolves it "ours" instead of merging. The rest of the machinery — tag
+policy, the invariant suite, why the upstream diff surface is kept minimal —
+is in [fork/README.md](./fork/README.md).
 
 ## Docs
 
-- [**Codex Documentation**](https://developers.openai.com/codex)
-- [**Contributing**](./docs/contributing.md)
-- [**Installing & building**](./docs/install.md)
-- [**Open source fund**](./docs/open-source-fund.md)
+Most of `docs/` is inherited and still describes Codex, linking out to
+OpenAI's documentation for it. Take it as a guide to the agent rather than to
+this fork: the two differ on telemetry, updates, the config home, and what the
+command is called. [docs/contributing.md](./docs/contributing.md) covers
+development.
 
-This repository is licensed under the [Apache-2.0 License](LICENSE).
+Found a vulnerability? [SECURITY.md](./SECURITY.md) — not a public issue.
+
+## License
+
+[Apache 2.0](./LICENSE).
+
+ore is a fork of [OpenAI Codex](https://github.com/openai/codex), Copyright
+2025 OpenAI. Files throughout have been modified from the originals; see
+[NOTICE](./NOTICE) for the full attribution.
+
+ore is not affiliated with, endorsed by, or sponsored by OpenAI.

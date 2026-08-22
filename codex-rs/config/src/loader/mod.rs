@@ -93,7 +93,7 @@ async fn first_layer_config_error_from_entries(layers: &[ConfigLayerEntry]) -> O
 /// hooks, rules, deny-read permissions, and remote sandbox config:
 ///
 /// - system    `/etc/codex/requirements.toml` (Unix) or
-///   `%ProgramData%\OpenAI\Codex\requirements.toml` (Windows)
+///   `%ProgramData%\OpenAI\ore\requirements.toml` (Windows)
 /// - cloud:    enterprise-managed cloud config bundle requirements
 /// - legacy:   `/etc/codex/managed_config.toml` (Unix) reinterpreted as
 ///   requirements.toml
@@ -104,10 +104,10 @@ async fn first_layer_config_error_from_entries(layers: &[ConfigLayerEntry]) -> O
 ///
 /// Configuration is built up from multiple layers in the following order:
 ///
-/// - package:  optional default configuration supplied with the Codex package
+/// - package:  optional default configuration supplied with the ore package
 /// - admin:    managed preferences (*)
 /// - system    `/etc/codex/config.toml` (Unix) or
-///   `%ProgramData%\OpenAI\Codex\config.toml` (Windows)
+///   `%ProgramData%\OpenAI\ore\config.toml` (Windows)
 /// - cloud     enterprise-managed cloud config bundle fragments
 /// - user      `${CODEX_HOME}/config.toml`
 /// - profile   `${CODEX_HOME}/<name>.config.toml`, when selected
@@ -171,7 +171,7 @@ pub async fn load_config_layers_state(
         let config = toml::from_str(raw_toml).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("invalid embedded packaged defaults; this is a Codex build error: {error}"),
+                format!("invalid embedded packaged defaults; this is an ore build error: {error}"),
             )
         })?;
         ConfigLayerEntry::new_with_raw_toml(
@@ -341,6 +341,14 @@ pub async fn load_config_layers_state(
                 ),
             ));
         }
+    }
+    // Fork: layer the legacy `~/.codex/config.toml` underneath the base user
+    // layer so an existing codex install keeps working as a read-only base.
+    if !ignore_user_config
+        && let Some(legacy_user_file) =
+            legacy_user_config_file(&overrides, codex_home, &base_user_file)
+    {
+        layers.push(load_legacy_user_config_layer(fs, &legacy_user_file, strict_config).await);
     }
     layers.push(base_user_layer);
 
@@ -541,6 +549,77 @@ async fn load_user_config_layer(
         )
     })
     .await
+}
+
+/// Fork: resolves the read-only legacy user config file, or `None`.
+///
+/// The gate is what keeps upstream behavior intact: `CODEX_HOME` being set
+/// means the caller pinned a home for upstream-compatible tooling, and an
+/// injected `codex_home` (every test, every remote executor) is not the home
+/// this process resolves for itself, so neither gets a legacy layer.
+fn legacy_user_config_file(
+    overrides: &LoaderOverrides,
+    codex_home: &Path,
+    base_user_file: &AbsolutePathBuf,
+) -> Option<AbsolutePathBuf> {
+    let legacy_user_file = match overrides.legacy_user_config_path.as_ref() {
+        Some(legacy_user_file) => legacy_user_file.clone(),
+        None => {
+            // Cheap gate first: this is `None` whenever CODEX_HOME is set, which
+            // is how every test harness and upstream-compatible tool runs.
+            let legacy_home = codex_utils_home_dir::find_legacy_codex_home()?;
+            if AbsolutePathBuf::from_absolute_path(codex_home).ok()?
+                != codex_utils_home_dir::find_codex_home().ok()?
+            {
+                return None;
+            }
+            legacy_home.join(CONFIG_TOML_FILE)
+        }
+    };
+    (legacy_user_file != *base_user_file && legacy_user_file.as_path().is_file())
+        .then_some(legacy_user_file)
+}
+
+/// Fork: loads the legacy user layer, which must never be able to break
+/// startup because ore does not own that file.
+///
+/// A legacy `profile`/`profiles` selector is a hard error in this version, and
+/// unparsable TOML would abort the whole load, so both degrade instead.
+async fn load_legacy_user_config_layer(
+    fs: &dyn ExecutorFileSystem,
+    legacy_user_file: &AbsolutePathBuf,
+    strict_config: bool,
+) -> ConfigLayerEntry {
+    let loaded = load_config_toml_for_required_layer(
+        fs,
+        legacy_user_file,
+        strict_config,
+        |mut config_toml| {
+            if let Some(table) = config_toml.as_table_mut() {
+                table.remove("profile");
+                table.remove("profiles");
+            }
+            ConfigLayerEntry::new(
+                ConfigLayerSource::User {
+                    file: legacy_user_file.clone(),
+                    profile: None,
+                },
+                config_toml,
+            )
+        },
+    )
+    .await;
+
+    loaded.unwrap_or_else(|error| {
+        ConfigLayerEntry::new_disabled(
+            ConfigLayerSource::User {
+                file: legacy_user_file.clone(),
+                profile: None,
+            },
+            TomlValue::Table(toml::map::Map::new()),
+            format!("legacy config was not loaded: {error}"),
+        )
+    })
 }
 
 fn insert_layer_by_precedence(layers: &mut Vec<ConfigLayerEntry>, layer: ConfigLayerEntry) {
@@ -815,7 +894,7 @@ fn windows_codex_system_dir() -> PathBuf {
         );
         PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS)
     });
-    program_data.join("OpenAI").join("Codex")
+    program_data.join("OpenAI").join("ore")
 }
 
 #[cfg(windows)]
@@ -968,7 +1047,7 @@ fn legacy_requirements_to_toml_value(legacy: LegacyManagedConfigToml) -> io::Res
     }
     if let Some(sandbox_mode) = sandbox_mode {
         let required_mode: SandboxModeRequirement = sandbox_mode.into();
-        // Allowing read-only is a requirement for Codex to function correctly.
+        // Allowing read-only is a requirement for ore to function correctly.
         // So in this backfill path, we append read-only if it's not already specified.
         let mut allowed_modes = vec![SandboxModeRequirement::ReadOnly];
         if required_mode != SandboxModeRequirement::ReadOnly {
@@ -1789,7 +1868,7 @@ foo = "xyzzy"
         let expected = windows_program_data_dir_from_known_folder()
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS))
             .join("OpenAI")
-            .join("Codex")
+            .join("ore")
             .join("requirements.toml");
         assert_eq!(
             windows_system_requirements_toml_file()
@@ -1801,7 +1880,7 @@ foo = "xyzzy"
             windows_system_requirements_toml_file()
                 .expect("requirements.toml path")
                 .as_path()
-                .ends_with(Path::new("OpenAI").join("Codex").join("requirements.toml"))
+                .ends_with(Path::new("OpenAI").join("ore").join("requirements.toml"))
         );
     }
 
@@ -1811,7 +1890,7 @@ foo = "xyzzy"
         let expected = windows_program_data_dir_from_known_folder()
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS))
             .join("OpenAI")
-            .join("Codex")
+            .join("ore")
             .join("config.toml");
         assert_eq!(
             windows_system_config_toml_file()
@@ -1823,7 +1902,7 @@ foo = "xyzzy"
             windows_system_config_toml_file()
                 .expect("config.toml path")
                 .as_path()
-                .ends_with(Path::new("OpenAI").join("Codex").join("config.toml"))
+                .ends_with(Path::new("OpenAI").join("ore").join("config.toml"))
         );
     }
 }

@@ -581,6 +581,11 @@ impl PluginsManager {
         config: &PluginsConfigInput,
         on_effective_plugins_changed: Option<EffectivePluginsChangedCallback>,
     ) {
+        // ore hard-codes no curated-plugins repository; naming one via
+        // ORE_CURATED_PLUGINS_REPO is the opt-in that enables this sync.
+        if crate::startup_sync::curated_plugins_repo_from_env().is_none() {
+            return;
+        }
         if config.plugins_enabled && !self.remote_global_catalog_active(config) {
             self.start_curated_repo_sync(
                 config.http_client_factory.clone(),

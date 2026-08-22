@@ -31,7 +31,7 @@ pub async fn run_windows_app_open_or_install(
 }
 
 async fn codex_app_is_installed() -> anyhow::Result<bool> {
-    // This package identity is stable across Codex- and ChatGPT-branded builds.
+    // This package identity is stable across ore- and ChatGPT-branded builds.
     let output = Command::new("powershell.exe")
         .arg("-NoProfile")
         .arg("-Command")

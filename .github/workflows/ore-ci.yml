@@ -1,0 +1,382 @@
+# ore's pull-request gate, plus the push check on `delta` and `main`.
+#
+# Upstream's own CI cannot run here. It routes every Rust test through Bazel
+# with BuildBuddy remote execution, and pins its lint and test jobs to either a
+# self-hosted runner group (`${{ github.event.repository.name }}-runners`) or
+# the billed `macos-15-xlarge` label. The runner expression prefers the group
+# whenever it is set, with no fallback, so on this fork those jobs would queue
+# forever rather than fail. This is the cargo-native replacement, sized for the
+# free standard runners a public repository gets.
+#
+# Two non-obvious constraints:
+#
+#   * Every cargo invocation over the workspace must run
+#     `./.github/actions/setup-rusty-v8` BEFORE cargo starts. codex-code-mode-
+#     runtime enables the v8 crate's `v8_enable_sandbox` feature, and no public
+#     prebuilt of that variant exists outside the artifacts openai/codex
+#     publishes -- denoland's release has none, and the crate bundles no
+#     matching `src_binding_*.rs`, so the build panics twice over without
+#     RUSTY_V8_ARCHIVE + RUSTY_V8_SRC_BINDING_PATH. Upstream's own
+#     rust-ci-full-nextest-platform.yml omits this step and is red on upstream
+#     main because of it: never copy that workflow as-is.
+#
+#   * Cached cargo jobs deliberately skip `./.github/actions/setup-ci`. It
+#     repoints CARGO_TARGET_DIR outside the workspace, and Swatinem/rust-cache
+#     caches only the workspace-relative target directory -- with setup-ci the
+#     cache silently stores nothing. Those jobs install what they need
+#     (DotSlash, just, user namespaces) directly instead.
+name: ore-ci
+
+on:
+  pull_request:
+  push:
+    branches: [delta, main]
+
+concurrency:
+  group: ore-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Three upstream checks that were already portable: plain ubuntu runners, no
+  # secrets, no Bazel. All three are `workflow_call`-only, so they need a
+  # caller; upstream's was blocking-ci.yml, which this fork does not run. They
+  # are the only upstream workflows fork/workflows.allow keeps live, precisely
+  # because a reusable workflow must sit in .github/workflows/ to be callable.
+  #
+  # blob-size is pull-request-only. On a push it diffs against the event's
+  # "before" SHA, which is unreachable in the runner's clone whenever the
+  # branch was force-pushed -- and every sync rebases `delta`, so every sync
+  # force-pushes it. The job would die on `fatal: bad object`. A pull request
+  # always has a real merge base, which is where the check earns its keep.
+  blob-size:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/blob-size-policy.yml
+  codespell:
+    uses: ./.github/workflows/codespell.yml
+  cargo-deny:
+    # main only. cargo-deny runs `cargo metadata`, which re-resolves and rewrites
+    # Cargo.lock, and upstream's reusable workflow ends with an unconditional
+    # clean-worktree assertion. On delta that lock is upstream's by policy --
+    # series commits may not touch it -- so the job can only ever fail there.
+    # It is also the wrong place to ask: the dependency set that ships is main's,
+    # after assemble regenerates the lock.
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    uses: ./.github/workflows/cargo-deny.yml
+
+  fmt:
+    name: fmt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # `just fmt-check` shells out to scripts/format.py, which formats Bazel
+      # and Starlark files through a buildifier fetched by DotSlash -- so this
+      # job needs setup-ci's toolchain, not just `just`. It runs no cargo build,
+      # so setup-ci's CARGO_TARGET_DIR relocation costs nothing here.
+      - uses: ./.github/actions/setup-ci
+
+      # scripts/format.py also runs `uv run ruff` over the Python sources. uv is
+      # not preinstalled on the runner image and setup-ci does not provide it.
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - run: just fmt-check
+
+      # Prettier covers the Markdown, JSON and workflow YAML that
+      # `just fmt-check` does not -- including this file. `pnpm run format` is
+      # `prettier --check`, not a rewrite.
+      - uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run format
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-24.04
+    # A cold ~128-crate workspace with --tests on a free 4-core runner, linking
+    # librusty_v8 and building aws-lc-sys, bundled SQLite and tree-sitter from
+    # C. Without a cap a pathological run would sit on a runner for GitHub's
+    # full 6-hour ceiling.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # codex-bwrap compiles vendored bubblewrap on Linux and probes for libcap
+      # through pkg-config. build.rs offers CODEX_SKIP_BWRAP_BUILD as an escape
+      # hatch, but skipping the build would stop linting the sandbox path that
+      # matters most on Linux.
+      - name: Install libcap headers for codex-bwrap
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            pkg-config libcap-dev
+
+      # Install the pinned toolchain explicitly rather than letting rustup
+      # bootstrap it on the first cargo invocation: rust-cache derives its cache
+      # key from `rustc -V`, so the toolchain has to resolve before the cache is
+      # restored or the key is computed against the runner's default rustc and
+      # every run is a miss.
+      - name: Install the pinned Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Install just
+        uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532 # v2.62.49
+        with:
+          tool: just@1.51.0
+
+      - name: Configure rusty_v8 artifacts
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: x86_64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: codex-rs
+
+      # No `-D warnings`: the lint policy lives in [workspace.lints.clippy] in
+      # codex-rs/Cargo.toml, which already denies a curated set. A blanket deny
+      # here would make CI stricter than the declared policy and fail on
+      # upstream code the fork has not chosen to fix.
+      - run: just clippy
+
+      # Catches a build step that writes into the tree -- a generated file left
+      # uncommitted, a lockfile bumped as a side effect.
+      #
+      # Two variants, because delta and main hold codex-rs/Cargo.lock to
+      # different standards. fork/lint-series.sh forbids every series commit
+      # from touching it (upstream's lock churns on each release, so such a
+      # commit would conflict at nearly every sync); fork/assemble.sh
+      # regenerates it when main is built. delta therefore carries upstream's
+      # lock, without the fork's own crates in it, and `just clippy` above is
+      # the first cargo invocation to re-resolve and rewrite it. That one path
+      # is tolerated on delta and nowhere else -- every other path still fails
+      # there, and on main, where the lock is generated and committed, the
+      # strict action runs untouched and any drift is a real defect.
+      - uses: ./.github/actions/check-clean-worktree
+        if: github.ref != 'refs/heads/delta' && github.base_ref != 'delta'
+
+      - name: Check for a clean worktree, tolerating delta's regenerated lock
+        if: github.ref == 'refs/heads/delta' || github.base_ref == 'delta'
+        run: |
+          set -euo pipefail
+
+          status="$(git -C "${GITHUB_WORKSPACE}" status --porcelain=v1 --untracked-files=normal --ignore-submodules=none)"
+          # Exactly one tolerated line: an unstaged modification of that single
+          # path. A deletion, a rename, or any other file is still a failure.
+          unexpected="$(printf '%s\n' "${status}" \
+            | grep -v -e '^[[:space:]]*$' -e '^ M codex-rs/Cargo\.lock$' || true)"
+          if [[ -n "${unexpected}" ]]; then
+            echo "::error::CI job left tracked changes or untracked files in the repository worktree"
+            printf '%s\n' "${unexpected}"
+            exit 1
+          fi
+
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    # Cold, this builds every test binary in the workspace and links
+    # librusty_v8 into ~6 of them; clippy's 90 is the calibrated reference for
+    # the smaller `--tests` build on the same runner class.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # A full-workspace test build is ~1200 crates plus static v8, and a hosted
+      # runner starts with about 14 GB free. The first run died at 17 minutes
+      # with no logs retained, which is what running out of disk looks like from
+      # the outside. These images ship several toolchains this repository never
+      # uses; dropping them roughly doubles the space available.
+      - name: Make room for the build
+        run: |
+          set -euo pipefail
+          echo "before:"; df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/share/swift || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          echo "after:"; df -h / | tail -1
+
+      - name: Install test dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            pkg-config libcap-dev bubblewrap
+
+      # Copied from ./.github/actions/setup-ci, which this job cannot use (see
+      # the header note on CARGO_TARGET_DIR). The Linux sandbox tests spawn
+      # unprivileged user namespaces, which the runner image restricts.
+      - name: Enable unprivileged user namespaces
+        run: |
+          set -euo pipefail
+          sudo sysctl -w kernel.unprivileged_userns_clone=1
+          if sudo sysctl -a 2>/dev/null | grep -q '^kernel.apparmor_restrict_unprivileged_userns'; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      # codex-core's test helpers shell out to `dotslash` by name to fetch
+      # pinned resources, and some spawn it from a stable system path rather
+      # than the action-local PATH entry.
+      - uses: facebook/install-dotslash@1e4e7b3e07eaca387acb98f1d4720e0bee8dbb6a # v2
+      - name: Make DotSlash available in PATH
+        run: sudo cp "$(command -v dotslash)" /usr/local/bin/
+
+      - name: Install the pinned Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Configure rusty_v8 artifacts
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: x86_64-unknown-linux-gnu
+
+      - uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532 # v2.62.49
+        with:
+          tool: nextest
+          version: 0.9.103
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: codex-rs
+
+      # fork/verify/known-failing lists the upstream tests the fork's seams
+      # legitimately turn red, one nextest filterset expression per line. The
+      # file -- not this workflow -- is the single record of what is expected to
+      # fail and why, and the series commit that breaks a test owns its entry.
+      - name: Run the workspace test suite
+        working-directory: codex-rs
+        env:
+          KNOWN_FAILING: ${{ github.workspace }}/fork/verify/known-failing
+          # Upstream's suite does not pass at upstream's own release tags: its
+          # snapshots are recorded against main, where the workspace version is
+          # 0.0.0. Excluding those separately keeps the two categories apart --
+          # one file is what the fork broke, the other is what arrived broken.
+          KNOWN_FAILING_UPSTREAM: ${{ github.workspace }}/fork/verify/known-failing-upstream
+          RUST_MIN_STACK: "8388608"
+        run: |
+          set -euo pipefail
+          args=(--workspace --no-fail-fast)
+          merged="$RUNNER_TEMP/known-failing.merged"
+          : > "$merged"
+          for f in "$KNOWN_FAILING_UPSTREAM" "$KNOWN_FAILING"; do
+            [[ -f "$f" ]] && cat "$f" >> "$merged"
+          done
+          KNOWN_FAILING="$merged"
+          if [[ -s "$KNOWN_FAILING" ]]; then
+            filter="$(grep -v '^[[:space:]]*#' "$KNOWN_FAILING" \
+              | grep -v '^[[:space:]]*$' \
+              | paste -sd'|' - \
+              | sed 's/|/ or /g')"
+            # An empty file must not become `not ()`, which nextest rejects.
+            if [[ -n "$filter" ]]; then
+              echo "Excluding known-failing tests: not ($filter)"
+              args+=(-E "not ($filter)")
+            fi
+          fi
+          cargo nextest run "${args[@]}" || rc=$?
+          echo "disk after the test run:"; df -h / | tail -1
+          exit "${rc:-0}"
+
+  fork-guards:
+    name: fork-guards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # Full history and tags: workflows_check.py compares the live workflow set
+      # against the base tag recorded in fork/UPSTREAM, and lint-series.sh walks
+      # the commits from that tag to HEAD.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # prettier and fork/verify/workflows_check.py both passed a workflow file
+      # that GitHub then rejected outright (`runner` context in a job-level
+      # `env:`), which surfaces only as a run that fails in 0s and is attributed
+      # to the push. actionlint is the tool that actually knows the schema.
+      - name: Lint the fork's workflows
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          # Pinned by digest rather than installed through a third-party action:
+          # the release asset is two lines to fetch and verify, and it cannot
+          # fail for reasons that have nothing to do with this repository.
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL "$url" -o /tmp/actionlint.tar.gz
+          echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint .github/workflows/ore-*.yml
+
+      - name: Run the static invariant suite
+        run: python3 fork/verify/run.py --suite static
+
+      # Trailer lint for the delta series: `Fork-Patch:` slugs are how a rebase
+      # notices an upstream-absorbed commit, so a commit without one is a commit
+      # the sync machinery cannot track.
+      - name: Lint the delta series trailers
+        if: github.ref == 'refs/heads/delta'
+        run: fork/lint-series.sh
+
+      # main is generated, never hand-edited: --check proves re-running the
+      # manifest over this tree changes nothing, --audit proves no brand leak
+      # escaped it. Also run for pull requests into main, which is where sync
+      # lands and where a broken assembly must be caught before merge.
+      - name: Prove the substitutions are reproducible and complete
+        if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+        run: |
+          set -euo pipefail
+          python3 fork/substitute.py --check
+          python3 fork/substitute.py --audit
+
+  # One required check for branch protection to point at, so adding a job later
+  # does not mean reconfiguring the ruleset.
+  #
+  # Deliberately not .github/scripts/check_ci_results.py: that treats `skipped`
+  # as failure, which is right when every job is unconditional but wrong here --
+  # blob-size skips by design on push events, so importing that policy would
+  # make every push to delta red.
+  required:
+    name: required
+    if: always()
+    needs: [blob-size, codespell, cargo-deny, fmt, clippy, test, fork-guards]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check that nothing failed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+
+          # `skipped` passes only because a job here is conditional by design.
+          # `cancelled` does not: a cancelled dependency means this run never
+          # established the property the gate exists to assert.
+          ACCEPTABLE = {"success", "skipped"}
+
+          needs = json.loads(os.environ["NEEDS"])
+          bad = sorted(
+              (name, dep["result"])
+              for name, dep in needs.items()
+              if dep["result"] not in ACCEPTABLE
+          )
+          for name, result in bad:
+              print(f"::error::{name}: {result}")
+          if bad:
+              sys.exit(1)
+          print("All ore-ci dependencies passed:")
+          for name, dep in sorted(needs.items()):
+              print(f"  {name}: {dep['result']}")
+          PY

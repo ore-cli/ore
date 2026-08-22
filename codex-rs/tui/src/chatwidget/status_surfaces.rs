@@ -224,7 +224,7 @@ impl ChatWidget {
         self.set_status_line_hyperlink(hyperlink_url);
     }
 
-    /// Clears the terminal title Codex most recently wrote, if any.
+    /// Clears the terminal title ore most recently wrote, if any.
     ///
     /// This does not attempt to restore the shell or terminal's previous title;
     /// it only clears the managed title and updates the cache after a successful

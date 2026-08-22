@@ -34,7 +34,7 @@ pub use feedback_diagnostics::FEEDBACK_DIAGNOSTICS_ATTACHMENT_FILENAME;
 pub use feedback_diagnostics::FeedbackDiagnostic;
 pub use feedback_diagnostics::FeedbackDiagnostics;
 
-/// Filename used for the redacted `codex doctor --json` feedback attachment.
+/// Filename used for the redacted `ore doctor --json` feedback attachment.
 pub const DOCTOR_REPORT_ATTACHMENT_FILENAME: &str = "codex-doctor-report.json";
 /// Filename used for the raw Codex Apps MCP tools cache feedback attachment.
 pub const CODEX_APPS_TOOLS_CACHE_ATTACHMENT_FILENAME: &str = "codex-apps-tools-cache.json";
@@ -43,8 +43,6 @@ pub const CODEX_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME: &str = "codex-app-direc
 /// Filename used for the Windows sandbox log feedback attachment.
 pub const WINDOWS_SANDBOX_LOG_ATTACHMENT_FILENAME: &str = "windows-sandbox.log";
 const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024; // 4 MiB
-const SENTRY_DSN: &str =
-    "https://ae32ed50620d7a7792c1ce5df38b3e3e@o33249.ingest.us.sentry.io/4510195390611458";
 const UPLOAD_TIMEOUT_SECS: u64 = 10;
 const FEEDBACK_TAGS_TARGET: &str = "feedback_tags";
 const MAX_FEEDBACK_TAGS: usize = 64;
@@ -430,10 +428,17 @@ impl FeedbackSnapshot {
         options: FeedbackUploadOptions<'_>,
         http_client_factory: &HttpClientFactory,
     ) -> Result<()> {
-        self.upload_feedback_with_dsn(options, http_client_factory, SENTRY_DSN)
-            .await
+        // ore: the fork ships no feedback destination — the upstream Sentry
+        // DSN constant is deleted, so this path can never reach the network.
+        // The signature stays so the `feedback/upload` RPC keeps compiling and
+        // reports the failure to the client.
+        let _ = (options, http_client_factory);
+        Err(anyhow!("sending feedback is disabled"))
     }
 
+    // ore: reachable only from this crate's tests now; the allow keeps the
+    // upstream upload body and its helpers live under `-D warnings`.
+    #[allow(dead_code)]
     async fn upload_feedback_with_dsn(
         &self,
         options: FeedbackUploadOptions<'_>,
@@ -469,7 +474,7 @@ impl FeedbackSnapshot {
 
         let mut envelope = Envelope::new();
         let title = format!(
-            "[{}]: Codex session {}",
+            "[{}]: ore session {}",
             display_classification(options.classification),
             self.thread_id
         );

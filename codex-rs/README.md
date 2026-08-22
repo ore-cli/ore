@@ -1,3 +1,3 @@
-# Codex CLI
+# ore CLI
 
-[**Codex CLI Documentation**](https://developers.openai.com/codex/cli)
+[**ore CLI Documentation**](https://github.com/ore-cli/ore#install)

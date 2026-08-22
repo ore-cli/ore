@@ -57,18 +57,11 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
     })
 }
 
-// We use the latest version from the cask if installation is via homebrew - homebrew does not immediately pick up the latest release and can lag behind.
-const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
-const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
+const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/ore-cli/ore/releases/latest";
 
 #[derive(Deserialize, Debug, Clone)]
 struct ReleaseInfo {
     tag_name: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct HomebrewCaskInfo {
-    version: String,
 }
 
 async fn check_for_update(
@@ -82,17 +75,6 @@ async fn check_for_update(
     )
     .with_legacy_custom_ca_fallback();
     let latest_version = match action {
-        Some(UpdateAction::BrewUpgrade) => {
-            let HomebrewCaskInfo { version } = client_pool
-                .get(HOMEBREW_CASK_API_URL)
-                .headers(default_headers())
-                .send()
-                .await?
-                .error_for_status()?
-                .json::<HomebrewCaskInfo>()
-                .await?;
-            version
-        }
         Some(UpdateAction::NpmGlobalLatest)
         | Some(UpdateAction::BunGlobalLatest)
         | Some(UpdateAction::PnpmGlobalLatest) => {
@@ -108,9 +90,12 @@ async fn check_for_update(
             npm_registry::ensure_version_ready(&package_info, &latest_version)?;
             latest_version
         }
-        Some(UpdateAction::StandaloneUnix) | Some(UpdateAction::StandaloneWindows) | None => {
-            fetch_latest_github_release_version(&client_pool).await?
-        }
+        // The tap formula is invisible to formulae.brew.sh, which indexes only
+        // homebrew-core, so Brew reads the release feed like everything else.
+        Some(UpdateAction::BrewUpgrade)
+        | Some(UpdateAction::StandaloneUnix)
+        | Some(UpdateAction::StandaloneWindows)
+        | None => fetch_latest_github_release_version(&client_pool).await?,
     };
 
     // Preserve any previously dismissed version if present.

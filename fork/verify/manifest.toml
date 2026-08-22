@@ -1,0 +1,220 @@
+# fork/verify/manifest.toml — registry for the ore invariant suite.
+#
+# run.py reads this; checks execute in file order.  Fields:
+#   id                stable check name (what CI logs and humans grep for)
+#   script            path relative to fork/verify/ (or `command`: the argv of a
+#                     check that is a workspace cargo run rather than a script)
+#   suite             static | crate | artifact | egress | all  ("all" runs in
+#                     every suite; --suite all runs everything)
+#   severity          hard (failure fails the run) | warn (printed only)
+#   needs_v8          true if the check's inputs require the rusty_v8 prebuilt
+#                     (lets CI stay green minus full-tests during a V8-asset
+#                     outage; none of the current checks need it — a release
+#                     build of --bin codex has no V8 in its dep closure)
+#   release_required  true if the check is meaningless against a debug binary:
+#                     upstream compiles the Statsig transmission path out under
+#                     cfg!(debug_assertions), so a debug-green run proves
+#                     nothing.  run.py refuses to feed these a debug binary.
+#   reason            why the check exists (mandatory — every row here is
+#                     policy, and policy without a recorded reason drifts)
+#
+# Optional: args (always passed), args_bin / args_artifacts (appended when
+# run.py has --bin / --artifact-dir; {root}/{bin}/{artifact_dir} substituted),
+# requires ("bin" | "bin_or_artifacts" — SKIP when absent), accepts_api
+# (gets --api when run.py is invoked with --api), pending (the check's
+# deliverable has not landed yet; failures report as PENDING — the commit
+# that lands it removes the flag), release_rerun (extra argv the release gate
+# appends when it re-runs a check that is not release_required but has one
+# assertion a debug run cannot prove).
+
+schema = 1
+
+[[check]]
+id = "upstream"
+script = "upstream_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """fork/UPSTREAM must describe the tree it sits in, because everything downstream \
+reads it as fact (assemble's --base, the auth fence diff, the relocation set, `--version` line 2): \
+tag/commit/tag_object agree, the commit is an ancestor of HEAD, no newer stable tag is already \
+reachable, and on an assembled tree the generated merge carries (prev main, tag) in that order \
+with origin/main still an ancestor.  Runs first: a wrong base silently moves every later check \
+onto the wrong baseline instead of failing."""
+
+[[check]]
+id = "workflows"
+script = "workflows_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+accepts_api = true
+reason = """Deny-by-default workflow audit: every live workflow is allowlisted or awaiting \
+relocation, allowed upstream files stay workflow_call-only, no upstream tag globs / secrets / \
+actions survive, fork/upstream-workflows/ mirrors (base tag set - allowlist), fork workflows \
+never inherit secrets.  With --api: enabled workflows on the repo == allowlist (the \
+ref-independent guard, since delta's tree keeps live upstream workflows)."""
+
+[[check]]
+id = "strings-source"
+script = "strings_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--tree", "--root", "{root}"]
+reason = """Source tripwire over strings.toml: kill literals (telemetry endpoints, upstream \
+update/install URLs) must not appear outside the allowlist, forbid literals (new-brand wire \
+leakage) must not appear at all, keep literals (auth wire ids) must still exist — catches a \
+new upstream endpoint arriving with a sync and a substitution over-reach alike."""
+
+[[check]]
+id = "deps"
+script = "deps_gate.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """Cargo.lock telemetry-crate set equals the frozen 17-crate baseline (no additions, \
+no silent removals) and no forbidden analytics SDK appears.  The gate is set-equality, not \
+none-linked: the crates stay linked but unreachable under the config seam (decision 3)."""
+
+[[check]]
+id = "auth-fence"
+script = "auth_fence.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """The ChatGPT sign-in path must stay byte-identical to upstream: git diff over the \
+fence paths equals allowed-fence.diff, and wire literals outside the fence (codex_exec, \
+codex-tui, CODEX_PRODUCT_SKU, ...) survive verbatim.  ore has no OAuth registration of its \
+own; any drift here bricks sign-in silently."""
+
+[[check]]
+id = "locks"
+script = "locks_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """Nothing enters the fork through a lockfile: Cargo.lock's [[package]] names minus the \
+base tag's must be a subset of fork/expected-deps.txt (git-sourced additions called out \
+separately), every workspace member resolves in the lock, and MODULE.bazel.lock / pnpm-lock.yaml \
+stay byte-equal to the tag.  Member coverage is the hermetic half of `cargo metadata --locked`, \
+which itself needs a toolchain and stays where one is guaranteed — assemble's version+lock pass, \
+and ore-ci's check-clean-worktree, which proves a full build did not rewrite the lock at all; \
+locks_check.py --cargo-metadata runs it on demand.  On delta the lock legitimately lacks the \
+fork's crates (series commits may not touch it), which reports pending, not failure."""
+
+[[check]]
+id = "version"
+script = "version_check.py"
+suite = "all"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+args_bin = ["--binary", "{bin}"]
+reason = """Scheme-C version invariants: fork/VERSION grammar, workspace version equality \
+(table-scoped), the sync-blocking minor(fork/VERSION) == minor(UPSTREAM.tag) check, the \
+on-main 3-grep proof on assembled trees, and — given a binary — the two-line --version format \
+with exact simulations of its three real consumers (daemon token split, install.sh sed, \
+install.ps1 regex)."""
+
+[[check]]
+id = "publish"
+script = "publish_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+reason = """Refuses to publish material that is not the fork's to publish: local filesystem \
+paths, references to the predecessor organisation or its secret vault, and the fork/reference/ \
+tree of verbatim private-repository copies and internal audit notes. Added after that tree \
+reached a public repository -- every other property this fork cares about had a check and this \
+one did not, which is exactly how it went unnoticed. Scoped to fork-authored files: upstream's \
+own tree is full of invented home-directory test fixtures and is already public."""
+
+[[check]]
+id = "attribution"
+script = "attribution_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """Apache-2.0 obligations both ways: LICENSE/NOTICE carry OpenAI's attribution and \
+state modification; nothing in the tree claims ore comes from or is endorsed by OpenAI \
+(upstream reintroduces that prose; the rebrand renames the product but not the claim)."""
+
+[[check]]
+id = "fork-invariants"
+command = ["cargo", "nextest", "run", "-p", "codex-fork-invariants"]
+suite = "crate"
+severity = "hard"
+needs_v8 = false
+release_required = false
+release_rerun = ["--cargo-profile", "release"]
+reason = """The fork's own behavioural invariants, in-workspace so they can reach the loader, \
+analytics and otel APIs: telemetry stays off through every config layer (user, managed, project), \
+every otel exporter resolves to none, a `statsig` metrics exporter installs no provider, the \
+analytics client never POSTs, the ore config layer sits above the legacy one, and fork/VERSION is \
+scheme-C.  needs_v8=false: nothing in the crate's dep closure reaches code-mode-host/-runtime, the \
+only V8 linkers.  release_rerun: the Statsig assertion is degenerate in debug — upstream already \
+returned None under cfg!(debug_assertions) — so only the release-profile re-run in the release gate \
+proves the route strip (plan risk flag 6)."""
+
+[[check]]
+id = "strings-binary"
+script = "strings_check.py"
+suite = "artifact"
+severity = "hard"
+needs_v8 = false
+release_required = true
+requires = "bin_or_artifacts"
+args = ["--root", "{root}"]
+args_bin = ["--binary", "{bin}"]
+args_artifacts = ["--artifacts", "{artifact_dir}"]
+reason = """Shipped binaries carry none of the kill set (telemetry endpoints, Statsig key, \
+Sentry DSN, upstream update URLs), none of the forbid set, and the entrypoint carries every \
+keep literal (auth wire ids).  Release-only because debug builds compile the update checker \
+and Statsig path out — a debug scan lies in both directions."""
+
+[[check]]
+id = "snapshots"
+script = "snapshots.py"
+suite = "artifact"
+severity = "hard"
+needs_v8 = false
+release_required = false
+requires = "bin"
+args = ["--root", "{root}"]
+args_bin = ["--bin", "{bin}"]
+reason = """--help (root + one level) and --version frozen as normalised fixtures in \
+fork/snapshots/: the user-visible brand surface.  A missed substitution after a sync becomes \
+a readable diff instead of a silent regression."""
+
+[[check]]
+id = "egress"
+script = "egress/run_egress.sh"
+suite = "egress"
+severity = "hard"
+needs_v8 = false
+release_required = true
+requires = "bin"
+args_bin = ["--bin", "{bin}"]
+pending = true
+reason = """Runtime proof of default-zero-egress: netns (loopback only) + strace detector + \
+logging-proxy attributor over the flows in expected.toml (--version/--help/exec/login \
+status/app-server; exec against a loopback mock must produce the mocked answer, so a crashed \
+binary cannot pass).  MUST run a --release build: cfg!(debug_assertions) suppresses the \
+Statsig exporter, so a debug-green run proves nothing.  `pending`: the harness lands with a \
+later fork-verify commit; remove the flag with it."""

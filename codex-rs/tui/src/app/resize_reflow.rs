@@ -2,7 +2,7 @@
 //!
 //! The app stores conversation history as `HistoryCell`s, but it also writes finalized history into
 //! terminal scrollback for the normal chat view. When the terminal width changes, this module uses
-//! the stored cells as source, clears the Codex-owned terminal history, and re-emits the transcript
+//! the stored cells as source, clears the ore-owned terminal history, and re-emits the transcript
 //! for the new terminal size.
 //!
 //! Streaming output is the fragile part of this lifecycle. Active streams first appear as transient

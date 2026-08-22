@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage one or more Codex npm packages for release."""
+"""Stage one or more ore npm packages for release."""
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,8 +18,8 @@ from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BUILD_SCRIPT = REPO_ROOT / "codex-cli" / "scripts" / "build_npm_package.py"
-WORKFLOW_NAME = ".github/workflows/rust-release.yml"
-GITHUB_REPO = "openai/codex"
+WORKFLOW_NAME = ".github/workflows/ore-release.yml"
+GITHUB_REPO = "ore-cli/ore"
 BINARY_TARGETS = (
     "x86_64-unknown-linux-musl",
     "aarch64-unknown-linux-musl",
@@ -153,7 +153,7 @@ def resolve_release_workflow(version: str) -> dict:
             "run",
             "list",
             "--branch",
-            f"rust-v{version}",
+            f"ore-v{version}",
             "--json",
             "workflowName,url,headSha",
             "--workflow",
@@ -318,7 +318,7 @@ def install_codex_package_archives(
         return
 
     print(
-        "Installing Codex package archives for targets: " + ", ".join(targets),
+        "Installing ore package archives for targets: " + ", ".join(targets),
         flush=True,
     )
     max_workers = min(len(targets), max(1, (os.cpu_count() or 1)))

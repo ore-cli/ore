@@ -7,9 +7,9 @@ use codex_protocol::mcp::OPENAI_STANDARD_FORM_INPUT_EXTENSION_ID;
 use serde_json::Map;
 use serde_json::Value;
 
-/// Selects the MCP extensions Codex supports from those declared by the app-server host.
+/// Selects the MCP extensions ore supports from those declared by the app-server host.
 ///
-/// App-server clients may declare unrelated extensions. Codex retains only the
+/// App-server clients may declare unrelated extensions. ore retains only the
 /// trusted extension namespaces it knows how to project downstream. The
 /// legacy form capability is normalized into the same extension map.
 pub fn client_mcp_extensions(

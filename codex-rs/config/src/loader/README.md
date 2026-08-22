@@ -1,6 +1,6 @@
 # `codex-config` loader
 
-This module is the canonical place to **load and describe Codex configuration layers** (user config, CLI/session overrides, cloud-managed config, managed config, and MDM-managed preferences) and to produce:
+This module is the canonical place to **load and describe ore configuration layers** (user config, CLI/session overrides, cloud-managed config, managed config, and MDM-managed preferences) and to produce:
 
 - An **effective merged** TOML config.
 - **Per-key origins** metadata (which layer “wins” for a given key).

@@ -57,7 +57,7 @@ filter = 'package(codex-app-server) & kind(test)'
 test-group = 'app_server_integration_local'
 
 [[profile.default.overrides]]
-# These tests exercise full Codex turns and apply_patch execution, and they are
+# These tests exercise full ore turns and apply_patch execution, and they are
 # sensitive to Windows runner process-startup stalls when many cases launch at once.
 filter = 'package(codex-core) & kind(test) & test(apply_patch_cli)'
 test-group = 'core_apply_patch_cli_integration'
@@ -69,7 +69,7 @@ filter = 'package(codex-windows-sandbox) & test(legacy_)'
 test-group = 'windows_sandbox_legacy_sessions'
 
 [[profile.default.overrides]]
-# This Codex-home startup path still exceeded the broader Windows-heavy ceiling
+# This ore-home startup path still exceeded the broader Windows-heavy ceiling
 # in both Windows full-CI lanes after contention was reduced.
 platform = 'cfg(windows)'
 filter = 'test(start_thread_uses_all_default_environments_from_codex_home)'

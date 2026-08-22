@@ -1,4 +1,4 @@
-//! Path normalization, symlink resolution, and atomic writes shared across Codex crates.
+//! Path normalization, symlink resolution, and atomic writes shared across ore crates.
 
 pub(crate) mod env;
 pub use env::is_wsl;
@@ -16,7 +16,7 @@ pub fn normalize_for_path_comparison(path: impl AsRef<Path>) -> std::io::Result<
     Ok(normalize_for_wsl(canonical))
 }
 
-/// Compare paths after applying Codex's filesystem normalization.
+/// Compare paths after applying ore's filesystem normalization.
 ///
 /// If either path cannot be normalized, this falls back to direct path equality.
 pub fn paths_match_after_normalization(left: impl AsRef<Path>, right: impl AsRef<Path>) -> bool {

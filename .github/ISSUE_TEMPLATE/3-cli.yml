@@ -9,7 +9,7 @@ body:
         Before submitting a new issue, please search for existing issues to see if your issue has already been reported.
         If it has, please add a 👍 reaction (no need to leave a comment) to the existing issue instead of creating a new one.
 
-        Make sure you are running the [latest](https://npmjs.com/package/@openai/codex) version of Codex CLI. The bug you are experiencing may already have been fixed.
+        Make sure you are running the [latest](https://npmjs.com/package/@ore-cli/ore) version of Codex CLI. The bug you are experiencing may already have been fixed.
 
         If your version supports it, please run `codex doctor --json` and paste the output in the "Codex doctor report" field below. This helps us diagnose install, config, auth, terminal, MCP, network, and local state issues.
 

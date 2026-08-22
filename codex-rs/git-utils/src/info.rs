@@ -24,7 +24,7 @@ use crate::git_process::run_git_command_with_timeout_output;
 ///
 /// Note that this does **not** detect *work‑trees* created with
 /// `git worktree add` where the checkout lives outside the main repository
-/// directory. If you need Codex to work from such a checkout simply pass the
+/// directory. If you need ore to work from such a checkout simply pass the
 /// `--allow-no-git-exec` CLI flag that disables the repo requirement.
 pub fn get_git_repo_root(base_dir: &Path) -> Option<PathBuf> {
     let base = if base_dir.is_dir() {
@@ -887,17 +887,17 @@ mod tests {
     #[test]
     fn canonicalize_git_remote_url_normalizes_github_variants() {
         for remote in [
-            "git@github.com:OpenAI/Codex.git",
-            "ssh://git@github.com/openai/codex.git",
-            "ssh://git@github.com:22/OpenAI/Codex.git",
-            "https://github.com/openai/codex.git",
+            "git@github.com:OpenAI/ore.git",
+            "ssh://git@github.com/ore-cli/ore.git",
+            "ssh://git@github.com:22/OpenAI/ore.git",
+            "https://github.com/ore-cli/ore.git",
             "https://github.com:443/openai/codex.git",
-            "https://token@github.com/openai/codex/",
-            "github.com/OpenAI/Codex.git",
+            "https://token@github.com/ore-cli/ore/",
+            "github.com/OpenAI/ore.git",
         ] {
             assert_eq!(
                 canonicalize_git_remote_url(remote),
-                Some("github.com/openai/codex".to_string())
+                Some("github.com/ore-cli/ore".to_string())
             );
         }
     }
@@ -942,7 +942,7 @@ mod tests {
         run_git(&["init", "-q", "--initial-branch=main"]);
         run_git(&[
             "-c",
-            "user.name=Codex Tests",
+            "user.name=ore Tests",
             "-c",
             "user.email=codex-tests@example.com",
             "commit",

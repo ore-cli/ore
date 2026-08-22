@@ -6,31 +6,14 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 use serde::Deserialize;
 use serde::Serialize;
 
-pub(crate) const STATSIG_OTLP_HTTP_ENDPOINT: &str = "https://ab.chatgpt.com/otlp/v1/metrics";
-pub(crate) const STATSIG_API_KEY_HEADER: &str = "statsig-api-key";
-pub(crate) const STATSIG_API_KEY: &str = "client-MkRuleRQBd6qakfnDYqJVR9JuXcY57Ljly3vi5JVUIO";
-
 pub(crate) fn resolve_exporter(exporter: &OtelExporter) -> OtelExporter {
     match exporter {
-        OtelExporter::Statsig => {
-            // Keep the built-in Statsig default off in debug builds so
-            // incremental local development and test runs do not emit
-            // best-effort OTEL traffic unless a test or binary opts into an
-            // explicit exporter configuration.
-            if cfg!(debug_assertions) {
-                return OtelExporter::None;
-            }
-
-            OtelExporter::OtlpHttp {
-                endpoint: STATSIG_OTLP_HTTP_ENDPOINT.to_string(),
-                headers: HashMap::from([(
-                    STATSIG_API_KEY_HEADER.to_string(),
-                    STATSIG_API_KEY.to_string(),
-                )]),
-                protocol: OtelHttpProtocol::Json,
-                tls: None,
-            }
-        }
+        // ore: the built-in Statsig route is stripped, endpoint and key
+        // included, in every profile. This is what stops a user or managed
+        // layer re-enabling vendor egress with `exporter = "statsig"` or
+        // `trace_exporter = "statsig"`, which are not analytics-gated. The
+        // variant itself stays for serde/JSON-schema compatibility.
+        OtelExporter::Statsig => OtelExporter::None,
         _ => exporter.clone(),
     }
 }
@@ -87,7 +70,7 @@ pub struct OtelTlsConfig {
 #[derive(Clone, Debug)]
 pub enum OtelExporter {
     None,
-    /// Statsig metrics ingestion exporter using Codex-internal defaults.
+    /// Statsig metrics ingestion exporter using ore-internal defaults.
     ///
     /// This is intended for metrics only.
     Statsig,

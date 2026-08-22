@@ -1,7 +1,7 @@
 use codex_protocol::models::PermissionProfile;
 use std::path::Path;
 
-/// Basename used when the Codex executable self-invokes as the Linux sandbox
+/// Basename used when the ore executable self-invokes as the Linux sandbox
 /// helper.
 pub const CODEX_LINUX_SANDBOX_ARG0: &str = "codex-linux-sandbox";
 

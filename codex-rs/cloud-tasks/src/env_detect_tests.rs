@@ -206,7 +206,7 @@ async fn list_requests_exact_repository_and_global_endpoints_and_merges_results(
         &http,
         BASE_URL,
         &HeaderMap::new(),
-        &["https://github.com/openai/codex.git".to_string()],
+        &["https://github.com/ore-cli/ore.git".to_string()],
     )
     .await
     .expect("environment list should decode");

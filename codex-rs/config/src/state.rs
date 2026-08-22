@@ -41,10 +41,14 @@ impl From<LoaderOverrides> for ConfigLoadOptions {
 /// LoaderOverrides overrides managed configuration inputs (primarily for tests).
 #[derive(Debug, Default, Clone)]
 pub struct LoaderOverrides {
-    /// Optional configuration file supplied with the installed Codex package.
+    /// Optional configuration file supplied with the installed ore package.
     pub packaged_defaults_path: Option<AbsolutePathBuf>,
     pub user_config_path: Option<AbsolutePathBuf>,
     pub user_config_profile: Option<ProfileV2Name>,
+    /// Read-only legacy user config layered underneath the base user layer.
+    /// `None` lets the loader detect it, which it only does for the real
+    /// resolved home; tests set it explicitly.
+    pub legacy_user_config_path: Option<AbsolutePathBuf>,
     pub managed_config_path: Option<PathBuf>,
     pub system_config_path: Option<PathBuf>,
     pub system_requirements_path: Option<PathBuf>,
@@ -71,6 +75,7 @@ impl LoaderOverrides {
             packaged_defaults_path: None,
             user_config_path: None,
             user_config_profile: None,
+            legacy_user_config_path: None,
             managed_config_path: Some(base.join("managed_config.toml")),
             system_config_path: Some(base.join("config.toml")),
             system_requirements_path: Some(base.join("requirements.toml")),

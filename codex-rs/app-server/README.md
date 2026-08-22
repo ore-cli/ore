@@ -1,6 +1,6 @@
 # codex-app-server
 
-`codex app-server` is the interface Codex uses to power rich interfaces such as the [Codex VS Code extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt).
+`ore app-server` is the interface ore uses to power rich interfaces such as the [ore VS Code extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt).
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Protocol
 
-Similar to [MCP](https://modelcontextprotocol.io/), `codex app-server` supports bidirectional communication using JSON-RPC 2.0 messages (with the `"jsonrpc":"2.0"` header omitted on the wire).
+Similar to [MCP](https://modelcontextprotocol.io/), `ore app-server` supports bidirectional communication using JSON-RPC 2.0 messages (with the `"jsonrpc":"2.0"` header omitted on the wire).
 
 Supported transports:
 
@@ -38,7 +38,7 @@ Websocket transport is currently experimental and unsupported. Do not rely on it
 
 Pass `--code-mode-host URL` to connect this app-server process to a remote code-mode host instead of starting a local host. Use `ws://` or `wss://` for the WebSocket protocol, or a root `http://` or `https://` URL without a path or query for gRPC. Remote hosts require the `code_mode_host` feature. This outbound connection is independent of `--listen` and is shared by the process's threads.
 
-The unix socket transport is intended for local app-server control-plane clients. `codex app-server proxy`
+The unix socket transport is intended for local app-server control-plane clients. `ore app-server proxy`
 opens exactly one raw stream connection to `$CODEX_HOME/app-server-control/app-server-control.sock`
 by default, or to `--sock PATH` when provided, and proxies bytes between that socket and stdin/stdout.
 The proxied stream carries the websocket HTTP Upgrade handshake followed by websocket frames.
@@ -56,18 +56,18 @@ Backpressure behavior:
 
 ## Message Schema
 
-Currently, you can dump a TypeScript version of the schema using `codex app-server generate-ts`, or a JSON Schema bundle via `codex app-server generate-json-schema`. Each output is specific to the version of Codex you used to run the command, so the generated artifacts are guaranteed to match that version.
+Currently, you can dump a TypeScript version of the schema using `ore app-server generate-ts`, or a JSON Schema bundle via `ore app-server generate-json-schema`. Each output is specific to the version of ore you used to run the command, so the generated artifacts are guaranteed to match that version.
 
 ```
-codex app-server generate-ts --out DIR
-codex app-server generate-json-schema --out DIR
+ore app-server generate-ts --out DIR
+ore app-server generate-json-schema --out DIR
 ```
 
 ## Core Primitives
 
-The API exposes three top level primitives representing an interaction between a user and Codex:
+The API exposes three top level primitives representing an interaction between a user and ore:
 
-- **Thread**: A conversation between a user and the Codex agent. Each thread contains multiple turns.
+- **Thread**: A conversation between a user and the ore agent. Each thread contains multiple turns.
 - **Turn**: One turn of the conversation, typically starting with a user message and finishing with an agent message. Each turn contains multiple items.
 - **Item**: Represents user inputs and agent outputs as part of the turn, persisted and used as the context for future conversations. Example items include user message, agent reasoning, agent message, shell command, file edit, etc.
 
@@ -84,7 +84,7 @@ Use the thread APIs to create, list, or archive conversations. Drive a conversat
 
 ## Initialization
 
-Clients must send a single `initialize` request per transport connection before invoking any other method on that connection, then acknowledge with an `initialized` notification. The server returns the user agent string it will present to upstream services, `codexHome` for the server's Codex home directory, and `platformFamily` and `platformOs` strings describing the app-server runtime target; subsequent requests issued before initialization receive a `"Not initialized"` error, and repeated `initialize` calls on the same connection receive an `"Already initialized"` error.
+Clients must send a single `initialize` request per transport connection before invoking any other method on that connection, then acknowledge with an `initialized` notification. The server returns the user agent string it will present to upstream services, `codexHome` for the server's ore home directory, and `platformFamily` and `platformOs` strings describing the app-server runtime target; subsequent requests issued before initialization receive a `"Not initialized"` error, and repeated `initialize` calls on the same connection receive an `"Already initialized"` error.
 
 `initialize.params.capabilities` also supports per-connection notification opt-out via `optOutNotificationMethods`, which is a list of exact method names to suppress for that connection. Matching is exact (no wildcards/prefixes). Unknown method names are accepted and ignored.
 
@@ -109,18 +109,18 @@ legacy alias for declaring the `openai/form` extension.
 App-server keeps the complete value under `io.modelcontextprotocol/ui`, rather
 than deriving a WebView boolean, so clients can advertise additional supported
 MIME types and future extension settings. The MCP extension profile is fixed
-when a Codex session is created by `thread/start`, `thread/resume`, or
-`thread/fork`. Codex advertises that profile in the downstream MCP
+when an ore session is created by `thread/start`, `thread/resume`, or
+`thread/fork`. ore advertises that profile in the downstream MCP
 `initialize` request; it is not repeated in individual tool-call metadata.
 Every turn and direct MCP tool call in that loaded session therefore uses the
 same initialized profile. A different app-server connection cannot change it
 by starting a later turn. Subagent sessions inherit the same extension profile.
 
-Applications building on top of `codex app-server` should identify themselves via the `clientInfo` parameter.
+Applications building on top of `ore app-server` should identify themselves via the `clientInfo` parameter.
 
 **Important**: `clientInfo.name` is used to identify the client for the OpenAI Compliance Logs Platform. If
-you are developing a new Codex integration that is intended for enterprise use, please contact us to get it
-added to a known clients list. For more context: https://chatgpt.com/admin/api-reference#tag/Logs:-Codex
+you are developing a new ore integration that is intended for enterprise use, please contact us to get it
+added to a known clients list. For more context: https://chatgpt.com/admin/api-reference#tag/Logs:-ore
 
 Example (from OpenAI's official VSCode extension):
 
@@ -131,7 +131,7 @@ Example (from OpenAI's official VSCode extension):
   "params": {
     "clientInfo": {
       "name": "codex_vscode",
-      "title": "Codex VS Code Extension",
+      "title": "ore VS Code Extension",
       "version": "0.1.0"
     }
   }
@@ -208,22 +208,22 @@ Example with notification opt-out:
 - `thread/backgroundTerminals/terminate` — terminate one running background terminal by app-server `processId` (experimental; requires `capabilities.experimentalApi`); returns whether a process was terminated.
 - `thread/rollback` — deprecated and will be removed soon. Drop the last N turns from the agent’s in-memory context and persist a rollback marker in the rollout so future resumes see the pruned history; returns the updated `thread` (with `turns` populated) on success. Paginated threads do not support rollback.
 - `thread/revert` — experimental. Replace a loaded paginated thread's durable history with the prefix strictly before `beforeTurnId` while preserving its thread id. The operation interrupts an active turn if needed, leaves older rollout files immutable, reloads the thread, returns updated thread metadata with empty `turns` plus pagination cursors, and emits `thread/reverted`. It does not revert local file changes.
-- `turn/start` — add user input to a thread and begin Codex generation; responds with the initial `turn` object and streams `turn/started`, `item/*`, and `turn/completed` notifications. `clientUserMessageId` is optional; when supplied, the corresponding `userMessage` item echoes it as `clientId`. Experimental `runtimeWorkspaceRoots` supplies the default roots for newly resolved environment selections. Explicit `environments[].runtimeWorkspaceRoots` override that fallback with environment-native absolute paths. Prefer experimental `permissions` profile selection by id for permission overrides; the legacy `sandboxPolicy` field is still accepted but cannot be combined with `permissions`. For `collaborationMode`, `settings.developer_instructions: null` means "use built-in instructions for the selected mode". Deprecated experimental `multiAgentMode` is ignored; Ultra reasoning effort selects proactive behavior.
+- `turn/start` — add user input to a thread and begin ore generation; responds with the initial `turn` object and streams `turn/started`, `item/*`, and `turn/completed` notifications. `clientUserMessageId` is optional; when supplied, the corresponding `userMessage` item echoes it as `clientId`. Experimental `runtimeWorkspaceRoots` supplies the default roots for newly resolved environment selections. Explicit `environments[].runtimeWorkspaceRoots` override that fallback with environment-native absolute paths. Prefer experimental `permissions` profile selection by id for permission overrides; the legacy `sandboxPolicy` field is still accepted but cannot be combined with `permissions`. For `collaborationMode`, `settings.developer_instructions: null` means "use built-in instructions for the selected mode". Deprecated experimental `multiAgentMode` is ignored; Ultra reasoning effort selects proactive behavior.
 - `thread/inject_items` — append raw Responses API items to a loaded thread’s model-visible history without starting a user turn; returns `{}` on success.
 - `turn/steer` — add user input to an already in-flight regular turn without starting a new turn; returns the active `turnId` that accepted the input. `clientUserMessageId` is optional; when supplied, the corresponding `userMessage` item echoes it as `clientId`. Review and manual compaction turns reject `turn/steer`.
 - `turn/interrupt` — request cancellation of an in-flight turn by `(thread_id, turn_id)`; success is an empty `{}` response and the turn finishes with `status: "interrupted"`.
-- `thread/realtime/start` — start a thread-scoped realtime session (experimental); pass `outputModality: "text"` or `outputModality: "audio"` to choose model output, optionally pass `model` and `version` to override configured realtime selection for this session only, pass `includeStartupContext: false` to omit Codex's generated startup context, and optionally pass `initialItems` to seed V3 with complete role-bearing text messages at session creation. Pass `realtimeStartInstructions` and `realtimeEndInstructions` to control the developer instructions given to the backing Codex model when this session starts and ends. Version `"v1"` uses legacy Bidi `conversation.handoff.*`, `"v2"` uses the Realtime Voice API, and `"v3"` preserves V1 Codex Voice behavior while using Frameless Bidi `delegation.*`. For V3 automatic Codex text, `codexResponseHandoffMode` accepts `"thinking"` (the default; all output uses channel-less thinking appends), `"commentary"` (all output uses the commentary channel), or `"bemTags"` (the raw BEM envelope selects the API channel: BEM `analysis` and `commentary` use `commentary`, while BEM `final` and unparsable output use `speakable`). The BEM envelope remains in the appended text for the frontend model to interpret. V1 and V2 ignore this setting. For V3, pass `delegationAckFiller: false` to suppress the Realtime API's delegation acknowledgement filler or `true` to restore it; omitting the field preserves the Realtime API's default. V1 and V2 ignore `delegationAckFiller`. V3 handoffs do not prepend the legacy `"Agent Final Message"` label. Pass `clientManagedHandoffs: true` to disable automatic Codex response delivery so only the client's explicit append calls produce handoffs. Pass `codexResponsesAsItems: true` to send automatic Codex responses as realtime conversation items instead, and optionally pass `codexResponseItemPrefix` to prepend experiment instructions to those items. Returns `{}` and streams `thread/realtime/*` notifications. Omit `transport` for the websocket transport, or pass `{ "type": "webrtc", "sdp": "..." }` to create a Bidi WebRTC session from a browser-generated SDP offer; the remote answer SDP is emitted as `thread/realtime/sdp`. Conversation `version: "v2"` requests remain unsupported for WebRTC.
+- `thread/realtime/start` — start a thread-scoped realtime session (experimental); pass `outputModality: "text"` or `outputModality: "audio"` to choose model output, optionally pass `model` and `version` to override configured realtime selection for this session only, pass `includeStartupContext: false` to omit ore's generated startup context, and optionally pass `initialItems` to seed V3 with complete role-bearing text messages at session creation. Pass `realtimeStartInstructions` and `realtimeEndInstructions` to control the developer instructions given to the backing ore model when this session starts and ends. Version `"v1"` uses legacy Bidi `conversation.handoff.*`, `"v2"` uses the Realtime Voice API, and `"v3"` preserves V1 ore Voice behavior while using Frameless Bidi `delegation.*`. For V3 automatic ore text, `codexResponseHandoffMode` accepts `"thinking"` (the default; all output uses channel-less thinking appends), `"commentary"` (all output uses the commentary channel), or `"bemTags"` (the raw BEM envelope selects the API channel: BEM `analysis` and `commentary` use `commentary`, while BEM `final` and unparsable output use `speakable`). The BEM envelope remains in the appended text for the frontend model to interpret. V1 and V2 ignore this setting. For V3, pass `delegationAckFiller: false` to suppress the Realtime API's delegation acknowledgement filler or `true` to restore it; omitting the field preserves the Realtime API's default. V1 and V2 ignore `delegationAckFiller`. V3 handoffs do not prepend the legacy `"Agent Final Message"` label. Pass `clientManagedHandoffs: true` to disable automatic ore response delivery so only the client's explicit append calls produce handoffs. Pass `codexResponsesAsItems: true` to send automatic ore responses as realtime conversation items instead, and optionally pass `codexResponseItemPrefix` to prepend experiment instructions to those items. Returns `{}` and streams `thread/realtime/*` notifications. Omit `transport` for the websocket transport, or pass `{ "type": "webrtc", "sdp": "..." }` to create a Bidi WebRTC session from a browser-generated SDP offer; the remote answer SDP is emitted as `thread/realtime/sdp`. Conversation `version: "v2"` requests remain unsupported for WebRTC.
 - `thread/realtime/appendAudio` — append an input audio chunk to the active realtime session (experimental); returns `{}`.
 - `thread/realtime/appendText` — append text input to the active realtime session with a required `role` of `user`, `developer`, or `assistant` (experimental); returns `{}`. Older clients that omit `role` default to `user`.
 - `thread/realtime/appendSpeech` — append text that the realtime model should speak to the user (experimental); returns `{}`.
 - `thread/realtime/stop` — stop the active realtime session for the thread (experimental); returns `{}`.
-- `review/start` — kick off Codex’s automated reviewer for a thread; responds like `turn/start`. Inline reviews emit `item/started`/`item/completed` notifications with `enteredReviewMode` and `exitedReviewMode` items, plus a final assistant `agentMessage` containing the review. Detached reviews stream ordinary turn items on the new review thread.
+- `review/start` — kick off ore’s automated reviewer for a thread; responds like `turn/start`. Inline reviews emit `item/started`/`item/completed` notifications with `enteredReviewMode` and `exitedReviewMode` items, plus a final assistant `agentMessage` containing the review. Detached reviews stream ordinary turn items on the new review thread.
 - `command/exec` — run a single command under the server sandbox without starting a thread/turn (handy for utilities and validation).
 - `command/exec/write` — write base64-decoded stdin bytes to a running `command/exec` session or close stdin; returns `{}`.
 - `command/exec/resize` — resize a running PTY-backed `command/exec` session by `processId`; returns `{}`.
 - `command/exec/terminate` — terminate a running `command/exec` session by `processId`; returns `{}`.
 - `command/exec/outputDelta` — notification emitted for base64-encoded stdout/stderr chunks from a streaming `command/exec` session.
-- `process/spawn` — experimental; spawn a standalone process without the Codex sandbox on the host where the app server is running; returns after the process starts and emits `process/outputDelta` and `process/exited` notifications.
+- `process/spawn` — experimental; spawn a standalone process without the ore sandbox on the host where the app server is running; returns after the process starts and emits `process/outputDelta` and `process/exited` notifications.
 - `process/writeStdin` — experimental; write base64-decoded stdin bytes to a running `process/spawn` session or close stdin; returns `{}`.
 - `process/resizePty` — experimental; resize a running PTY-backed `process/spawn` session by `processHandle`; returns `{}`.
 - `process/kill` — experimental; terminate a running `process/spawn` session by `processHandle`; returns `{}`.
@@ -248,7 +248,7 @@ Example with notification opt-out:
 - `environment/info` — experimental; connect to a configured environment by `environmentId` and return its detected `shell` plus its default `cwd` as a canonical environment-native `file:` URI. Connection failures are returned as request errors.
 - `environment/status` — experimental; read the current status for one configured `environmentId`. Ready remote environments are probed over their existing exec-server connection without starting or reconnecting environments; the response reports `ready`, `pending`, `disconnected`, or `unknown`.
 - `thread/environment/connected` and `thread/environment/disconnected` — experimental; report exec-server connection transitions observed after thread startup for selected environments. Current connection state is not replayed.
-- `collaborationMode/list` — list available collaboration mode presets (experimental, no pagination). Built-in presets do not select a model; the Plan preset selects medium reasoning effort. This response omits built-in developer instructions; clients should either pass `settings.developer_instructions: null` when setting a mode to use Codex's built-in instructions, or provide their own instructions explicitly.
+- `collaborationMode/list` — list available collaboration mode presets (experimental, no pagination). Built-in presets do not select a model; the Plan preset selects medium reasoning effort. This response omits built-in developer instructions; clients should either pass `settings.developer_instructions: null` when setting a mode to use ore's built-in instructions, or provide their own instructions explicitly.
 - `skills/list` — list skills for one or more `cwd` values (optional `forceReload`).
 - `skills/extraRoots/set` — replace the app-server process runtime extra standalone skill roots. The roots are not persisted; missing directories are accepted and simply load no skills.
 - `hooks/list` — list discovered hooks for one or more `cwd` values.
@@ -292,7 +292,7 @@ Example with notification opt-out:
 
 ### Example: Start or resume a thread
 
-Start a fresh thread when you need a new Codex conversation.
+Start a fresh thread when you need a new ore conversation.
 
 ```json
 { "method": "thread/start", "id": 10, "params": {
@@ -712,7 +712,7 @@ Experimental: use `thread/memoryMode/set` to change whether a thread remains eli
 { "id": 26, "result": {} }
 ```
 
-Experimental: use `memory/reset` to clear local memory artifacts and sqlite-backed memory stage data for the current Codex home. This preserves existing thread memory modes; use `thread/memoryMode/set` separately when a thread's future memory eligibility should change.
+Experimental: use `memory/reset` to clear local memory artifacts and sqlite-backed memory stage data for the current ore home. This preserves existing thread memory modes; use `thread/memoryMode/set` separately when a thread's future memory eligibility should change.
 
 ```json
 { "method": "memory/reset", "id": 27 }
@@ -884,7 +884,7 @@ If the thread does not already have an active turn, the server starts a standalo
 
 ### Example: Start a turn (send user input)
 
-Turns attach user input (text, images, or audio) to a thread and trigger Codex generation. The `input` field is a list of discriminated unions:
+Turns attach user input (text, images, or audio) to a thread and trigger ore generation. The `input` field is a list of discriminated unions:
 
 - `{"type":"text","text":"Explain this diff"}`
 - `{"type":"image","url":"data:image/png;base64,…"}`
@@ -1054,7 +1054,7 @@ const offer = await pc.createOffer();
 await pc.setLocalDescription(offer);
 ```
 
-Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend_prompt` for the backend instructions and the thread conversation id as the default Realtime API session identifier. This `realtimeSessionId` value refers to the upstream Realtime API session, not a Codex session/thread-group id. The start response is `{}`; the remote answer SDP arrives later as `thread/realtime/sdp` and should be passed to `setRemoteDescription()`:
+Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend_prompt` for the backend instructions and the thread conversation id as the default Realtime API session identifier. This `realtimeSessionId` value refers to the upstream Realtime API session, not an ore session/thread-group id. The start response is `{}`; the remote answer SDP arrives later as `thread/realtime/sdp` and should be passed to `setRemoteDescription()`:
 
 ```json
 { "method": "thread/realtime/start", "id": 40, "params": {
@@ -1071,21 +1071,21 @@ Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend
 } }
 ```
 
-Omit `prompt` to use Codex's default realtime backend prompt. Send `prompt: null` or
+Omit `prompt` to use ore's default realtime backend prompt. Send `prompt: null` or
 `prompt: ""` when the session should start without that default backend prompt.
 Pass `realtimeStartInstructions` to provide the developer instructions given to
-the backing Codex model when the thread enters realtime mode, and
+the backing ore model when the thread enters realtime mode, and
 `realtimeEndInstructions` to provide its developer instructions when the session
-ends. These instructions configure Codex, not the realtime frontend model. They
+ends. These instructions configure ore, not the realtime frontend model. They
 are emitted on realtime state transitions, rather than repeated on every turn.
 Each instructions field is limited to 8,192 estimated tokens. Omitting either
-field preserves Codex's existing default instructions.
+field preserves ore's existing default instructions.
 Clients may also pass `model` on `thread/realtime/start` to select a
 different realtime session configuration without changing thread or user config.
 Clients may pass `version` to select the realtime protocol for this session
 only. WebRTC uses AVAS and supports legacy Bidi `"v1"` or Frameless Bidi
 `"v3"`; Realtime Voice `"v2"` is rejected for WebRTC.
-Pass `includeStartupContext: false` to skip Codex's startup context for this
+Pass `includeStartupContext: false` to skip ore's startup context for this
 session while still using the selected backend prompt.
 For V3, clients may pass `initialItems` to seed the session with complete text
 messages before live input begins:
@@ -1117,13 +1117,13 @@ For V3, pass `delegationAckFiller: false` to suppress the Realtime API's
 delegation acknowledgement filler during WebRTC session creation, or pass `true`
 to restore the legacy acknowledgement. Omitting `delegationAckFiller` preserves
 the Realtime API's default. V1 and V2 ignore this setting.
-Pass `clientManagedHandoffs: true` to suppress automatic Codex response handoffs
+Pass `clientManagedHandoffs: true` to suppress automatic ore response handoffs
 and items. The client can then choose which updates to deliver with
 `thread/realtime/appendText` or `thread/realtime/appendSpeech`.
-Pass `codexResponsesAsItems: true` to inject automatic Codex responses with
+Pass `codexResponsesAsItems: true` to inject automatic ore responses with
 `conversation.item.create` instead of the protocol's default speakable output
 path. When using that mode, `codexResponseItemPrefix` can prepend short
-experiment instructions to each automatic Codex response item. Omit
+experiment instructions to each automatic ore response item. Omit
 `codexResponsesAsItems`, or pass `false`, to preserve the default speakable
 behavior. In V3, automatic handoffs default to
 `codexResponseHandoffMode: "thinking"`, which omits the context append `channel`
@@ -1224,10 +1224,10 @@ manual compaction), the request fails with an `invalid request` error.
 
 ### Example: Request a code review
 
-Use `review/start` to run Codex’s reviewer on the currently checked-out project. The request takes the thread id plus a `target` describing what should be reviewed:
+Use `review/start` to run ore’s reviewer on the currently checked-out project. The request takes the thread id plus a `target` describing what should be reviewed:
 
 - `{"type":"uncommittedChanges"}` — staged, unstaged, and untracked files.
-- `{"type":"baseBranch","branch":"main"}` — diff against the provided branch’s upstream (see prompt for the exact `git merge-base`/`git diff` instructions Codex will run).
+- `{"type":"baseBranch","branch":"main"}` — diff against the provided branch’s upstream (see prompt for the exact `git merge-base`/`git diff` instructions ore will run).
 - `{"type":"commit","sha":"abc1234","title":"Optional subject"}` — review a specific commit.
 - `{"type":"custom","instructions":"Free-form reviewer instructions"}` — fallback prompt equivalent to the legacy manual review request.
 - `delivery` (`"inline"` or `"detached"`, default `"inline"`) — where the review runs:
@@ -1259,7 +1259,7 @@ For a detached review, use `"delivery": "detached"`. The response is the same sh
 
 Detached review is unsupported when the parent thread is paginated.
 
-For an inline review, Codex streams the usual `turn/started` notification followed by an `item/started`
+For an inline review, ore streams the usual `turn/started` notification followed by an `item/started`
 with an `enteredReviewMode` item so clients can show progress:
 
 ```json
@@ -1318,7 +1318,7 @@ Run a standalone command (argv vector) in the server’s sandbox without creatin
 ```
 
 - Prefer using `process/spawn` when you want an explicitly unsandboxed process execution API with immediate spawn acknowledgement, handle-based control, output notifications, and an exit notification.
-- For clients that are already sandboxed externally, set the legacy `sandboxPolicy` to `{"type":"externalSandbox","networkAccess":"enabled"}` (or omit `networkAccess` to keep it restricted). Codex will not enforce its own sandbox in this mode; it tells the model it has full file-system access and passes the `networkAccess` state through `environment_context`.
+- For clients that are already sandboxed externally, set the legacy `sandboxPolicy` to `{"type":"externalSandbox","networkAccess":"enabled"}` (or omit `networkAccess` to keep it restricted). ore will not enforce its own sandbox in this mode; it tells the model it has full file-system access and passes the `networkAccess` state through `environment_context`.
 
 Notes:
 
@@ -1329,7 +1329,7 @@ Notes:
 - When omitted, `outputBytesCap` falls back to the server default of 1 MiB per stream.
 - `disableOutputCap: true` disables stdout/stderr capture truncation for that `command/exec` request. It cannot be combined with `outputBytesCap`.
 - `disableTimeout: true` disables the timeout entirely for that `command/exec` request. It cannot be combined with `timeoutMs`.
-- `processId` is optional for buffered execution. When omitted, Codex generates an internal id for lifecycle tracking, but `tty`, `streamStdin`, and `streamStdoutStderr` must stay disabled and follow-up `command/exec/write` / `command/exec/terminate` calls are not available for that command.
+- `processId` is optional for buffered execution. When omitted, ore generates an internal id for lifecycle tracking, but `tty`, `streamStdin`, and `streamStdoutStderr` must stay disabled and follow-up `command/exec/write` / `command/exec/terminate` calls are not available for that command.
 - `size` is only valid when `tty: true`. It sets the initial PTY size in character cells.
 - Buffered Windows sandbox execution accepts `processId` for correlation, but `command/exec/write` and `command/exec/terminate` are still unsupported for those requests.
 - Buffered Windows sandbox execution also requires the default output cap; custom `outputBytesCap` and `disableOutputCap` are unsupported there.
@@ -1391,7 +1391,7 @@ Streaming stdin/stdout uses base64 so PTY sessions can carry arbitrary bytes:
 
 ### Example: Process lifecycle execution
 
-Use `process/spawn` to start a standalone argv-based process without the Codex sandbox on the host where the app server is running. The `process/*` API is experimental and requires `initialize.params.capabilities.experimentalApi: true`. The spawn response means the process has started and the `processHandle` is registered; completion is reported later through `process/exited`.
+Use `process/spawn` to start a standalone argv-based process without the ore sandbox on the host where the app server is running. The `process/*` API is experimental and requires `initialize.params.capabilities.experimentalApi: true`. The spawn response means the process has started and the `processHandle` is registered; completion is reported later through `process/exited`.
 
 ```json
 { "method": "process/spawn", "id": 40, "params": {
@@ -1564,7 +1564,7 @@ The fuzzy file search session API emits per-query notifications:
 
 The thread realtime API emits thread-scoped notifications for session lifecycle and streaming media:
 
-- `thread/realtime/started` — `{ threadId, realtimeSessionId }` once realtime starts for the thread (experimental). `realtimeSessionId` is the upstream Realtime API session identifier, not a Codex session/thread-group id.
+- `thread/realtime/started` — `{ threadId, realtimeSessionId }` once realtime starts for the thread (experimental). `realtimeSessionId` is the upstream Realtime API session identifier, not an ore session/thread-group id.
 - `thread/realtime/itemAdded` — `{ threadId, item }` for raw non-audio realtime items that do not have a dedicated typed app-server notification, including `handoff_request` (experimental). `item` is forwarded as raw JSON while the upstream websocket item schema remains unstable.
 - `thread/realtime/transcript/delta` — `{ threadId, role, delta }` for live realtime transcript deltas (experimental).
 - `thread/realtime/transcript/done` — `{ threadId, role, text }` when realtime emits the final full text for a transcript part (experimental).
@@ -1682,7 +1682,7 @@ When an upstream HTTP status is available (for example, from the Responses API o
 
 ## Approvals
 
-Certain actions (shell commands or modifying files) may require explicit user approval depending on the user's config. When `turn/start` is used, the app-server drives an approval flow by sending a server-initiated JSON-RPC request to the client. The client must respond to tell Codex whether to proceed. UIs should present these requests inline with the active turn so users can review the proposed command or diff before choosing.
+Certain actions (shell commands or modifying files) may require explicit user approval depending on the user's config. When `turn/start` is used, the app-server drives an approval flow by sending a server-initiated JSON-RPC request to the client. The client must respond to tell ore whether to proceed. UIs should present these requests inline with the active turn so users can review the proposed command or diff before choosing.
 
 - Requests include `threadId` and `turnId`—use them to scope UI state to the active conversation.
 - Respond with a single `{ "decision": ... }` payload. Command approvals support `accept`, `acceptForSession`, `acceptWithExecpolicyAmendment`, `applyNetworkPolicyAmendment`, `decline`, or `cancel`. The server resumes or declines the work and ends the item with `item/completed`.
@@ -1717,7 +1717,7 @@ When the client responds to `item/tool/requestUserInput`, the server emits `serv
 
 ### Attestation generation
 
-Desktop hosts that provide upstream attestation should set `capabilities.requestAttestation` during `initialize` and handle the server-initiated `attestation/generate` request. App-server issues it just in time before ChatGPT Codex requests that forward `x-oai-attestation`; the client responds with `{ "token": "v1.<opaque>" }`, where `token` is an opaque client-owned value. When app-server receives a client response, it forwards a consistent outer envelope such as `{ "v": 1, "s": 0, "t": "v1.<opaque>" }`, where `t` contains the client token unchanged. If app-server attempts attestation but fails within its own boundary, it sends the same envelope shape with an app-server status code and without `t` (`1 = timeout`, `2 = request failed`, `3 = request canceled`, `4 = malformed response`). If no initialized client opted into attestation, app-server omits `x-oai-attestation` for that upstream request.
+Desktop hosts that provide upstream attestation should set `capabilities.requestAttestation` during `initialize` and handle the server-initiated `attestation/generate` request. App-server issues it just in time before ChatGPT ore requests that forward `x-oai-attestation`; the client responds with `{ "token": "v1.<opaque>" }`, where `token` is an opaque client-owned value. When app-server receives a client response, it forwards a consistent outer envelope such as `{ "v": 1, "s": 0, "t": "v1.<opaque>" }`, where `t` contains the client token unchanged. If app-server attempts attestation but fails within its own boundary, it sends the same envelope shape with an app-server status code and without `t` (`1 = timeout`, `2 = request failed`, `3 = request canceled`, `4 = malformed response`). If no initialized client opted into attestation, app-server omits `x-oai-attestation` for that upstream request.
 
 ### Current time
 
@@ -1895,11 +1895,11 @@ Use `skills/extraRoots/set` to replace additional standalone skill roots for the
         "skills": [
             {
               "name": "skill-creator",
-              "description": "Create or update a Codex skill",
+              "description": "Create or update an ore skill",
               "enabled": true,
               "interface": {
                 "displayName": "Skill Creator",
-                "shortDescription": "Create or update a Codex skill",
+                "shortDescription": "Create or update an ore skill",
                 "iconSmall": "icon.svg",
                 "iconLarge": "icon-large.svg",
                 "brandColor": "#111111",
@@ -2232,12 +2232,12 @@ The JSON-RPC auth/account surface exposes request/response methods plus server-i
 
 ### Authentication modes
 
-Codex supports these authentication modes. The current mode is surfaced in `account/updated` (`authMode`), which also includes the current ChatGPT `planType` when available, and can be inferred from `account/read`. Self-serve Business ProLite accounts use the `self_serve_business_prolite` plan type; Enterprise automation accounts use `enterprise_cbp_automation`.
+ore supports these authentication modes. The current mode is surfaced in `account/updated` (`authMode`), which also includes the current ChatGPT `planType` when available, and can be inferred from `account/read`. Self-serve Business ProLite accounts use the `self_serve_business_prolite` plan type; Enterprise automation accounts use `enterprise_cbp_automation`.
 
 - **API key (`apiKey`)**: Caller supplies an OpenAI API key via `account/login/start` with `type: "apiKey"`. The API key is saved and used for API requests.
-- **ChatGPT managed (`chatgpt`)** (recommended): Codex owns the ChatGPT OAuth flow and refresh tokens. Start via `account/login/start` with `type: "chatgpt"` for the browser flow or `type: "chatgptDeviceCode"` for device code; Codex persists tokens to disk and refreshes them automatically.
-- **Codex managed Amazon Bedrock auth (`amazonBedrock`, experimental)**: Caller supplies an Amazon Bedrock API key and region via `account/login/start` with `type: "amazonBedrock"`. The client must enable the `experimentalApi` initialization capability for Codex-managed Amazon Bedrock login. Codex replaces the current primary auth with the Bedrock credential and writes `model_provider = "amazon-bedrock"` to the user config.
-- **Personal access token (`personalAccessToken`)**: Codex uses a ChatGPT-backed personal access token loaded outside the app-server login RPCs, such as with `codex login --with-access-token` or `CODEX_ACCESS_TOKEN`.
+- **ChatGPT managed (`chatgpt`)** (recommended): ore owns the ChatGPT OAuth flow and refresh tokens. Start via `account/login/start` with `type: "chatgpt"` for the browser flow or `type: "chatgptDeviceCode"` for device code; ore persists tokens to disk and refreshes them automatically.
+- **ore managed Amazon Bedrock auth (`amazonBedrock`, experimental)**: Caller supplies an Amazon Bedrock API key and region via `account/login/start` with `type: "amazonBedrock"`. The client must enable the `experimentalApi` initialization capability for ore-managed Amazon Bedrock login. ore replaces the current primary auth with the Bedrock credential and writes `model_provider = "amazon-bedrock"` to the user config.
+- **Personal access token (`personalAccessToken`)**: ore uses a ChatGPT-backed personal access token loaded outside the app-server login RPCs, such as with `ore login --with-access-token` or `CODEX_ACCESS_TOKEN`.
 
 ### API Overview
 
@@ -2276,8 +2276,8 @@ Field notes:
 
 - `refreshToken` (bool): set `true` to force a token refresh.
 - `email` is `null` when the ChatGPT account does not have an email address.
-- `requiresOpenaiAuth` reflects the active provider; when `false`, Codex can run without OpenAI credentials.
-- Amazon Bedrock reports `usesCodexManagedCredentials: true` when it uses a Bedrock API key managed by Codex. It reports `false` for external credential paths, including the AWS credential chain and configured command auth. This identifies whether Codex-managed credentials are selected; it does not validate that the credential source can resolve credentials.
+- `requiresOpenaiAuth` reflects the active provider; when `false`, ore can run without OpenAI credentials.
+- Amazon Bedrock reports `usesCodexManagedCredentials: true` when it uses a Bedrock API key managed by ore. It reports `false` for external credential paths, including the AWS credential chain and configured command auth. This identifies whether ore-managed credentials are selected; it does not validate that the credential source can resolve credentials.
 
 ### 2) Log in with an API key
 
@@ -2309,7 +2309,7 @@ Field notes:
 2. Open `authUrl` in a browser; the app-server hosts the local callback.
    By default, a successful callback redirects to the local success page. Clients may set
    `useHostedLoginSuccessPage: true` to redirect successful callbacks that do not require
-   organization setup to the hosted Codex success page instead. When hosted login success is
+   organization setup to the hosted ore success page instead. When hosted login success is
    enabled, clients may set `appBrand` to `"codex"` or `"chatgpt"` to select the matching hosted
    page artwork; omitted or `null` values default to `"codex"`.
 3. Wait for notifications:
@@ -2342,7 +2342,7 @@ This experimental flow requires the client to initialize with `experimentalApi: 
    { "method": "account/updated", "params": { "authMode": "bedrockApiKey", "planType": null } }
    ```
 
-Codex stores the key and region as the primary Codex auth, replacing any previously stored login, and writes `model_provider = "amazon-bedrock"` to the active user config. Existing loaded sessions keep their current provider selection, so clients should restart the app-server before sending more model requests. This limitation will be addressed in a follow-up.
+ore stores the key and region as the primary ore auth, replacing any previously stored login, and writes `model_provider = "amazon-bedrock"` to the active user config. Existing loaded sessions keep their current provider selection, so clients should restart the app-server before sending more model requests. This limitation will be addressed in a follow-up.
 
 ### 4) Log in with ChatGPT (device code flow)
 
@@ -2373,7 +2373,7 @@ Codex stores the key and region as the primary Codex auth, replacing any previou
 { "method": "account/updated", "params": { "authMode": null, "planType": null } }
 ```
 
-When using a Codex-managed Bedrock key, logout removes the key and clears `model_provider` if it is still set to `"amazon-bedrock"`. When using AWS-managed credentials, manage them through AWS or switch providers before logging out.
+When using an ore-managed Bedrock key, logout removes the key and clears `model_provider` if it is still set to `"amazon-bedrock"`. When using AWS-managed credentials, manage them through AWS or switch providers before logging out.
 
 ### 7) Rate limits (ChatGPT)
 
@@ -2464,16 +2464,16 @@ Some app-server methods and fields are intentionally gated behind an experimenta
 
 ### Generating stable vs experimental client schemas
 
-`codex app-server` schema generation defaults to the stable API surface (experimental fields and methods filtered out). Pass `--experimental` to include experimental methods/fields in generated TypeScript or JSON schema:
+`ore app-server` schema generation defaults to the stable API surface (experimental fields and methods filtered out). Pass `--experimental` to include experimental methods/fields in generated TypeScript or JSON schema:
 
 ```bash
 # Stable-only output (default)
-codex app-server generate-ts --out DIR
-codex app-server generate-json-schema --out DIR
+ore app-server generate-ts --out DIR
+ore app-server generate-json-schema --out DIR
 
 # Include experimental API surface
-codex app-server generate-ts --out DIR --experimental
-codex app-server generate-json-schema --out DIR --experimental
+ore app-server generate-ts --out DIR --experimental
+ore app-server generate-json-schema --out DIR --experimental
 ```
 
 ### How clients opt in at runtime

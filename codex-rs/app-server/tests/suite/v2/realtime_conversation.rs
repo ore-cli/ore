@@ -82,7 +82,7 @@ use wiremock::matchers::path_regex;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 const DELEGATED_SHELL_TURN_TIMEOUT: Duration = Duration::from_secs(30);
 const DELEGATED_SHELL_TOOL_TIMEOUT_MS: u64 = 30_000;
-const STARTUP_CONTEXT_HEADER: &str = "Startup context from Codex.";
+const STARTUP_CONTEXT_HEADER: &str = "Startup context from ore.";
 const V2_STEERING_ACKNOWLEDGEMENT: &str =
     "This was sent to steer the previous background agent task.";
 const V2_HANDOFF_COMPLETE_ACKNOWLEDGEMENT: &str =
@@ -1858,7 +1858,7 @@ async fn webrtc_v1_client_managed_handoffs_disable_automatic_output() -> Result<
     .await;
     assert!(
         automatic_handoff.is_err(),
-        "automatic Codex output should not reach realtime in client-managed handoff mode"
+        "automatic ore output should not reach realtime in client-managed handoff mode"
     );
 
     harness
@@ -2866,7 +2866,7 @@ async fn websocket_v2_background_agent_steering_ack_requests_response_create() -
     // acknowledgement so it can surface that acknowledgement to the user.
     assert_v2_response_create(&harness.sideband_outbound_request(/*request_index*/ 2).await);
 
-    // Phase 4: release the gated delegated turn. Codex should then continue
+    // Phase 4: release the gated delegated turn. ore should then continue
     // the same run with the steering text included in the follow-up Responses
     // request, proving realtime did not merely acknowledge and drop it.
     let _ = gate_completed_tx.send(());

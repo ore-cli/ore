@@ -6,9 +6,9 @@ use tempfile::Builder;
 use tokio::process::Command;
 
 const CODEX_BUNDLE_IDENTIFIER: &str = "com.openai.codex";
-const CODEX_DMG_URL_ARM64: &str = "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg";
+const CODEX_DMG_URL_ARM64: &str = "https://persistent.oaistatic.com/codex-app-prod/ore.dmg";
 const CODEX_DMG_URL_X64: &str =
-    "https://persistent.oaistatic.com/codex-app-prod/Codex-latest-x64.dmg";
+    "https://persistent.oaistatic.com/codex-app-prod/ore-latest-x64.dmg";
 
 pub async fn run_mac_app_open_or_install(
     workspace: PathBuf,
@@ -67,7 +67,7 @@ fn is_apple_silicon_mac() -> bool {
 fn find_existing_codex_app_path(applications_dirs: &[PathBuf]) -> Option<PathBuf> {
     applications_dirs
         .iter()
-        .flat_map(|dir| ["ChatGPT.app", "Codex.app"].map(|app_name| dir.join(app_name)))
+        .flat_map(|dir| ["ChatGPT.app", "ore.app"].map(|app_name| dir.join(app_name)))
         .find(|candidate| is_codex_app_bundle(candidate))
 }
 
@@ -139,7 +139,7 @@ async fn download_and_install_codex_to_user_applications(dmg_url: &str) -> anyho
     let tmp_root = temp_dir.path().to_path_buf();
     let _temp_dir = temp_dir;
 
-    let dmg_path = tmp_root.join("Codex.dmg");
+    let dmg_path = tmp_root.join("ore.dmg");
     download_dmg(dmg_url, &dmg_path).await?;
 
     eprintln!("Mounting Desktop app installer...");
@@ -150,7 +150,7 @@ async fn download_and_install_codex_to_user_applications(dmg_url: &str) -> anyho
     );
     let result = async {
         let app_in_volume = find_codex_app_in_mount(&mount_point)
-            .context("failed to locate Codex.app in mounted dmg")?;
+            .context("failed to locate ore.app in mounted dmg")?;
         install_codex_app_bundle(&app_in_volume).await
     }
     .await;
@@ -179,7 +179,7 @@ async fn install_codex_app_bundle(app_in_volume: &Path) -> anyhow::Result<PathBu
             )
         })?;
 
-        let dest_app = applications_dir.join("Codex.app");
+        let dest_app = applications_dir.join("ore.app");
         if dest_app.is_dir() {
             return Ok(dest_app);
         }
@@ -188,14 +188,14 @@ async fn install_codex_app_bundle(app_in_volume: &Path) -> anyhow::Result<PathBu
             Ok(()) => return Ok(dest_app),
             Err(err) => {
                 eprintln!(
-                    "warning: failed to install Codex.app to {applications_dir}: {err}",
+                    "warning: failed to install ore.app to {applications_dir}: {err}",
                     applications_dir = applications_dir.display()
                 );
             }
         }
     }
 
-    anyhow::bail!("failed to install Codex.app to any applications directory");
+    anyhow::bail!("failed to install ore.app to any applications directory");
 }
 
 fn candidate_applications_dirs() -> anyhow::Result<Vec<PathBuf>> {
@@ -264,7 +264,7 @@ async fn detach_dmg(mount_point: &Path) -> anyhow::Result<()> {
 }
 
 fn find_codex_app_in_mount(mount_point: &Path) -> anyhow::Result<PathBuf> {
-    let direct = mount_point.join("Codex.app");
+    let direct = mount_point.join("ore.app");
     if direct.is_dir() {
         return Ok(direct);
     }
@@ -358,7 +358,7 @@ mod tests {
     fn ignores_classic_chatgpt_app() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         write_app_bundle(&temp_dir.path().join("ChatGPT.app"), "com.openai.chat");
-        let codex_app_path = temp_dir.path().join("Codex.app");
+        let codex_app_path = temp_dir.path().join("ore.app");
         write_app_bundle(&codex_app_path, "com.openai.codex");
 
         assert_eq!(
@@ -369,19 +369,19 @@ mod tests {
 
     #[test]
     fn parses_mount_point_from_tab_separated_hdiutil_output() {
-        let output = "/dev/disk2s1\tApple_HFS\tCodex\t/Volumes/Codex\n";
+        let output = "/dev/disk2s1\tApple_HFS\tCodex\t/Volumes/ore\n";
         assert_eq!(
             parse_hdiutil_attach_mount_point(output).as_deref(),
-            Some("/Volumes/Codex")
+            Some("/Volumes/ore")
         );
     }
 
     #[test]
     fn parses_mount_point_with_spaces() {
-        let output = "/dev/disk2s1\tApple_HFS\tCodex Installer\t/Volumes/Codex Installer\n";
+        let output = "/dev/disk2s1\tApple_HFS\tCodex Installer\t/Volumes/ore Installer\n";
         assert_eq!(
             parse_hdiutil_attach_mount_point(output).as_deref(),
-            Some("/Volumes/Codex Installer")
+            Some("/Volumes/ore Installer")
         );
     }
 

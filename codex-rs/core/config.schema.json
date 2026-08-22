@@ -5185,6 +5185,20 @@
             "responses"
           ],
           "type": "string"
+        },
+        {
+          "description": "The Chat Completions API at `/v1/chat/completions`. The protocol most OpenAI-compatible servers speak: llama.cpp, vLLM, LM Studio, older Ollama, and most proxies.",
+          "enum": [
+            "chat"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "The Anthropic Messages API at `/v1/messages`.",
+          "enum": [
+            "anthropic"
+          ],
+          "type": "string"
         }
       ]
     },

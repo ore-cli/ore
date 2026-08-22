@@ -1,10 +1,10 @@
 use codex_utils_absolute_path::AbsolutePathBuf;
 use serde_json::Value as JsonValue;
 
-/// Provenance for one layer in the effective Codex configuration.
+/// Provenance for one layer in the effective ore configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigLayerSource {
-    /// Default configuration supplied with the installed Codex package.
+    /// Default configuration supplied with the installed ore package.
     PackagedDefaults { file: AbsolutePathBuf },
     /// Managed preferences delivered by MDM.
     Mdm { domain: String, key: String },

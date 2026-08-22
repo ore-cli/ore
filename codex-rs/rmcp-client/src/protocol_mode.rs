@@ -4,7 +4,7 @@ use std::io;
 use rmcp::model::ProtocolVersion;
 use rmcp::service::ClientLifecycleMode;
 
-/// MCP compatibility policy selected once when a Codex session is created.
+/// MCP compatibility policy selected once when an ore session is created.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum McpProtocolMode {
     /// Preserve the existing MCP initialization and OAuth behavior.

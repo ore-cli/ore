@@ -67,7 +67,7 @@ fn record_duration_seconds_uses_fractional_seconds_and_scaled_buckets() -> Resul
     ] {
         metrics.record_duration_seconds_with_description(
             "codex.request_duration_seconds",
-            "Duration of Codex requests in seconds.",
+            "Duration of ore requests in seconds.",
             duration,
             &[("method", "initialize")],
         )?;
@@ -95,10 +95,7 @@ fn record_duration_seconds_uses_fractional_seconds_and_scaled_buckets() -> Resul
     let metric = crate::harness::find_metric(&resource_metrics, "codex.request_duration_seconds")
         .expect("codex.request_duration_seconds metric should exist");
     assert_eq!(metric.unit(), "s");
-    assert_eq!(
-        metric.description(),
-        "Duration of Codex requests in seconds."
-    );
+    assert_eq!(metric.description(), "Duration of ore requests in seconds.");
 
     Ok(())
 }

@@ -271,7 +271,7 @@ fn relative_paths_resolve_against_their_own_layer_base() {
 #[test]
 fn composition_strategy_applies_to_non_cloud_layers() {
     let mdm_source = RequirementSource::MdmManagedPreferences {
-        domain: "com.openai.codex".to_string(),
+        domain: "io.github.ore-cli.ore".to_string(),
         key: "requirements_toml_base64".to_string(),
     };
     let system_file = if cfg!(windows) {

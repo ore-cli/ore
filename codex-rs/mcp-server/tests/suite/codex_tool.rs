@@ -47,7 +47,7 @@ const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs
 async fn test_shell_command_approval_triggers_elicitation() {
     if env::var(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR).is_ok() {
         println!(
-            "Skipping test because it cannot execute when network is disabled in a Codex sandbox."
+            "Skipping test because it cannot execute when network is disabled in an ore sandbox."
         );
         return;
     }
@@ -161,7 +161,7 @@ async fn shell_command_approval_triggers_elicitation() -> anyhow::Result<()> {
     .expect("task_complete_notification timeout")
     .expect("task_complete_notification resp");
 
-    // Verify the original `codex` tool call completes and that the file was created.
+    // Verify the original `ore` tool call completes and that the file was created.
     let codex_response = timeout(
         DEFAULT_READ_TIMEOUT,
         mcp_process.read_stream_until_response_message(RequestId::Number(codex_request_id)),
@@ -200,7 +200,7 @@ fn create_expected_elicitation_request_params(
     thread_id: codex_protocol::ThreadId,
 ) -> anyhow::Result<serde_json::Value> {
     let expected_message = format!(
-        "Allow Codex to run `{}` in `{}`?",
+        "Allow ore to run `{}` in `{}`?",
         shlex::try_join(command.iter().map(std::convert::AsRef::as_ref))?,
         workdir.to_string_lossy()
     );
@@ -226,7 +226,7 @@ fn create_expected_elicitation_request_params(
 async fn test_patch_approval_triggers_elicitation() {
     if env::var(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR).is_ok() {
         println!(
-            "Skipping test because it cannot execute when network is disabled in a Codex sandbox."
+            "Skipping test because it cannot execute when network is disabled in an ore sandbox."
         );
         return;
     }
@@ -327,7 +327,7 @@ async fn patch_approval_triggers_elicitation() -> anyhow::Result<()> {
         )
         .await?;
 
-    // Verify the original `codex` tool call completes
+    // Verify the original `ore` tool call completes
     let codex_response = timeout(
         DEFAULT_READ_TIMEOUT,
         mcp_process.read_stream_until_response_message(RequestId::Number(codex_request_id)),
@@ -377,7 +377,7 @@ async fn codex_tool_passes_base_instructions() -> anyhow::Result<()> {
             .await;
     let caller_server = MockServer::start().await;
 
-    // Run `codex mcp` with a specific config.toml.
+    // Run `ore mcp` with a specific config.toml.
     let codex_home = TempDir::new()?;
     create_config_toml(codex_home.path(), &server.uri())?;
     let skill_dir = codex_home.path().join("skills").join("demo");
@@ -474,13 +474,13 @@ async fn codex_tool_passes_base_instructions() -> anyhow::Result<()> {
     let developer_text = developer_contents.join("\n");
     assert_eq!(
         developer_text
-            .matches("Co-authored-by: Codex <noreply@openai.com>")
+            .matches("Co-authored-by: ore <noreply@openai.com>")
             .count(),
         1
     );
     assert_eq!(
         developer_text
-            .matches("Generated with [Codex](https://openai.com/codex/).")
+            .matches("Generated with [ore](https://openai.com/codex/).")
             .count(),
         1
     );
@@ -603,7 +603,7 @@ fn create_expected_patch_approval_elicitation_request_params(
     if let Some(r) = &reason {
         message_lines.push(r.clone());
     }
-    message_lines.push("Allow Codex to apply proposed code changes?".to_string());
+    message_lines.push("Allow ore to apply proposed code changes?".to_string());
     let params_json = serde_json::to_value(PatchApprovalElicitRequestParams {
         message: message_lines.join("\n"),
         requested_schema: json!({"type":"object","properties":{}}),
@@ -645,7 +645,7 @@ async fn create_mcp_process(responses: Vec<String>) -> anyhow::Result<McpHandle>
     })
 }
 
-/// Create a Codex config that uses the mock server as the model provider.
+/// Create an ore config that uses the mock server as the model provider.
 /// The shell command explicitly requests escalation so that we exercise the
 /// elicitation code path.
 fn create_config_toml(codex_home: &Path, server_uri: &str) -> std::io::Result<()> {

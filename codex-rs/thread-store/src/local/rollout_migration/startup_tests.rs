@@ -110,7 +110,7 @@ async fn indexed_store(home: &Path) -> LocalThreadStore {
 
 #[tokio::test]
 async fn records_and_advances_checked_thread() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create ore home");
     let legacy_thread_id = ThreadId::new();
     let legacy_path = write_rollout(home.path(), legacy_thread_id, ThreadHistoryMode::Legacy);
     let store = indexed_store(home.path()).await;
@@ -159,7 +159,7 @@ async fn records_and_advances_checked_thread() {
 
 #[tokio::test]
 async fn checks_rollouts_within_the_cursor_lookback() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create ore home");
     let older_thread_id = ThreadId::new();
     let older_path = move_to_timestamp(
         home.path(),
@@ -200,7 +200,7 @@ async fn checks_rollouts_within_the_cursor_lookback() {
 
 #[tokio::test]
 async fn recovers_pending_migrations_behind_the_checked_thread() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create ore home");
     let thread_id = ThreadId::new();
     let path = write_rollout(home.path(), thread_id, ThreadHistoryMode::Legacy);
     let store = indexed_store(home.path()).await;
@@ -241,7 +241,7 @@ async fn recovers_pending_migrations_behind_the_checked_thread() {
 
 #[tokio::test]
 async fn waits_for_a_live_writer_before_migrating() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create ore home");
     let thread_id = ThreadId::new();
     let path = write_rollout(home.path(), thread_id, ThreadHistoryMode::Legacy);
     let store = indexed_store(home.path()).await;
@@ -275,7 +275,7 @@ async fn waits_for_a_live_writer_before_migrating() {
 
 #[tokio::test]
 async fn rechecks_changed_empty_rollouts() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create ore home");
     write_rollout(home.path(), ThreadId::new(), ThreadHistoryMode::Legacy);
     let empty_thread_id = ThreadId::new();
     let empty_path = move_to_timestamp(

@@ -10,9 +10,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TS, Hash)]
 #[ts(type = "string")]
-/// Identifier for a Codex thread.
+/// Identifier for an ore thread.
 ///
-/// Codex-generated thread IDs are UUIDv7, and some use cases rely on that.
+/// ore-generated thread IDs are UUIDv7, and some use cases rely on that.
 pub struct ThreadId {
     pub(crate) uuid: Uuid,
 }

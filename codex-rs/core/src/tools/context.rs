@@ -50,7 +50,7 @@ pub enum ToolCallSource {
         /// Runtime cell that issued the nested tool request.
         cell_id: String,
         /// Code-mode's per-cell tool invocation id. This is useful for
-        /// debugging the JS/runtime bridge, but it is not the Codex tool call id
+        /// debugging the JS/runtime bridge, but it is not the ore tool call id
         /// because the runtime id only needs to be unique within one cell.
         runtime_tool_call_id: String,
     },

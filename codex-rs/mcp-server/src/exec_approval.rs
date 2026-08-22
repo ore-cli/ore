@@ -64,7 +64,7 @@ pub(crate) async fn handle_exec_approval_request(
     let escaped_command =
         shlex::try_join(command.iter().map(String::as_str)).unwrap_or_else(|_| command.join(" "));
     let message = format!(
-        "Allow Codex to run `{escaped_command}` in `{cwd}`?",
+        "Allow ore to run `{escaped_command}` in `{cwd}`?",
         cwd = cwd.to_string_lossy()
     );
 
@@ -122,7 +122,7 @@ async fn on_exec_approval_response(
         }
     };
 
-    // Try to deserialize `value` and then make the appropriate call to `codex`.
+    // Try to deserialize `value` and then make the appropriate call to `ore`.
     let response = serde_json::from_value::<ExecApprovalResponse>(value).unwrap_or_else(|err| {
         error!("failed to deserialize ExecApprovalResponse: {err}");
         // If we cannot deserialize the response, we deny the request to be

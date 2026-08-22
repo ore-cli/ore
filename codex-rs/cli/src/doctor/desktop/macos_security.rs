@@ -95,7 +95,7 @@ fn classify_security_events(output: &str) -> Evidence {
     for line in output.lines().map(str::to_ascii_lowercase) {
         let contains = |values: &[&str]| values.iter().any(|value| line.contains(value));
         if !contains(&[
-            "com.openai.codex",
+            "io.github.ore-cli.ore",
             "codex.app",
             "chatgpt.app",
             ".plugin-appserver",
@@ -144,7 +144,7 @@ fn enforcement_check(gatekeeper: Evidence, events: Evidence) -> DoctorCheck {
         (
             CheckStatus::Fail,
             "macos XProtect blocked or remediated the desktop application",
-            "collect the XProtect detection and ask your security administrator to review the official Codex installation",
+            "collect the XProtect detection and ask your security administrator to review the official ore installation",
         )
     } else if gatekeeper == Evidence::Blocked {
         (
@@ -162,7 +162,7 @@ fn enforcement_check(gatekeeper: Evidence, events: Evidence) -> DoctorCheck {
         (
             CheckStatus::Warning,
             "macos system-policy diagnostics indicate file descriptor exhaustion",
-            "restart your Mac, retry Codex once, and contact support if the problem returns",
+            "restart your Mac, retry ore once, and contact support if the problem returns",
         )
     } else if events == Evidence::Audit {
         (
@@ -180,7 +180,7 @@ fn enforcement_check(gatekeeper: Evidence, events: Evidence) -> DoctorCheck {
         (
             CheckStatus::Warning,
             "recent macos security enforcement history was unavailable",
-            "check access to macos unified security logs and rerun codex doctor",
+            "check access to macos unified security logs and rerun ore doctor",
         )
     } else {
         return desktop_check(

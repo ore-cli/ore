@@ -294,7 +294,7 @@ impl ActionKind {
                 let _ = fs::remove_file(&path);
                 let patch = build_add_file_patch(&patch_path, content);
                 let command = shell_apply_patch_command(&patch);
-                // Bazel may need to launch the configured Codex helper binary
+                // Bazel may need to launch the configured ore helper binary
                 // to apply the verified patch, which can exceed the normal
                 // short command timeout on slower CI runners.
                 let timeout_ms = 30_000;
@@ -3089,7 +3089,7 @@ async fn matched_prefix_rule_runs_unsandboxed_under_zsh_fork() -> Result<()> {
 ///
 /// Tool owners use this pattern when a trusted wrapper must run outside the
 /// current sandbox, but then needs to launch child commands back inside the
-/// same sandbox with `codex sandbox -P`. The nested invocation must also pass
+/// same sandbox with `ore sandbox -P`. The nested invocation must also pass
 /// `--include-managed-config` so it continues to honor enterprise requirements.
 /// The test proves both halves of that contract: the wrapper writes outside the
 /// `:workspace` sandbox, while its inherited profile name remains `:workspace`.
@@ -3192,7 +3192,7 @@ touch {outside_path:?}
 /// named profile needed to reconstruct the original sandbox remotely without
 /// dropping managed enterprise requirements. The script treats the inherited
 /// environment value as untrusted and accepts only explicitly allowlisted
-/// profile names before passing one to `codex sandbox -P`.
+/// profile names before passing one to `ore sandbox -P`.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(unix)]
 async fn zsh_fork_inner_allowed_script_inherits_active_permission_profile() -> Result<()> {
@@ -3226,7 +3226,7 @@ ALLOWED_PROFILES = (":workspace",)
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Print an ssh command that recreates the current Codex sandbox remotely."
+        description="Print an ssh command that recreates the current ore sandbox remotely."
     )
     parser.add_argument("--host", required=True)
     try:
@@ -3373,7 +3373,7 @@ exec {remote_bash_exec} "$@"
     assert_eq!(
         sandbox_argv.len(),
         9,
-        "expected codex sandbox ... bash -lc CMD"
+        "expected ore sandbox ... bash -lc CMD"
     );
     assert_eq!(
         sandbox_argv[..8],
@@ -3387,7 +3387,7 @@ exec {remote_bash_exec} "$@"
             "bash",
             "-lc",
         ],
-        "remote_bash.py should use the allowlisted inherited profile and managed configuration to reconstruct the Codex sandbox"
+        "remote_bash.py should use the allowlisted inherited profile and managed configuration to reconstruct the ore sandbox"
     );
     let command_argv = shlex::split(&sandbox_argv[8]).context("parse remote bash command")?;
     assert_eq!(

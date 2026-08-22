@@ -17,7 +17,7 @@ use std::path::Path;
 use tokio::task;
 use toml::Value as TomlValue;
 
-const MANAGED_PREFERENCES_APPLICATION_ID: &str = "com.openai.codex";
+const MANAGED_PREFERENCES_APPLICATION_ID: &str = "io.github.ore-cli.ore";
 const MANAGED_PREFERENCES_CONFIG_KEY: &str = "config_toml_base64";
 const MANAGED_PREFERENCES_REQUIREMENTS_KEY: &str = "requirements_toml_base64";
 

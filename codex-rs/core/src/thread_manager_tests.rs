@@ -425,7 +425,7 @@ fn effective_originator_prefers_thread_scoped_sources_before_env_originator() {
         assert_eq!(
             effective_originator_value(
                 metrics_service_name,
-                Some("Codex Desktop".to_string()),
+                Some("ore Desktop".to_string()),
                 persisted_originator.map(str::to_string),
                 inherited_originator.map(str::to_string),
                 "codex_cli_rs".to_string(),

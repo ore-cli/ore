@@ -292,6 +292,9 @@ fn proto_string_map(values: HashMap<String, String>) -> proto::StringMap {
 fn proto_wire_api(wire_api: WireApi) -> proto::WireApi {
     match wire_api {
         WireApi::Responses => proto::WireApi::Responses,
+        // The fork does not carry the new wires over remote thread config; the
+        // proto stays byte-identical to upstream.
+        WireApi::Chat | WireApi::Anthropic => proto::WireApi::Unspecified,
     }
 }
 

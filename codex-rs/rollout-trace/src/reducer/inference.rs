@@ -108,7 +108,7 @@ impl TraceReducer {
     /// Closes any inference streams that are still live when the owning turn ends.
     ///
     /// Normal completion events close the active inference before the turn ends.
-    /// If a call is still `Running`, Codex stopped observing that provider stream
+    /// If a call is still `Running`, ore stopped observing that provider stream
     /// earlier and the reduced graph should not present it as live.
     pub(super) fn close_running_inference_calls_for_turn_end(
         &mut self,

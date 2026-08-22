@@ -1,8 +1,8 @@
 //! Builds a redacted doctor report attachment for feedback uploads.
 //!
 //! Feedback upload should never depend on doctor succeeding. This module runs
-//! the configured Codex executable as a subprocess, accepts only valid JSON from
-//! `codex doctor --json`, derives a small set of Sentry tags, and otherwise
+//! the configured ore executable as a subprocess, accepts only valid JSON from
+//! `ore doctor --json`, derives a small set of Sentry tags, and otherwise
 //! skips the attachment with a warning. Keeping the report generation out of the
 //! app-server process avoids sharing doctor internals across crates while still
 //! attaching exactly the same JSON a user could copy from the CLI.
@@ -34,7 +34,7 @@ pub(crate) struct DoctorFeedbackReport {
 /// Runs `codex --cd <workspace> doctor --json` and returns a best-effort
 /// feedback attachment.
 ///
-/// Failure to spawn Codex, finish before the timeout, or parse JSON means the
+/// Failure to spawn ore, finish before the timeout, or parse JSON means the
 /// feedback upload proceeds without the doctor report. Callers should merge the
 /// returned tags without overriding explicit client-provided tags.
 pub(crate) async fn doctor_feedback_report(

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Unified entry point for the Codex CLI.
+// Unified entry point for the ore CLI.
 
 import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "fs";
@@ -14,12 +14,12 @@ const require = createRequire(import.meta.url);
 const codexPackageRoot = realpathSync(path.join(__dirname, ".."));
 
 const PLATFORM_PACKAGE_BY_TARGET = {
-  "x86_64-unknown-linux-musl": "@openai/codex-linux-x64",
-  "aarch64-unknown-linux-musl": "@openai/codex-linux-arm64",
-  "x86_64-apple-darwin": "@openai/codex-darwin-x64",
-  "aarch64-apple-darwin": "@openai/codex-darwin-arm64",
-  "x86_64-pc-windows-msvc": "@openai/codex-win32-x64",
-  "aarch64-pc-windows-msvc": "@openai/codex-win32-arm64",
+  "x86_64-unknown-linux-musl": "@ore-cli/ore-linux-x64",
+  "aarch64-unknown-linux-musl": "@ore-cli/ore-linux-arm64",
+  "x86_64-apple-darwin": "@ore-cli/ore-darwin-x64",
+  "aarch64-apple-darwin": "@ore-cli/ore-darwin-arm64",
+  "x86_64-pc-windows-msvc": "@ore-cli/ore-win32-x64",
+  "aarch64-pc-windows-msvc": "@ore-cli/ore-win32-arm64",
 };
 
 const { platform, arch } = process;
@@ -89,7 +89,7 @@ function findCodexExecutable() {
     vendorRoot,
     targetTriple,
     "bin",
-    process.platform === "win32" ? "codex.exe" : "codex",
+    process.platform === "win32" ? "ore.exe" : "ore",
   );
   if (existsSync(codexExecutable)) {
     return codexExecutable;
@@ -98,12 +98,12 @@ function findCodexExecutable() {
   const packageManager = detectPackageManager();
   const updateCommand =
     packageManager === "bun"
-      ? "bun install -g @openai/codex@latest"
+      ? "bun install -g @ore-cli/ore@latest"
       : packageManager === "pnpm"
-        ? "pnpm add -g @openai/codex@latest"
-        : "npm install -g @openai/codex@latest";
+        ? "pnpm add -g @ore-cli/ore@latest"
+        : "npm install -g @ore-cli/ore@latest";
   throw new Error(
-    `Missing optional dependency ${platformPackage}. Reinstall Codex: ${updateCommand}`,
+    `Missing optional dependency ${platformPackage}. Reinstall ore: ${updateCommand}`,
   );
 }
 
@@ -122,7 +122,7 @@ function isPnpmOwnedCodexInstall(nodeModulesDir) {
 
   try {
     return (
-      realpathSync(path.join(nodeModulesDir, "@openai", "codex")) ===
+      realpathSync(path.join(nodeModulesDir, "@ore-cli", "ore")) ===
       codexPackageRoot
     );
   } catch {
@@ -131,7 +131,7 @@ function isPnpmOwnedCodexInstall(nodeModulesDir) {
 }
 
 /**
- * Use heuristics to detect the package manager that was used to install Codex
+ * Use heuristics to detect the package manager that was used to install ore
  * in order to give the user a hint about how to update it.
  */
 function detectPackageManager() {

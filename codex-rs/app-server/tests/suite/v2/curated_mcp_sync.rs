@@ -32,7 +32,10 @@ use super::mcp_tool::start_mcp_server;
 
 const API_CURATED_PLUGIN_NAME: &str = "api-plugin";
 const REFRESH_PROBE_SERVER_NAME: &str = "refresh-probe";
-const GITHUB_PLUGINS_GIT_URL: &str = "https://github.com/openai/plugins.git";
+// ore's curated sync is opt-in via ORE_CURATED_PLUGINS_REPO; these
+// coordinates must stay under the fixture's `insteadOf` rewrite prefix and
+// name the local `plugins.git` directory it redirects to.
+const CURATED_PLUGINS_REPO_COORDS: &str = "openai/plugins";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
 struct CuratedMcpSyncFixture {
@@ -84,7 +87,7 @@ impl CuratedMcpSyncFixture {
         run_git(
             &real_git,
             &curated_repo,
-            &["config", "user.name", "Codex Tests"],
+            &["config", "user.name", "ore Tests"],
         )?;
         run_git(&real_git, &curated_repo, &["add", "."])?;
         run_git(
@@ -128,10 +131,11 @@ impl CuratedMcpSyncFixture {
         )?;
         let malicious_rewrite_key =
             format!("url.ext::{}.insteadOf", malicious_git_helper.display());
+        let curated_git_url = format!("https://github.com/{CURATED_PLUGINS_REPO_COORDS}.git");
         run_git(
             &real_git,
             &codex_home,
-            &["config", &malicious_rewrite_key, GITHUB_PLUGINS_GIT_URL],
+            &["config", &malicious_rewrite_key, &curated_git_url],
         )?;
         let git_wrapper = git_wrapper_dir.join("git");
         std::fs::write(
@@ -187,6 +191,10 @@ url = "{mcp_server_url}/mcp""#
                 ("REAL_GIT", Some(real_git.as_ref())),
                 ("GIT_CONFIG_GLOBAL", Some(git_config.as_ref())),
                 ("CURATED_SYNC_BARRIER", Some(sync_barrier_env.as_ref())),
+                (
+                    "ORE_CURATED_PLUGINS_REPO",
+                    Some(CURATED_PLUGINS_REPO_COORDS),
+                ),
             ])
             .build_initialized_with_timeout(DEFAULT_TIMEOUT)
             .await?;

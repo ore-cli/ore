@@ -7,7 +7,7 @@ use super::sandbox_check;
 
 #[tokio::test]
 async fn reports_missing_linux_sandbox_helper() {
-    let home = tempfile::tempdir().expect("create Codex home");
+    let home = tempfile::tempdir().expect("create ore home");
     let config = ConfigBuilder::default()
         .codex_home(home.path().to_path_buf())
         .build()
@@ -27,7 +27,7 @@ async fn reports_missing_linux_sandbox_helper() {
 #[cfg(target_os = "windows")]
 #[tokio::test]
 async fn reports_refresh_failure_after_setup_completed() {
-    let home = tempfile::tempdir().expect("create Codex home");
+    let home = tempfile::tempdir().expect("create ore home");
     let version = codex_windows_sandbox::SETUP_VERSION;
     for (path, contents) in [
         (
@@ -92,7 +92,7 @@ async fn reports_refresh_failure_after_setup_completed() {
 #[cfg(target_os = "windows")]
 #[tokio::test]
 async fn rejects_oversized_setup_failure_reports() {
-    let home = tempfile::tempdir().expect("create Codex home");
+    let home = tempfile::tempdir().expect("create ore home");
     codex_windows_sandbox::write_setup_error_report(
         home.path(),
         &codex_windows_sandbox::SetupErrorReport {
@@ -133,7 +133,7 @@ async fn rejects_oversized_setup_failure_reports() {
 #[cfg(target_os = "windows")]
 #[tokio::test]
 async fn reports_malformed_setup_failure_reports() {
-    let home = tempfile::tempdir().expect("create Codex home");
+    let home = tempfile::tempdir().expect("create ore home");
     let path = codex_windows_sandbox::setup_error_path(home.path());
     std::fs::create_dir_all(path.parent().expect("setup failure report parent"))
         .expect("create sandbox directory");

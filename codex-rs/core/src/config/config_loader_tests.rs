@@ -1520,7 +1520,7 @@ allowed_approval_policies = ["on-request"]
             candidate: "Never".into(),
             allowed: "[OnRequest]".into(),
             requirement_source: RequirementSource::MdmManagedPreferences {
-                domain: "com.openai.codex".to_string(),
+                domain: "io.github.ore-cli.ore".to_string(),
                 key: "requirements_toml_base64".to_string(),
             },
         })

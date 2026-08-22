@@ -337,7 +337,7 @@ async fn shell_command_times_out_with_timeout_ms() -> anyhow::Result<()> {
 
 /// This test verifies that a shell, particularly PowerShell, can correctly
 /// handle unicode output when the UTF-8 BOM is used. See
-/// https://github.com/openai/codex/pull/7902 for more context.
+/// https://github.com/ore-cli/ore/pull/7902 for more context.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[test_case(true ; "with_login")]
 #[test_case(false ; "without_login")]

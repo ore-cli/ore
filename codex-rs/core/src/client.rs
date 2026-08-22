@@ -1,6 +1,6 @@
 //! Session- and turn-scoped helpers for talking to model provider APIs.
 //!
-//! `ModelClient` is intended to live for the lifetime of a Codex session and holds the stable
+//! `ModelClient` is intended to live for the lifetime of an ore session and holds the stable
 //! configuration and state needed to talk to a provider (auth, provider selection, conversation id,
 //! and transport fallback state).
 //!
@@ -242,7 +242,7 @@ impl RequestRouteTelemetry {
 
 /// A session-scoped client for model-provider API calls.
 ///
-/// This holds configuration and state that should be shared across turns within a Codex session
+/// This holds configuration and state that should be shared across turns within an ore session
 /// (auth, provider selection, thread id, and transport fallback state).
 ///
 /// WebSocket fallback is session-scoped: once a turn activates the HTTP fallback, subsequent turns
@@ -269,7 +269,7 @@ pub struct ModelClient {
 /// - The `x-codex-turn-state` sticky-routing token, which must be replayed for all requests within
 ///   the same turn.
 ///
-/// Create a fresh `ModelClientSession` for each Codex turn. Reusing it across turns would replay
+/// Create a fresh `ModelClientSession` for each ore turn. Reusing it across turns would replay
 /// the previous turn's sticky-routing token into the next turn, which violates the client/server
 /// contract and can cause routing bugs.
 pub struct ModelClientSession {
@@ -423,7 +423,7 @@ impl ModelClient {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new session-scoped `ModelClient`.
     ///
-    /// All arguments are expected to be stable for the lifetime of a Codex session. Per-turn values
+    /// All arguments are expected to be stable for the lifetime of an ore session. Per-turn values
     /// are passed to [`ModelClientSession::stream`] (and other turn-scoped methods) explicitly. The
     /// HTTP client factory must come from the effective session configuration so every transport
     /// observes the resolved outbound proxy policy.
@@ -1908,10 +1908,32 @@ impl ModelClientSession {
                 )
                 .await
             }
+            // Boxed so the added state machines cannot grow this future: the
+            // Responses arm already runs close to the default test stack.
+            WireApi::Chat => {
+                Box::pin(self.stream_chat_completions(
+                    prompt,
+                    model_info,
+                    session_telemetry,
+                    effort,
+                    inference_trace,
+                ))
+                .await
+            }
+            WireApi::Anthropic => {
+                Box::pin(self.stream_anthropic_messages(
+                    prompt,
+                    model_info,
+                    session_telemetry,
+                    effort,
+                    inference_trace,
+                ))
+                .await
+            }
         }
     }
 
-    /// Permanently disables WebSockets for this Codex session and resets WebSocket state.
+    /// Permanently disables WebSockets for this ore session and resets WebSocket state.
     ///
     /// This is used after exhausting the provider retry budget, to force subsequent requests onto
     /// the HTTP transport.
@@ -1947,7 +1969,7 @@ fn stamp_ws_stream_request_start_ms(request: &mut ResponsesWsRequest<'_>) {
 
 /// Builds the extra headers attached to Responses API requests.
 ///
-/// These headers implement Codex-specific conventions:
+/// These headers implement ore-specific conventions:
 ///
 /// - `x-codex-beta-features`: comma-separated beta feature keys enabled for the session.
 /// - `x-codex-turn-state`: sticky routing token captured earlier in the turn.
@@ -2528,6 +2550,11 @@ impl WebsocketTelemetry for ApiTelemetry {
             .record_websocket_event(result, duration);
     }
 }
+
+#[path = "client_anthropic.rs"]
+mod anthropic;
+#[path = "client_chat.rs"]
+mod chat;
 
 #[cfg(test)]
 #[path = "client_tests.rs"]
