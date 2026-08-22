@@ -67,6 +67,7 @@ mod exec_server_args_tests;
 mod exec_server_auth;
 mod exec_server_command;
 mod exec_server_telemetry;
+mod fork_meta;
 mod marketplace_cmd;
 mod mcp_cmd;
 mod mcp_login;
@@ -117,6 +118,7 @@ use codex_terminal_detection::TerminalName;
 #[clap(
     author,
     version,
+    long_version = crate::fork_meta::long_version(),
     // If a sub‑command is given, ignore requirements of the default args.
     subcommand_negates_reqs = true,
     // The executable is sometimes invoked via a platform‑specific name like
