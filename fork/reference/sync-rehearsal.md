@@ -70,3 +70,37 @@ rewriting, both resolvable from the commit's own header. Nothing here suggests
 the series is fragile; it suggests the fragile commits are exactly the ones the
 seam registry (`fork/seams.yaml`) already names, and that the semantic review's
 seam-proximity warning is pointed at the right files.
+
+---
+
+# Verify red-team — does the suite actually bite?
+
+Same session. Six mutations applied to a clean tree, each the kind of regression
+a sync could plausibly introduce, to check that the invariant suite fails rather
+than passes quietly.
+
+| # | mutation | caught |
+|---|---|---|
+| 1 | Reintroduce the Statsig OTLP endpoint literal | yes — `strings-source` |
+| 2 | Rewrite the ChatGPT originator inside `codex-rs/login/` | **NO** (fixed) |
+| 3 | Add an unallowlisted workflow with an upstream tag glob | yes — `workflows` |
+| 4 | Point `fork/UPSTREAM` at the wrong base tag | yes — `upstream` |
+| 5 | Add an undeclared package to `Cargo.lock` | yes — `locks` |
+| 6 | Drop a new source file inside the auth fence | **NO** (fixed) |
+
+## What 2 and 6 were
+
+`auth_fence.py` ran `git diff <base> HEAD`, which compares two commits and never
+looks at the working tree, so an uncommitted rewrite of `codex_cli_rs` — the one
+change the fence exists to prevent — was reported as "auth fence intact". A new
+file inside a fenced path was invisible for a different reason: a file that did
+not exist at the base produces no diff hunk to compare.
+
+Both are fixed: the check diffs the base against the working tree, and refuses
+any untracked file under a fenced path. In CI the tree and HEAD are the same, so
+neither mutation could have been caught by the run that mattered either.
+
+The lesson worth keeping is not "the fence had a bug" but that the four checks
+which passed the red-team were the four written against tree contents, and the
+one that failed was the one written against commit history. A check whose
+subject is "what ships" has to read what ships.
