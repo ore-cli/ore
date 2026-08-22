@@ -1,0 +1,73 @@
+# fork/verify/known-failing — upstream tests that legitimately go red once the
+# telemetry seam lands (series commits telemetry-analytics-off,
+# telemetry-feedback-off, telemetry-statsig-strip, telemetry-defaults-none).
+#
+# Format: one nextest filterset expression per line ('#' comments, blank lines
+# ignored).  Consumers OR the expressions together, e.g. to exclude them from
+# the required-green set:
+#   cargo nextest run -E "not ($(grep -v '^#' known-failing | grep . | paste -sd'|' - | sed 's/|/ or /g'))"
+#
+# Provenance: the telemetry-seam verification pass (fork/reference material:
+# verify/telemetry-seam.md corrections), re-verified against the rust-v0.149.0
+# tree.  The seam sets analytics_enabled to Some(false) for every layer, so
+# every test that awaits a POST to /codex/analytics-events/events times out,
+# and the otel default flip (types.rs:592 + otel.rs:21) plus the accepted
+# Caveat A (user BYO OTLP metrics become inert) fail the two metrics tests.
+#
+# NOT in this list, deliberately (the verifier proved they keep passing):
+# mcp-server lib.rs default-analytics assertions (assert an untouched constant
+# or reset analytics_enabled themselves), app-server v2/analytics.rs :56/:81
+# (mutate the config after load), and cli clap tests.
+#
+# The telemetry-seam series commit OWNS this file: it refines module-level
+# entries to exact test names when it lands, and the diff-accounting check
+# proves no upstream test outside this list was modified.
+
+# --- codex-core: unit test pinning the upstream Statsig default -------------
+# Fails on the defaults flip: metrics_exporter now defaults to None.
+package(codex-core) & test(metrics_exporter_defaults_to_statsig_when_missing)
+
+# --- codex-app-server: user BYO OTLP metrics (accepted Caveat A) ------------
+# Asserts codex.thread.started reaches a user otlp-http collector; the seam
+# nulls the metrics exporter for every config, including BYO OTLP.
+package(codex-app-server) & test(account_switch_reloads_telemetry_collectors_and_preserves_trace_context)
+
+# --- codex-app-server: tests awaiting an analytics POST the seam prevents ---
+# suite/v2/analytics.rs plugin-measurement tests (:582-:618).
+package(codex-app-server) & test(classic_plugin_script_emits_measurement_analytics)
+package(codex-app-server) & test(unified_plugin_script_emits_measurement_analytics)
+package(codex-app-server) & test(remote_unified_plugin_script_emits_measurement_analytics)
+package(codex-app-server) & test(unified_background_plugin_script_emits_measurements_after_turn_completion)
+package(codex-app-server) & test(remote_unified_background_plugin_script_emits_measurements_after_turn_completion)
+
+# v2 modules whose tests mount an analytics capture server and await events
+# (module-level on purpose — the subset that awaits is refined to exact names
+# by the seam commit; until then the whole module is treated as expected-red):
+package(codex-app-server) & test(v2::thread_start::)
+package(codex-app-server) & test(v2::thread_resume::)
+package(codex-app-server) & test(v2::thread_fork::)
+package(codex-app-server) & test(v2::thread_archive::)
+package(codex-app-server) & test(v2::turn_start::)
+package(codex-app-server) & test(v2::turn_steer::)
+package(codex-app-server) & test(v2::external_agent_config::)
+package(codex-app-server) & test(v2::executor_skills::)
+package(codex-app-server) & test(v2::guardian_v2::)
+package(codex-app-server) & test(v2::plugin_install::)
+package(codex-app-server) & test(v2::plugin_uninstall::)
+package(codex-app-server) & test(v2::remote_control::)
+
+# --- codex-core: integration tests awaiting analytics events ----------------
+# plugins.rs :472 (measurement event, inside the attribution flow test),
+# :1352, :1401, :1480.
+package(codex-core) & test(persisted_remote_plugin_command_attribution_flows_through_turn_context)
+package(codex-core) & test(explicit_plugin_mentions_track_plugin_used_analytics)
+package(codex-core) & test(explicit_plugin_skill_invocation_tracks_remote_plugin_id)
+package(codex-core) & test(implicit_plugin_skill_invocation_tracks_remote_plugin_id)
+# skills_extension.rs — wait_for_analytics_events call sites at :1037/:1062,
+# plus :1337/:1873 found during re-verification of the cited lines.
+package(codex-core) & test(explicit_only_orchestrator_skill_is_hidden_but_can_be_invoked)
+package(codex-core) & test(executor_skill_invocation_is_environment_scoped_and_deduplicated)
+package(codex-core) & test(production_turn_uses_provider_host_catalog_and_core_snapshot_injection)
+# request_plugin_install.rs :840 — the analytics wait lives in the shared
+# helper run_remote_plugin_install_metadata_case, whose only caller is:
+package(codex-core) & test(endpoint_recommendation_hydrates_install_identity_after_selection)
