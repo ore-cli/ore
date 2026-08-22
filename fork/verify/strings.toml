@@ -27,19 +27,16 @@ schema = 1
 pattern = 'ab\.chatgpt\.com'
 reason = "Statsig OTLP metrics endpoint (codex-rs/otel/src/config.rs:9); default-on phone-home in release builds"
 removed_by = "series:telemetry-statsig-strip"
-pending = true
 
 [[kill]]
 pattern = 'client-MkRuleRQBd6qakfnDYqJVR9JuXcY57Ljly3vi5JVUIO'
 reason = "hardcoded Statsig client key (codex-rs/otel/src/config.rs:11)"
 removed_by = "series:telemetry-statsig-strip"
-pending = true
 
 [[kill]]
 pattern = 'statsig-api-key'
 reason = "Statsig auth header name (codex-rs/otel/src/config.rs:10; also documented in codex-rs/otel/README.md, which the strip commit must update)"
 removed_by = "series:telemetry-statsig-strip"
-pending = true
 
 [[kill]]
 pattern = 'o33249\.ingest\.us\.sentry\.io'
