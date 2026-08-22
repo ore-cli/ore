@@ -1,0 +1,14 @@
+{
+  "name": "ore-sync",
+  "url": "https://github.com/ore-cli/ore",
+  "description": "Opens ore's upstream-sync pull requests, and finalizes them once a human approves. Runs fork/assemble.sh, pushes only allowlisted refs, and disables any upstream workflow that arrives enabled.",
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "pull_requests": "write",
+    "issues": "write",
+    "actions": "write",
+    "metadata": "read"
+  },
+  "default_events": []
+}
