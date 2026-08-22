@@ -43,6 +43,18 @@ FENCE_PATHS = (
     "codex-rs/app-server-protocol",
 )
 
+# Generated output inside a fenced path. `app-server-protocol/schema/` is written
+# by assemble's schema-regen pass -- the JSON, TypeScript and precomputed exports
+# are derived from the Rust types, and the first full assembly rewrote 28 of them
+# because the WireApi variants changed. Diffing them here would report a fence
+# violation for every assembly that regenerates them correctly.
+#
+# Nothing is lost by excluding them: the wire identifiers this fence protects
+# live in the crate's .rs sources, which remain fenced, and upstream ships
+# exact-bytes fixture tests that fail if the generated output does not match the
+# types it came from.
+FENCE_EXCLUDE = (":(exclude)codex-rs/app-server-protocol/schema/**",)
+
 # (file, literal, why) — wire identifiers that live outside the fence.
 # All verified present at rust-v0.149.0.
 OUTSIDE_LITERALS = (
@@ -105,12 +117,12 @@ def main(argv: list[str] | None = None) -> int:
     # worth catching.
     try:
         proc = subprocess.run(
-            ["git", "-C", str(root), "diff", base, "--"] + list(FENCE_PATHS),
+            ["git", "-C", str(root), "diff", base, "--"] + list(FENCE_PATHS) + list(FENCE_EXCLUDE),
             capture_output=True, text=True, check=True,
         )
         untracked = subprocess.run(
             ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard", "--"]
-            + list(FENCE_PATHS),
+            + list(FENCE_PATHS) + list(FENCE_EXCLUDE),
             capture_output=True, text=True, check=True,
         ).stdout.split()
     except (OSError, subprocess.CalledProcessError) as err:
