@@ -8,7 +8,6 @@
 mod auth;
 mod error;
 
-#[path = "../../../model-provider-info/src/anthropic.rs"]
 pub(crate) mod info;
 
 use std::path::PathBuf;
