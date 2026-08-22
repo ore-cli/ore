@@ -282,6 +282,26 @@ categories:
       pattern: 'github\.com/openai/codex'
       replace: 'github.com/${repo_slug}'
 
+    - name: rusty-v8-mirror-tag
+      note: >
+        ore mirrors upstream's rusty_v8 prebuilts into its own releases, tagged
+        ore-rusty-v8-v* so they match the ore-* push allowlist and do not match
+        upstream's rusty-v8-v*.*.* trigger glob. Pairs with rusty-v8-mirror-url:
+        the tag prefix and the repo slug have to move together or the download
+        404s. .github/actions/ is in substitution scope; .github/workflows/ is not.
+      files: [.github/actions/setup-rusty-v8/action.yml]
+      pattern: 'release_tag="rusty-v8-v'
+      replace: 'release_tag="ore-rusty-v8-v'
+
+    - name: rusty-v8-mirror-url
+      note: >
+        The other half of rusty-v8-mirror-tag. Scoped to the action rather than
+        widening github-repo-url's globs, because other .github/ files reference
+        upstream deliberately.
+      files: [.github/actions/setup-rusty-v8/action.yml]
+      pattern: 'https://github\.com/openai/codex/releases/download/'
+      replace: 'https://github.com/${repo_slug}/releases/download/'
+
     - name: github-api-repo-url
       globs: ["codex-rs/**/*.rs", "scripts/**/*.py", "scripts/install/*"]
       pattern: 'api\.github\.com/repos/openai/codex'
