@@ -55,6 +55,18 @@ engine:
     - codex-rs/models-manager/models.json
     - codex-rs/models-manager/prompt.md
     - codex-rs/models-manager/src/model_info.rs
+    # Model-facing prompt text, byte-identical by ratified decision 11. These
+    # prompts describe the upstream agent TO an OpenAI model, and the model was
+    # tuned against that description; rebranding them changes behaviour and
+    # makes the text false ("ore CLI is an open source project led by OpenAI",
+    # "not the old ore language model built by OpenAI"). The whole prompts crate
+    # and the core template trees exist to render text for models.
+    - codex-rs/prompts/*
+    - codex-rs/core/templates/*
+    - codex-rs/core/*prompt*.md
+    - codex-rs/core/src/realtime_prompt.rs
+    - codex-rs/core/src/guardian/prompt.rs
+    - codex-rs/tui/prompt_for_init_command.md
     - sdk/*
     - .codex/*
   skip_suffixes: [.png, .jpg, .jpeg, .gif, .ico, .woff, .woff2, .zip, .gz, .zst, .snap, .patch]
@@ -141,11 +153,26 @@ categories:
         Rust literals/comments only; the auth fence and wire identifiers are skipped wholesale above.
         The lookahead protects the phrases where "Codex" names OpenAI's service rather than this CLI
         (the ChatGPT backend, the desktop app, the IDE extension, Codex Cloud) -- rebranding those
-        would make the text false.
+        would make the text false.  The lookbehind protects a system prompt's opening line wherever
+        it is COPIED: the prompt files themselves are skipped above, but test fixtures embed the
+        same text, and a fixture that says "You are ore" while the prompt says "You are Codex" is a
+        test that fails for the right reason in the most confusing possible way.
       globs: ["codex-rs/**/*.rs", "codex-rs/**/*.js", "codex-rs/**/*.toml", "codex-rs/**/*.txt", "codex-cli/**/*.js", "codex-cli/**/*.json", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/install/*"]
       exclude: ["codex-rs/tui/src/pets/*"]
-      pattern: '\bCodex\b(?! (?:backend|app(?!-)|App|extension|Extension|[Cc]loud))'
+      pattern: '(?<!You are )\bCodex\b(?! (?:backend|app(?!-)|App|extension|Extension|[Cc]loud))'
       replace: '${product}'
+
+    - name: vendored-crate-contribution-policy
+      note: >
+        Upstream states a contribution policy for its own repository inside a crate README.
+        Rebranding the issue-tracker link around it turns a true sentence into a contradictory
+        one ("maintained by OpenAI employees ... report in the ore issue tracker"), and the
+        attribution check reads the result as ore claiming OpenAI authorship. Restate it as what
+        it actually is for the fork: vendored code that ore does not modify.
+      globs: ["codex-rs/chatgpt/README.md"]
+      rust_literals_only: false
+      pattern: 'This crate is built and maintained by OpenAI employees\. External code contributions are not accepted; please report bugs and request features in'
+      replace: 'This crate is vendored from upstream Codex, where it is built and maintained by OpenAI employees; ${product} does not modify it. Report bugs and request features in'
 
     - name: article-before-product-name
       globs: ["codex-rs/**/*.rs", "**/*.md"]
