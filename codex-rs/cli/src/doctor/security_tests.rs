@@ -54,7 +54,7 @@ fn each_endpoint_product_requires_vendor_specific_app_exclusions() {
             .to_ascii_lowercase();
         assert_eq!(
             remediation,
-            "ask your security administrator to verify codex exclusions and required helper allowances",
+            "ask your security administrator to verify ore exclusions and required helper allowances",
             "{product}"
         );
         assert!(

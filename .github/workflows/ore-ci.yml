@@ -183,12 +183,33 @@ jobs:
           fi
 
   test:
-    name: test
+    # Sharded because the suite is the whole pipeline's long pole: ~15 minutes
+    # of the ~35 is running 15,575 tests, and that part divides cleanly. Every
+    # shard still builds the whole workspace (nextest partitions at run time,
+    # not build time), so this trades runner-minutes -- free on a public repo --
+    # for wall-clock.
+    name: test (${{ matrix.shard }}/4)
     runs-on: ubuntu-24.04
+    strategy:
+      # One shard's failure must not cancel the others: the run is only useful
+      # if it reports every failing test, not the first shard to notice one.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     # Cold, this builds every test binary in the workspace and links
     # librusty_v8 into ~6 of them; clippy's 90 is the calibrated reference for
     # the smaller `--tests` build on the same runner class.
     timeout-minutes: 150
+    env:
+      # Debug info dominates link time and cache size across ~130 crates, and
+      # nothing in CI attaches a debugger. `line-tables-only` keeps the file and
+      # line in panic backtraces -- which is how a CI failure is actually read --
+      # and drops the variable and type DWARF that nothing here consumes.
+      #
+      # Set here rather than in [profile.test]: that is upstream's Cargo.toml,
+      # and a CI-only build tweak has no business widening the fork's diff.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -249,6 +270,25 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: codex-rs
+          # Every shard builds the same artifacts, so they share one cache entry
+          # rather than keeping four copies of it against the repo's 10 GB
+          # budget. Without an explicit key they would collide on the job name
+          # anyway; naming it says so on purpose. Only the first shard writes,
+          # so the other three do not race to save a byte-identical entry.
+          shared-key: test
+          save-if: ${{ matrix.shard == 1 }}
+
+      # Swatinem/rust-cache restores target/ with v8's build-script fingerprint
+      # marked fresh, but the extracted librusty_v8.a is not in what it saves --
+      # so cargo skips re-running the build script and the link then fails with
+      # "could not find native static library `rusty_v8`". Only a linking job
+      # notices: clippy never links, which is why it stays green while this job
+      # goes red on every cache hit and passes on every cold one. Dropping v8
+      # alone re-runs its build script (a gunzip of the prebuilt, seconds) and
+      # keeps the rest of the restored cache.
+      - name: Re-extract the v8 prebuilt the cache restore leaves stale
+        working-directory: codex-rs
+        run: cargo clean -p v8
 
       # fork/verify/known-failing lists the upstream tests the fork's seams
       # legitimately turn red, one nextest filterset expression per line. The
@@ -264,9 +304,12 @@ jobs:
           # one file is what the fork broke, the other is what arrived broken.
           KNOWN_FAILING_UPSTREAM: ${{ github.workspace }}/fork/verify/known-failing-upstream
           RUST_MIN_STACK: "8388608"
+          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
-          args=(--workspace --no-fail-fast)
+          # Round-robin over the filtered test list, so the shards get even
+          # counts and a slow neighbourhood of tests cannot land wholly in one.
+          args=(--workspace --no-fail-fast --partition "count:${SHARD}/4")
           merged="$RUNNER_TEMP/known-failing.merged"
           : > "$merged"
           for f in "$KNOWN_FAILING_UPSTREAM" "$KNOWN_FAILING"; do

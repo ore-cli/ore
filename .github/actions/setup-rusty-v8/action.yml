@@ -16,8 +16,8 @@ runs:
         set -euo pipefail
 
         version="$(python3 "${GITHUB_WORKSPACE}/.github/scripts/rusty_v8_bazel.py" resolved-v8-crate-version)"
-        release_tag="rusty-v8-v${version}"
-        base_url="https://github.com/openai/codex/releases/download/${release_tag}"
+        release_tag="ore-rusty-v8-v${version}"
+        base_url="https://github.com/ore-cli/ore/releases/download/${release_tag}"
         binding_dir="${RUNNER_TEMP}/rusty_v8"
         
         profile="ptrcomp_sandbox_release"

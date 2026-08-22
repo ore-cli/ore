@@ -100,6 +100,17 @@ engine:
     # only the remote breaks the derivation. Nothing else in the file is brand
     # text.
     - codex-rs/cloud-tasks/src/env_detect_tests.rs
+    # The fork-authored art pipeline. These scripts already say "ore" wherever
+    # they mean ore; their remaining "Codex"/"OpenAI" mentions name upstream's
+    # own wordmark art and screenshot, so rewriting them produces false prose
+    # ("Upstream ships ten variants of the ore wordmark") -- the README problem
+    # again. The baked frames carry no brand strings at all (the renderer is
+    # invoked with an empty --label), and they are generated output: the
+    # generator, not the rebrand, is what owns their bytes.
+    - scripts/ore_art.py
+    - scripts/generate-ore-frames.py
+    - scripts/generate-ore-hero.py
+    - codex-rs/tui/frames/ore-*
     - sdk/*
     - .codex/*
   skip_suffixes: [.png, .jpg, .jpeg, .gif, .ico, .woff, .woff2, .zip, .gz, .zst, .snap, .patch]
@@ -161,6 +172,18 @@ categories:
       rust_literals_only: false
       pattern: 'starts_with\("codex"\)'
       replace: 'starts_with("${bin}")'
+
+    - name: security-remediation-probe
+      note: >
+        The endpoint-protection remediation names the product, so the Codex rule
+        rebrands it in security.rs; this test lowercases that string before
+        comparing, and its bare lowercase literal matches no other rule. Without
+        the pair the assertion compares "ore" against "codex" and fails on the
+        assembled tree only -- invisible on delta, red on main.
+      files: [codex-rs/cli/src/doctor/security_tests.rs]
+      rust_literals_only: false
+      pattern: 'verify codex exclusions'
+      replace: 'verify ${product} exclusions'
 
   # ------------------------------------------------------- `codex <sub>` in text
   cli-command-in-text:
@@ -259,6 +282,26 @@ categories:
       pattern: 'github\.com/openai/codex'
       replace: 'github.com/${repo_slug}'
 
+    - name: rusty-v8-mirror-tag
+      note: >
+        ore mirrors upstream's rusty_v8 prebuilts into its own releases, tagged
+        ore-rusty-v8-v* so they match the ore-* push allowlist and do not match
+        upstream's rusty-v8-v*.*.* trigger glob. Pairs with rusty-v8-mirror-url:
+        the tag prefix and the repo slug have to move together or the download
+        404s. .github/actions/ is in substitution scope; .github/workflows/ is not.
+      files: [.github/actions/setup-rusty-v8/action.yml]
+      pattern: 'release_tag="rusty-v8-v'
+      replace: 'release_tag="ore-rusty-v8-v'
+
+    - name: rusty-v8-mirror-url
+      note: >
+        The other half of rusty-v8-mirror-tag. Scoped to the action rather than
+        widening github-repo-url's globs, because other .github/ files reference
+        upstream deliberately.
+      files: [.github/actions/setup-rusty-v8/action.yml]
+      pattern: 'https://github\.com/openai/codex/releases/download/'
+      replace: 'https://github.com/${repo_slug}/releases/download/'
+
     - name: github-api-repo-url
       globs: ["codex-rs/**/*.rs", "scripts/**/*.py", "scripts/install/*"]
       pattern: 'api\.github\.com/repos/openai/codex'
@@ -317,6 +360,23 @@ categories:
       globs: ["codex-cli/bin/codex.js"]
       pattern: 'path\.join\(nodeModulesDir, "@openai", "codex"\)'
       replace: 'path.join(nodeModulesDir, "@ore-cli", "${product}")'
+
+    - name: npm-doctor-package-root
+      note: |
+        Same split-segment problem as npm-shim-pnpm-path, in Rust. `codex doctor`
+        compares the running install against the npm package root it would
+        update; built as two joined literals, the package-name rule misses it and
+        the check would compare ore against @openai/codex forever -- reporting a
+        mismatch on every correctly-installed ore. The test fixtures at the other
+        two sites are the same expression, so one rule covers all three.
+      globs: ["codex-rs/cli/src/doctor.rs"]
+      # The pattern spans code, not a string literal: `.join(` sits between the
+      # two literals it joins. Rust files default to substituting inside literal
+      # spans only, where this can never match -- and a rule that matches nothing
+      # fails --apply, which is how the assembly caught it.
+      rust_literals_only: false
+      pattern: '\.join\("@openai"\)\.join\("codex"\)'
+      replace: '.join("${npm_scope}").join("${product}")'
 
     - name: npm-staging-repo
       globs: ["scripts/stage_npm_packages.py"]
