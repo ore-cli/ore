@@ -61,8 +61,9 @@ Renders `Formula/ore.rb` (class `Ore`) for the `ore-cli/homebrew-tap` tap
 ## Secret / env contract
 
 The release workflow loads secrets with `1password/load-secrets-action`
-(`export-env: false`) from the `ore-cli` vault. The legacy vault was `core-ci`; the items
-and fields carry over unchanged:
+(`export-env: false`) from the `ore-cli` vault. The item and field names below were
+carried over from the predecessor fork's vault and verified against the live one
+with `fork/release/check-secrets.sh`:
 
 | 1Password ref | Environment variable | Consumed by |
 |---|---|---|
