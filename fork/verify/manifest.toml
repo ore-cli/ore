@@ -141,7 +141,7 @@ paths, references to the predecessor organisation or its secret vault, and the f
 tree of verbatim private-repository copies and internal audit notes. Added after that tree \
 reached a public repository -- every other property this fork cares about had a check and this \
 one did not, which is exactly how it went unnoticed. Scoped to fork-authored files: upstream's \
-own tree is full of /Users/alice test fixtures and is already public."""
+own tree is full of invented home-directory test fixtures and is already public."""
 
 [[check]]
 id = "attribution"
