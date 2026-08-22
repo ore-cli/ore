@@ -105,6 +105,12 @@ jobs:
       # are derived here from $RUNNER_TEMP, which is always present in a step.
       # GitHub rejects the whole workflow file for that -- it reports a run that
       # fails in 0s attributed to the push, which is easy to read as a transient.
+      # assemble.sh formats the assembled tree with the project's own tools, so
+      # it needs uv for the ruff pass the same way it needs cargo for rustfmt.
+      # Without it the assembly fails loudly rather than producing a candidate
+      # that ore-ci would then reject for formatting.
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Resolve the assembly paths
         run: |
           set -euo pipefail
