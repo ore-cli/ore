@@ -2,9 +2,10 @@
 #
 # run.py reads this; checks execute in file order.  Fields:
 #   id                stable check name (what CI logs and humans grep for)
-#   script            path relative to fork/verify/
-#   suite             static | artifact | egress | all  ("all" runs in every
-#                     suite; --suite all runs everything)
+#   script            path relative to fork/verify/ (or `command`: the argv of a
+#                     check that is a workspace cargo run rather than a script)
+#   suite             static | crate | artifact | egress | all  ("all" runs in
+#                     every suite; --suite all runs everything)
 #   severity          hard (failure fails the run) | warn (printed only)
 #   needs_v8          true if the check's inputs require the rusty_v8 prebuilt
 #                     (lets CI stay green minus full-tests during a V8-asset
@@ -22,7 +23,9 @@
 # requires ("bin" | "bin_or_artifacts" — SKIP when absent), accepts_api
 # (gets --api when run.py is invoked with --api), pending (the check's
 # deliverable has not landed yet; failures report as PENDING — the commit
-# that lands it removes the flag).
+# that lands it removes the flag), release_rerun (extra argv the release gate
+# appends when it re-runs a check that is not release_required but has one
+# assertion a debug run cannot prove).
 
 schema = 1
 
@@ -105,6 +108,23 @@ args = ["--root", "{root}"]
 reason = """Apache-2.0 obligations both ways: LICENSE/NOTICE carry OpenAI's attribution and \
 state modification; nothing in the tree claims ore comes from or is endorsed by OpenAI \
 (upstream reintroduces that prose; the rebrand renames the product but not the claim)."""
+
+[[check]]
+id = "fork-invariants"
+command = ["cargo", "nextest", "run", "-p", "codex-fork-invariants"]
+suite = "crate"
+severity = "hard"
+needs_v8 = false
+release_required = false
+release_rerun = ["--cargo-profile", "release"]
+reason = """The fork's own behavioural invariants, in-workspace so they can reach the loader, \
+analytics and otel APIs: telemetry stays off through every config layer (user, managed, project), \
+every otel exporter resolves to none, a `statsig` metrics exporter installs no provider, the \
+analytics client never POSTs, the ore config layer sits above the legacy one, and fork/VERSION is \
+scheme-C.  needs_v8=false: nothing in the crate's dep closure reaches code-mode-host/-runtime, the \
+only V8 linkers.  release_rerun: the Statsig assertion is degenerate in debug — upstream already \
+returned None under cfg!(debug_assertions) — so only the release-profile re-run in the release gate \
+proves the route strip (plan risk flag 6)."""
 
 [[check]]
 id = "strings-binary"
