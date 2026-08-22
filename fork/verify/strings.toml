@@ -241,6 +241,12 @@ paths = [
   ".github/**",
   ".devcontainer/**",
   "sdk/**",
+  # A developer harness that downloads *released* Codex binaries to test
+  # exec-server wire compatibility across versions. Never shipped, never run in
+  # ore CI, and the upstream release URL is the point of it. If ore ever runs
+  # this, repoint it at ore's own releases -- the literal is deliberate here,
+  # not a leak.
+  "codex-rs/exec-server/testing/**",
 ]
 # Identifier families that legitimately contain 'codex' everywhere (env vars,
 # crate/bin names, wire ids).  Consulted by the kill scan only when a kill
