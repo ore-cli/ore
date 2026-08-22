@@ -1,0 +1,62 @@
+# fork/seams.yaml — the seam map for fork/semantic-review.py.
+#
+# One entry per upstream file the delta series anchors a patch in.  `anchors`
+# are regexes matched against the CONTENT of changed hunks between the base and
+# target tags — never line numbers, which drift with every release.  A hit
+# means "upstream moved code your patch sits on": the rebase may still apply
+# cleanly while the surrounding semantics changed, so the sync PR flags it for
+# the owning series' reviewer.
+#
+# `series` names the owning Fork-Patch slug (see fork/lint-series.sh); keep it
+# in step when a series commit is renamed.
+
+# -- telemetry: config-seam force-off (analytics/feedback/Statsig strip) ------
+- path: codex-rs/core/src/config/mod.rs
+  anchors: [analytics_enabled, feedback_enabled]
+  series: telemetry-seam
+- path: codex-rs/core/src/otel_init.rs
+  anchors: [metrics_exporter, build_provider, analytics_enabled]
+  series: telemetry-seam
+- path: codex-rs/otel/src/config.rs
+  anchors: [Statsig, statsig-api-key, OtelExporter]
+  series: telemetry-seam
+
+# -- config: layered .codex/.ore homes ----------------------------------------
+- path: codex-rs/config/src/loader/mod.rs
+  anchors: ["user config layer", "ConfigLayerSource::User", load_user_config_layer]
+  series: config-layering
+- path: codex-rs/utils/home-dir/src/lib.rs
+  anchors: [find_codex_home]
+  series: config-layering
+
+# -- updates: repoint/kill upstream phone-home --------------------------------
+- path: codex-rs/tui/src/updates.rs
+  anchors: [LATEST_RELEASE_URL, HOMEBREW_CASK_API_URL]
+  series: update-repoint
+- path: codex-rs/app-server-daemon/src/update_loop.rs
+  anchors: [INSTALL_URL, update_once]
+  series: update-repoint
+
+# -- wire API: chat-completions + Anthropic adapters --------------------------
+- path: codex-rs/core/src/client.rs
+  anchors: [WireApi, "pub async fn stream"]
+  series: wire-api
+- path: codex-rs/model-provider-info/src/lib.rs
+  anchors: [WireApi, wire_api]
+  series: wire-api
+- path: codex-rs/model-provider/src/provider.rs
+  anchors: [create_model_provider]
+  series: wire-api
+
+# -- packaging: the ore entrypoint rename happens at packaging time -----------
+- path: scripts/codex_package/targets.py
+  anchors: [executable_stem, PACKAGE_VARIANTS]
+  series: packaging-entrypoint
+- path: codex-rs/app-server-daemon/src/managed_install.rs
+  anchors: [managed_codex_file_name, parse_codex_version]
+  series: packaging-entrypoint
+
+# -- workspace membership: fork-added crates insert into this list ------------
+- path: codex-rs/Cargo.toml
+  anchors: ["members = \\[", "\\[workspace\\.package\\]"]
+  series: workspace-members
