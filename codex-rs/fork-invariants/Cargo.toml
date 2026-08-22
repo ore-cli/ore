@@ -1,0 +1,25 @@
+[package]
+name = "codex-fork-invariants"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# No `[dependencies]`: the library is empty on purpose so this crate never
+# becomes a link-time dependency of anything shipped. Every invariant lives in
+# `tests/`.
+[dev-dependencies]
+codex-analytics = { workspace = true }
+codex-config = { workspace = true }
+codex-core = { workspace = true }
+codex-login = { workspace = true }
+codex-otel = { workspace = true }
+codex-plugin = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+wiremock = { workspace = true }
