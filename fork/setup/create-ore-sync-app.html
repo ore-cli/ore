@@ -1,0 +1,45 @@
+<!doctype html>
+<title>Create the ore-sync GitHub App</title>
+<style>
+  body { font: 15px/1.6 -apple-system, system-ui, sans-serif; max-width: 46rem; margin: 4rem auto; padding: 0 1.5rem; }
+  code { background: #f4f4f5; padding: .1em .35em; border-radius: 3px; }
+  button { font: inherit; padding: .6em 1.2em; cursor: pointer; }
+  li { margin: .4em 0; }
+</style>
+<h1>Create the <code>ore-sync</code> GitHub App</h1>
+<p>
+  A GitHub App cannot be created through the REST API, only through this manifest
+  flow or the web form. The button below submits the manifest in
+  <code>fork/setup/ore-sync-app.json</code>, so the permissions are exactly the ones
+  the sync workflows need and nothing more.
+</p>
+<p>After GitHub creates it:</p>
+<ol>
+  <li>Install the App on <code>ore-cli/ore</code>.</li>
+  <li>Copy the <strong>App ID</strong> into the repository secret <code>ORE_SYNC_APP_ID</code>.</li>
+  <li>Generate a private key, and paste the whole <code>.pem</code> into <code>ORE_SYNC_APP_PRIVATE_KEY</code>.</li>
+</ol>
+<p>
+  Why an App and not <code>GITHUB_TOKEN</code>: a pull request opened by
+  <code>GITHUB_TOKEN</code> does not trigger workflows, so a sync PR would arrive
+  with no CI at all — which is the one thing that must not happen to a PR nobody
+  wrote by hand.
+</p>
+<form id="f" method="post" action="https://github.com/organizations/ore-cli/settings/apps/new">
+  <input type="hidden" name="manifest" id="manifest">
+  <button type="submit">Create ore-sync on the ore-cli organization</button>
+</form>
+<p><small>
+  Not in the <code>ore-cli</code> org? Change the form action to
+  <code>https://github.com/settings/apps/new</code> to create it on your account instead.
+</small></p>
+<script>
+  fetch("ore-sync-app.json")
+    .then(r => r.json())
+    .then(m => { document.getElementById("manifest").value = JSON.stringify(m); })
+    .catch(() => {
+      document.body.insertAdjacentHTML("beforeend",
+        "<p><strong>Open this file from the repository</strong> so the manifest can be read " +
+        "(<code>cd fork/setup && python3 -m http.server</code>, then visit localhost:8000).</p>");
+    });
+</script>
