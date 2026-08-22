@@ -67,6 +67,7 @@ mod exec_server_args_tests;
 mod exec_server_auth;
 mod exec_server_command;
 mod exec_server_telemetry;
+mod fork_auth_import;
 mod fork_meta;
 mod marketplace_cmd;
 mod mcp_cmd;
@@ -1049,6 +1050,9 @@ async fn cli_main(
         .clone()
         .and_then(|path| AbsolutePathBuf::from_absolute_path(path).ok());
     reject_unsupported_worktree_for_subcommand(interactive.shared.worktree, &subcommand)?;
+    // After parse() on purpose: --help/--version/parse errors exit inside
+    // parse(), and must never create the home just to drop the import marker.
+    fork_auth_import::import_legacy_auth_once();
     // Fold --enable/--disable into config overrides so they flow to all subcommands.
     let toggle_overrides = feature_toggles.to_overrides()?;
     root_config_overrides.raw_overrides.extend(toggle_overrides);
