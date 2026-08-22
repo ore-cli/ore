@@ -294,12 +294,13 @@ fn build_runtime() -> anyhow::Result<tokio::runtime::Runtime> {
     Ok(builder.build()?)
 }
 
-const ILLEGAL_ENV_VAR_PREFIX: &str = "CODEX_";
+const ILLEGAL_ENV_VAR_PREFIXES: [&str; 2] = ["CODEX_", "ORE_"];
 
 /// Load env vars from ~/.codex/.env.
 ///
 /// Security: Do not allow `.env` files to create or modify any variables
-/// with names starting with `CODEX_`.
+/// with names starting with `CODEX_` or `ORE_`. `ORE_` matters here because
+/// `ORE_HOME` selects the directory this `.env` was just read from.
 fn load_dotenv() {
     if let Ok(codex_home) = find_codex_home()
         && let Ok(iter) = dotenvy::from_path_iter(codex_home.join(".env"))
@@ -308,13 +309,18 @@ fn load_dotenv() {
     }
 }
 
-/// Helper to set vars from a dotenvy iterator while filtering out `CODEX_` keys.
+/// Helper to set vars from a dotenvy iterator while filtering out `CODEX_` and
+/// `ORE_` keys.
 fn set_filtered<I>(iter: I)
 where
     I: IntoIterator<Item = Result<(String, String), dotenvy::Error>>,
 {
     for (key, value) in iter.into_iter().flatten() {
-        if !key.to_ascii_uppercase().starts_with(ILLEGAL_ENV_VAR_PREFIX) {
+        let key_upper = key.to_ascii_uppercase();
+        if !ILLEGAL_ENV_VAR_PREFIXES
+            .iter()
+            .any(|prefix| key_upper.starts_with(prefix))
+        {
             // It is safe to call set_var() because our process is
             // single-threaded at this point in its execution.
             unsafe { std::env::set_var(&key, &value) };
