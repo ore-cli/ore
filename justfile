@@ -207,3 +207,13 @@ log *args:
 [windows]
 log *args:
     $forwarded_args = @($args | Select-Object -Skip 1); if ($forwarded_args.Count -gt 0 -and $forwarded_args[0] -eq "--") { $forwarded_args = @($forwarded_args | Select-Object -Skip 1) }; cargo run -p codex-cli --bin logs_client -- @forwarded_args
+
+# Regenerate the onboarding animation frames from the ore crystal renderer.
+[no-cd]
+frames:
+    {{ python }} {{ justfile_directory() }}/scripts/generate-ore-frames.py
+
+# Fail if the committed animation frames no longer match the renderer.
+[no-cd]
+frames-check:
+    {{ python }} {{ justfile_directory() }}/scripts/generate-ore-frames.py --check
