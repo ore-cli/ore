@@ -66,6 +66,12 @@ engine:
     - codex-rs/core/*prompt*.md
     - codex-rs/core/src/realtime_prompt.rs
     - codex-rs/core/src/guardian/prompt.rs
+    # guardian/tests.rs asserts on guardian/prompt.rs's rendered text, and that
+    # prompt is skipped just above: its literals ("The Codex agent has requested
+    # the following action:", "Reviewed Codex session id:") are copies of the
+    # un-rebranded prompt, so rewriting them makes the tests disagree with the
+    # very text they assert against. Nothing else in the file is brand text.
+    - codex-rs/core/src/guardian/tests.rs
     - codex-rs/tui/prompt_for_init_command.md
     # A five-line README for a crate ore vendors and does not modify. Every
     # "Codex" in it names OpenAI's first-party product, and its issue-tracker
@@ -79,6 +85,21 @@ engine:
     # README in the tree.
     - README.md
     - codex-rs/chatgpt/README.md
+    # Test files whose upstream literals are fixtures: the exact bytes are the
+    # point, so rewriting them makes the assertions test themselves.
+    # info.rs: canonicalize_git_remote_url tests feed deliberately mixed-case,
+    # port and scheme variants of ONE GitHub remote and assert they all fold to
+    # a single string -- URL shapes under test, not repo coordinates. The rules
+    # rewrote them inconsistently ("openai/codex" became the fork slug while
+    # "OpenAI/Codex" and ":443/openai/codex" did not), so the variants stopped
+    # converging. Cost of the skip: one doc comment keeps "Codex".
+    - codex-rs/git-utils/src/info.rs
+    # env_detect_tests.rs: git-remote fixtures from which the tests derive the
+    # expected by-repo endpoint (".../environments/by-repo/github/openai/codex")
+    # and repo hints ("openai/codex"), shapes no URL rule rewrites; rewriting
+    # only the remote breaks the derivation. Nothing else in the file is brand
+    # text.
+    - codex-rs/cloud-tasks/src/env_detect_tests.rs
     - sdk/*
     - .codex/*
   skip_suffixes: [.png, .jpg, .jpeg, .gif, .ico, .woff, .woff2, .zip, .gz, .zst, .snap, .patch]
@@ -130,6 +151,17 @@ categories:
       pattern: '(run_command\("where", \["|run_command\("which", \["-a", ")codex"'
       replace: '\1${bin}"'
 
+    - name: sandbox-version-banner-probe
+      note: >
+        The sandboxed `--version` banner opens with the clap program name, which
+        clap-program-name rebrands, so this assertion must follow; the bare lowercase
+        literal matches no other rule. cargo_bin("codex") in the same test stays
+        upstream on purpose: the built artifact keeps its crate name.
+      files: [codex-rs/cli/tests/sandbox_cloud_config.rs]
+      rust_literals_only: false
+      pattern: 'starts_with\("codex"\)'
+      replace: 'starts_with("${bin}")'
+
   # ------------------------------------------------------- `codex <sub>` in text
   cli-command-in-text:
     - name: cli-command-in-help-text
@@ -142,6 +174,17 @@ categories:
       globs: ["codex-rs/**/*.rs", "**/*.md"]
       pattern: '`codex`'
       replace: '`${bin}`'
+
+    - name: cli-command-before-subcommand-placeholder
+      note: >
+        `codex {subcommand}` in error messages. Placeholder protection splits the
+        literal at {subcommand}, so cli-command-in-help-text's subcommand lookahead
+        can never see the word that follows; rewritten as a raw-text rule that names
+        the placeholder in the pattern instead.
+      files: [codex-rs/cli/src/main.rs]
+      rust_literals_only: false
+      pattern: '`codex \{subcommand\}`'
+      replace: '`${bin} {subcommand}`'
 
   # ------------------------------------------------------------- display strings
   display-strings:
@@ -179,6 +222,35 @@ categories:
       pattern: '\ba (ore\b)'
       replace: 'an \1'
       optional: true
+
+    - name: ui-docs-link-probe-range
+      note: >
+        chatgpt_success_message_renders_osc8_hyperlinks measures the "Codex docs"
+        hyperlink cell-by-cell -- 27 dim prefix cells, then the underlined link.
+        "ore docs" is 8 columns where "Codex docs" was 10, so the probed range
+        (27+10) and the run length shrink with it (precedent:
+        installer-ps1-prefix-length).
+      files: [codex-rs/tui/src/onboarding/auth.rs]
+      rust_literals_only: false
+      pattern: '\(0\.\.37\)'
+      replace: '(0..35)'
+
+    - name: ui-docs-link-probe-width
+      files: [codex-rs/tui/src/onboarding/auth.rs]
+      rust_literals_only: false
+      pattern: 'Modifier::UNDERLINED; 10\]'
+      replace: 'Modifier::UNDERLINED; 8]'
+
+    - name: migration-rewrite-target-fixture
+      note: >
+        external-agent-migration/src/rewrite.rs maps external-agent terms to the
+        product name (rebranded to "ore" by ui-bare-product-name), and this fixture
+        holds the expected rewritten AGENTS.md bytes. Between \n escapes the
+        escape's own "n" is a word character, so ui-bare-product-name's \bCodex\b
+        never fires on the middle occurrences; this rule covers exactly that shape.
+      files: [codex-rs/external-agent-migration/src/service_tests/general/repo_import.rs]
+      pattern: '(?<=\\n)Codex(?=\\n)'
+      replace: '${product}'
 
   # ------------------------------------------------------------------------ URLs
   urls:
