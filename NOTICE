@@ -1,5 +1,21 @@
-OpenAI Codex
-Copyright 2025 OpenAI
+ore
+Copyright 2026 ore contributors
+
+This product includes software developed by OpenAI.
+
+ore is a fork of OpenAI Codex (https://github.com/openai/codex),
+Copyright 2025 OpenAI, licensed under the Apache License, Version 2.0.
+
+Files throughout this project have been modified from the originals. The
+principal changes are the removal of all telemetry and analytics, a rebrand
+from Codex to ore, a layered configuration home (~/.ore, reading an existing
+~/.codex as a base), an independent release and versioning line, and planned
+additive support for further model providers. The complete record of changes
+is the git history of this repository.
+
+ore is not affiliated with, endorsed by, or sponsored by OpenAI. "OpenAI" and
+"Codex" are trademarks of OpenAI; their use here is nominative, to identify
+the upstream project this work derives from.
 
 This project includes code derived from [Ratatui](https://github.com/ratatui/ratatui), licensed under the MIT license.
 Copyright (c) 2016-2022 Florian Dehau
