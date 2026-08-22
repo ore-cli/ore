@@ -95,15 +95,25 @@ jobs:
       # Swatinem/rust-cache only caches a workspace-relative target directory;
       # pointing cargo back into the workspace makes the cache real.
       CARGO_TARGET_DIR: ${{ github.workspace }}/codex-rs/target
-      ASSEMBLY: ${{ runner.temp }}/assembly
-      # assemble.sh derives its report dir as <worktree parent>/assembly-out.
-      OUT_DIR: ${{ runner.temp }}/assembly-out
-      CANDIDATE: ${{ runner.temp }}/candidate
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      # The `runner` context does not exist in a job-level `env:` block, so these
+      # are derived here from $RUNNER_TEMP, which is always present in a step.
+      # GitHub rejects the whole workflow file for that -- it reports a run that
+      # fails in 0s attributed to the push, which is easy to read as a transient.
+      - name: Resolve the assembly paths
+        run: |
+          set -euo pipefail
+          {
+            echo "ASSEMBLY=$RUNNER_TEMP/assembly"
+            # assemble.sh derives its report dir as <worktree parent>/assembly-out.
+            echo "OUT_DIR=$RUNNER_TEMP/assembly-out"
+            echo "CANDIDATE=$RUNNER_TEMP/candidate"
+          } >> "$GITHUB_ENV"
 
       - name: Configure identity and fetch the upstream tag namespace
         run: |
@@ -224,7 +234,7 @@ jobs:
           rc=0
           fork/assemble.sh --tag "$TAG" --base "$BASE" \
             --delta refs/remotes/origin/delta \
-            --worktree "$ASSEMBLY" $REASSEMBLE_FLAG \
+            --worktree "$ASSEMBLY" ${REASSEMBLE_FLAG:+"$REASSEMBLE_FLAG"} \
             2>&1 | tee "$RUNNER_TEMP/assemble.log" || rc=$?
           echo "rc=$rc" >>"$GITHUB_OUTPUT"
           echo "assemble exit code: $rc"
