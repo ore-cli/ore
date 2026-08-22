@@ -1,0 +1,10 @@
+# fork/verify/allowed-fence.diff — the ONLY diff the auth fence may carry.
+#
+# auth_fence.py normalises `git diff <fork/UPSTREAM commit>..HEAD -- <fence>`
+# (index lines dropped) and requires it to equal this file byte-for-byte,
+# comments and blank lines excluded.  Stronger than a path allowlist: an
+# unexpected hunk in an ALLOWED file fails too.
+#
+# EMPTY until the wire-api series lands.  That series regenerates this file
+# with exactly its hunks in codex-rs/model-provider-info/src/lib.rs (the
+# WireApi enum extension); nothing else is ever allowed to appear here.
