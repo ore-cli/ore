@@ -88,23 +88,30 @@ pattern = 'chatgpt\.com/codex/install\.ps1'
 reason = "hosted Windows installer URL (codex-rs/tui/src/update_action.rs:61)"
 removed_by = "substitution"
 
-[[kill]]
-pattern = 'persistent\.oaistatic\.com'
-reason = "desktop-app DMG host contacted by `codex app` and doctor appcast probes (codex-rs/cli/src/desktop_app/mac.rs:9-11, codex-rs/cli/src/doctor/updates.rs:46-53); `codex app` is hidden per decision 8"
-removed_by = "series:desktop-app-off"
-pending = true
-
-[[kill]]
-pattern = '9PLM9XGG6VKS'
-reason = "MS Store product id for the Codex desktop app (codex-rs/cli/src/desktop_app/windows.rs:6-8)"
-removed_by = "series:desktop-app-off"
-pending = true
-
-[[kill]]
-pattern = 'com\.openai\.codex'
-reason = "desktop bundle id (codex-rs/cli/src/desktop_app/mac.rs:8) — but ALSO the managed-preferences application id (codex-rs/config/src/loader/macos.rs:20), which is how MDM-managed config reaches the loader; stays pending until the fork explicitly decides whether enterprise configs keyed on the upstream domain remain readable"
-removed_by = "series:desktop-app-off"
-pending = true
+# Deliberately NOT killed: the three desktop-app literals.
+#
+# Decision 8 ratified that `codex app` is HIDDEN, not deleted -- the variant
+# stays so the dispatch match and the derived subcommand list keep their
+# upstream shape, which is what keeps codex-rs/cli/src/desktop_app/** in the
+# tree and therefore its host, product id and bundle id in the binary:
+#
+#   persistent\.oaistatic\.com   desktop-app DMG host (desktop_app/mac.rs:9-11)
+#   9PLM9XGG6VKS                 MS Store product id  (desktop_app/windows.rs:6-8)
+#   com\.openai\.codex           desktop bundle id    (desktop_app/mac.rs:8)
+#
+# These were kill entries when the plan was written, before hide-vs-delete was
+# settled; a kill entry they can never satisfy is a check that only ever
+# reports noise.  The guarantee is behavioural instead, exactly as it is for
+# `/codex/analytics-events/events` under the telemetry seam: series
+# desktop-app-gate makes `ore app` bail before any network call and reports the
+# doctor appcast probe as skipped, and I-EGRESS asserts no contact with either
+# host from any flow.  Re-adding them as kill entries means deleting
+# desktop_app/**, which decision 8 declined.
+#
+# com\.openai\.codex has a second, independent reason to survive: it is also
+# the managed-preferences application id (codex-rs/config/src/loader/macos.rs:20)
+# through which MDM-managed config reaches the loader.  Whether ore should read
+# enterprise config keyed on the upstream domain is still an open question.
 
 [[kill]]
 pattern = 'github\.com/openai/plugins'
