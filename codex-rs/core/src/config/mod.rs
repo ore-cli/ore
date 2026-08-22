@@ -4317,7 +4317,10 @@ impl Config {
                 .and_then(|tui| tui.disable_paste_burst)
                 .or(cfg.disable_paste_burst)
                 .unwrap_or(false),
-            analytics_enabled: cfg.analytics.as_ref().and_then(|a| a.enabled),
+            // ore: force-off at the single config seam, so no layer (user,
+            // managed/MDM, project, profile, `-c`) can re-enable the analytics
+            // queue or the Statsig metrics gate. `[analytics]` still parses.
+            analytics_enabled: Some(false),
             feedback_enabled: cfg
                 .feedback
                 .as_ref()
