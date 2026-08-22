@@ -72,7 +72,7 @@ and fields carry over unchanged:
 | `op://ore-cli/apple-notarization/p8_base64` | `APPLE_NOTARIZATION_KEY_P8` | both notarize scripts (base64 App Store Connect `.p8` key) |
 | `op://ore-cli/apple-notarization/key_id` | `APPLE_NOTARIZATION_KEY_ID` | both notarize scripts |
 | `op://ore-cli/apple-notarization/issuer_id` | `APPLE_NOTARIZATION_ISSUER_ID` | both notarize scripts |
-| `op://ore-cli/github-homebrew-tap/credential` | `HOMEBREW_TAP_TOKEN` | checkout + push of `ore-cli/homebrew-tap` |
+| `op://ore-cli/ore-cli-github-homebrew-tap/credential` | `HOMEBREW_TAP_TOKEN` | checkout + push of `ore-cli/homebrew-tap` |
 
 Every script here answers `--help` (and validates its arguments) without any secret set;
 missing credentials fail loudly at run time, never silently skip.
