@@ -92,6 +92,8 @@ use codex_model_provider::ProviderCapabilities;
 use codex_model_provider_info::LEGACY_OLLAMA_CHAT_PROVIDER_ID;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::OLLAMA_CHAT_PROVIDER_REMOVED_ERROR;
+use codex_model_provider::ANTHROPIC_PROVIDER_ID;
+use codex_model_provider::create_anthropic_provider;
 use codex_model_provider_info::built_in_model_providers;
 use codex_model_provider_info::merge_configured_model_providers;
 use codex_models_manager::ModelsManagerConfig;
@@ -3715,9 +3717,21 @@ impl Config {
             .clone()
             .filter(|value| !value.is_empty());
 
-        let model_providers =
-            merge_configured_model_providers(built_in_model_providers(openai_base_url), cfg.model_providers)
-                .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidData, message))?;
+        let mut built_in = built_in_model_providers(openai_base_url);
+        // ore: Anthropic is a built-in, because bring-your-own-provider is why this
+        // fork exists -- `model_provider = "anthropic"` plus ANTHROPIC_API_KEY should
+        // just work. Registered only when the user has not defined the id themselves:
+        // merge_configured_model_providers resolves collisions with `or_insert`, so a
+        // built-in would otherwise silently outrank the user's own table and quietly
+        // ignore a custom base_url.
+        if !cfg.model_providers.contains_key(ANTHROPIC_PROVIDER_ID) {
+            built_in.insert(
+                ANTHROPIC_PROVIDER_ID.to_string(),
+                create_anthropic_provider(/*base_url*/ None),
+            );
+        }
+        let model_providers = merge_configured_model_providers(built_in, cfg.model_providers)
+            .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidData, message))?;
 
         let model_provider_id = model_provider
             .or(cfg.model_provider)
