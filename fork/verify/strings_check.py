@@ -107,6 +107,9 @@ class Lists:
         self.forbid = data.get("forbid", [])
         allow = data.get("source_allow", {})
         self.allow_res = [glob_to_re(p) for p in allow.get("paths", [])]
+        self.forbid_allow_res = [
+            [glob_to_re(p) for p in e.get("source_allow_paths", [])] for e in self.forbid
+        ]
         self.allow_prefixes = [p.encode() for p in allow.get("literal_prefixes", [])]
         self.allow_literals = [l.encode() for l in allow.get("literals", [])]
         for section, entries in (("kill", self.kill), ("keep", self.keep), ("forbid", self.forbid)):
@@ -198,9 +201,15 @@ def scan_blob(data: bytes, where: str, lists: Lists, *, rel: str | None,
         if rel is not None and lists.match_is_allowed_token(data, m.start(), m.end()):
             continue
         kill_hits.setdefault(idx, []).append(where)
-    for entry, rx in zip(lists.forbid, lists.forbid_res):
-        if rx.search(data):
-            rep.fails.append(f"forbid '{entry['pattern']}' present in {where} ({entry['reason']})")
+    for entry, rx, allow_res in zip(lists.forbid, lists.forbid_res, lists.forbid_allow_res):
+        if not rx.search(data):
+            continue
+        # A forbid entry may name paths where the literal is documentation rather
+        # than behaviour -- a host a user visits in a browser is not a host the
+        # binary contacts. Binary scans pass rel=None and so are never exempt.
+        if rel is not None and any(r.match(rel) for r in allow_res):
+            continue
+        rep.fails.append(f"forbid '{entry['pattern']}' present in {where} ({entry['reason']})")
 
 
 def run_tree(root: Path, lists: Lists, assembled: bool, rep: Report) -> None:
