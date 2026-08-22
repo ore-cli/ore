@@ -1,0 +1,109 @@
+# ore-sync-finalize: land an approved sync PR by fast-forward.
+#
+# fork/assemble.sh already wrote the real merge commit M, with parents
+# (previous main, upstream tag commit); main must move to EXACTLY that commit.
+# The GitHub merge button would mint a fresh merge with different parents --
+# breaking main's append-only merge spine and `git log --first-parent` -- so
+# landing is a plain fast-forward push of M, after which delta advances to the
+# rebased series and the temporary branches are deleted. Every push goes
+# through safe_push() and its allowlist.
+#
+# Fires on an approving review of a `sync`-labelled PR from a sync/<tag>
+# branch of this repository, and only when the reviewer has repo standing
+# (owner/member/collaborator): on a public repository ANYONE can submit an
+# approving review. Pushes authenticate as the ore-sync GitHub App because a
+# GITHUB_TOKEN push to main/delta would not trigger ore-ci's push checks.
+name: ore-sync-finalize
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+# Shared with ore-sync.yml: a finalize must never interleave with a sync.
+concurrency:
+  group: ore-sync
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  finalize:
+    name: finalize
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.state == 'open' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'sync/') &&
+      contains(github.event.pull_request.labels.*.name, 'sync') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Mint the ore-sync App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
+          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      # ref: main, not the PR merge ref -- the job only needs the object
+      # database plus origin/* refs, and a merge ref does not exist when the
+      # PR conflicts.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fast-forward main, advance delta, drop the temp branches
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          M: ${{ github.event.pull_request.head.sha }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          tag="${HEAD_REF#sync/}"
+
+          # A second approval after finalize already ran: nothing to do.
+          if git merge-base --is-ancestor "$M" refs/remotes/origin/main 2>/dev/null; then
+            echo "already finalized: main contains $M"
+            exit 0
+          fi
+
+          # The approval reviewed M; refuse anything that moved since.
+          if ! cur="$(git rev-parse --verify --quiet "refs/remotes/origin/$HEAD_REF")"; then
+            echo "::error::$HEAD_REF no longer exists on origin and main does not contain $M"
+            exit 1
+          fi
+          if [ "$cur" != "$M" ]; then
+            echo "::error::$HEAD_REF moved since the approved review ($M -> $cur); re-review and re-approve"
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor refs/remotes/origin/main "$M"; then
+            echo "::error::origin/main is not an ancestor of $M -- the candidate was built against an older main; close this PR and re-run ore-sync"
+            exit 1
+          fi
+
+          delta_new="$(git rev-parse --verify --quiet "refs/remotes/origin/sync-delta/$tag")" \
+            || { echo "::error::sync-delta/$tag does not exist on origin"; exit 1; }
+
+          . fork/lib.sh
+          # Push credentials exist only in this step's environment.
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+
+          # No force flag: git refuses anything but a fast-forward here.
+          safe_push "$M:refs/heads/main"
+
+          # Give GitHub a moment to notice that main now contains the head
+          # commit and mark the PR merged before its head branch disappears.
+          sleep 20
+
+          safe_push --force-with-lease "$delta_new:refs/heads/delta"
+          safe_push --delete "refs/heads/sync/$tag" "refs/heads/sync-delta/$tag"
+
+          echo "finalized: main -> $M; delta -> $delta_new" | tee -a "$GITHUB_STEP_SUMMARY"
