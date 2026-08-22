@@ -298,10 +298,20 @@ fn install_method_from_exe(
     }
 
     if is_macos && (exe_path.starts_with("/opt/homebrew") || exe_path.starts_with("/usr/local")) {
-        InstallMethod::Brew
-    } else {
-        InstallMethod::Other
+        return InstallMethod::Brew;
     }
+
+    // The tap serves Linux too. Its prefix is a `.linuxbrew` directory --
+    // /home/linuxbrew shared, ~/.linuxbrew per-user -- and never /usr/local,
+    // so the macOS prefixes cannot just be reused here.
+    if exe_path
+        .components()
+        .any(|component| component.as_os_str() == ".linuxbrew")
+    {
+        return InstallMethod::Brew;
+    }
+
+    InstallMethod::Other
 }
 
 fn standalone_install_method(
@@ -896,5 +906,35 @@ mod tests {
                 package_layout: None,
             }
         );
+    }
+
+    /// The tap ships Linux archives, and a Linux brew install classified as
+    /// `Other` is sent to the generic install page instead of `brew upgrade`.
+    #[test]
+    fn brew_is_detected_on_linux_prefixes() {
+        for exe in [
+            "/home/linuxbrew/.linuxbrew/bin/codex",
+            "/home/user/.linuxbrew/bin/codex",
+        ] {
+            let context = InstallContext::from_exe_with_codex_home(
+                /*is_macos*/ false,
+                /*current_exe*/ Some(Path::new(exe)),
+                /*method_override*/ None,
+                /*codex_home*/ None,
+            );
+            assert_eq!(InstallMethod::Brew, context.method, "{exe}");
+        }
+    }
+
+    /// /usr/local is a Homebrew prefix on macOS and an ordinary one elsewhere.
+    #[test]
+    fn usr_local_is_not_brew_off_macos() {
+        let context = InstallContext::from_exe_with_codex_home(
+            /*is_macos*/ false,
+            /*current_exe*/ Some(Path::new("/usr/local/bin/codex")),
+            /*method_override*/ None,
+            /*codex_home*/ None,
+        );
+        assert_eq!(InstallMethod::Other, context.method);
     }
 }

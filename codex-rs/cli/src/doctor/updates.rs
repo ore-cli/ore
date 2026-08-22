@@ -441,9 +441,11 @@ fn update_action_label(context: &InstallContext) -> &'static str {
 }
 
 fn fetch_latest_version(context: &InstallContext) -> Result<String, String> {
+    // The tap formula is invisible to formulae.brew.sh, which indexes only
+    // homebrew-core, so Brew reads the release feed like everything else.
     match &context.method {
-        InstallMethod::Brew => fetch_homebrew_cask_version(),
-        InstallMethod::Npm
+        InstallMethod::Brew
+        | InstallMethod::Npm
         | InstallMethod::Bun
         | InstallMethod::VitePlus
         | InstallMethod::Pnpm
@@ -465,15 +467,6 @@ fn fetch_latest_github_release_version() -> Result<String, String> {
         .ok_or_else(|| format!("failed to parse latest tag {}", info.tag_name))
 }
 
-fn fetch_homebrew_cask_version() -> Result<String, String> {
-    #[derive(Deserialize)]
-    struct HomebrewCaskInfo {
-        version: String,
-    }
-
-    http_get_json::<HomebrewCaskInfo>(HOMEBREW_CASK_API_URL).map(|info| info.version)
-}
-
 fn http_get_json<T>(url: &str) -> Result<T, String>
 where
     T: for<'de> Deserialize<'de>,
@@ -483,18 +476,39 @@ where
 }
 
 fn is_newer(latest: &str, current: &str) -> Option<bool> {
-    match (parse_version(latest), parse_version(current)) {
-        (Some(latest), Some(current)) => Some(latest > current),
-        (Some(_), None) | (None, Some(_)) | (None, None) => None,
-    }
+    let latest = parse_version(latest)?;
+    let current = parse_version(current)?;
+    // releases/latest never resolves to a prerelease, and one is not an upgrade
+    // to offer even if it did.
+    Some(latest.is_release && latest > current)
 }
 
-fn parse_version(value: &str) -> Option<(u64, u64, u64)> {
-    let mut parts = value.trim().split('.');
-    let major = parts.next()?.parse::<u64>().ok()?;
-    let minor = parts.next()?.parse::<u64>().ok()?;
-    let patch = parts.next()?.parse::<u64>().ok()?;
-    Some((major, minor, patch))
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct Version {
+    major: u64,
+    minor: u64,
+    patch: u64,
+    /// Last, so the derived ordering puts a prerelease below the release it
+    /// precedes: 0.147.0-alpha.4 < 0.147.0.
+    is_release: bool,
+}
+
+/// Semver precedence, narrowed to the shapes ore's tags produce. Everything
+/// after the first `-` is a prerelease marker and is not ordered further:
+/// upgrades are only ever offered *to* a release.
+fn parse_version(value: &str) -> Option<Version> {
+    let value = value.trim();
+    let (core, is_release) = match value.split_once('-') {
+        Some((core, _)) => (core, false),
+        None => (value, true),
+    };
+    let mut parts = core.split('.');
+    Some(Version {
+        major: parts.next()?.parse().ok()?,
+        minor: parts.next()?.parse().ok()?,
+        patch: parts.next()?.parse().ok()?,
+        is_release,
+    })
 }
 
 #[derive(Deserialize)]
@@ -625,7 +639,16 @@ mod tests {
     fn is_newer_compares_plain_semver() {
         assert_eq!(is_newer("1.2.4", "1.2.3"), Some(true));
         assert_eq!(is_newer("1.2.3", "1.2.4"), Some(false));
-        assert_eq!(is_newer("1.2.3-beta.1", "1.2.2"), None);
+        assert_eq!(is_newer("1.2.3-beta.1", "1.2.2"), Some(false));
+        assert_eq!(is_newer("nightly", "1.2.3"), None);
+    }
+
+    /// The version a prerelease install reports has to compare, or doctor
+    /// reports it as up to date forever.
+    #[test]
+    fn a_prerelease_install_still_gets_offered_releases() {
+        assert_eq!(is_newer("0.146.1", "0.146.0-alpha.4"), Some(true));
+        assert_eq!(is_newer("0.147.0", "0.147.0-alpha.4.1"), Some(true));
     }
 
     #[test]

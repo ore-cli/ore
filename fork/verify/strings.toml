@@ -77,7 +77,6 @@ removed_by = "substitution"
 pattern = 'formulae\.brew\.sh/api/cask/codex\.json'
 reason = "upstream Homebrew cask probe (codex-rs/tui/src/updates.rs:61, codex-rs/cli/src/doctor/updates.rs:44); ore ships a tap formula (decision 6), so the cask check is rewritten by the updates series"
 removed_by = "series:updates-ore-feed"
-pending = true
 
 [[kill]]
 pattern = 'chatgpt\.com/codex/install\.sh'
