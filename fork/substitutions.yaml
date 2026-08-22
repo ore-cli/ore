@@ -72,6 +72,12 @@ engine:
     # link is correct as written: bugs in this crate do belong upstream.
     # Rebranding it produced a sentence that claimed OpenAI maintains ore's
     # fork while pointing users at ore's tracker -- false in both directions.
+    # The fork's OWN README, and the one file whose job includes naming upstream
+    # correctly. The rebrand turned "a fork of OpenAI Codex" into "a fork of ore"
+    # and repointed the attribution link at ore itself. Listed here rather than in
+    # skip_files because that matches by basename and would exempt every upstream
+    # README in the tree.
+    - README.md
     - codex-rs/chatgpt/README.md
     - sdk/*
     - .codex/*
