@@ -691,7 +691,7 @@ async fn bedrock_unauthorized_error_uses_provider_mapping() {
     assert_eq!(
         error.to_string(),
         format!(
-            "Amazon Bedrock rejected the request because its AWS signature has expired. Refresh your AWS credentials and retry. If `AWS_BEARER_TOKEN_BEDROCK` is set, update or unset it, then restart ore, url: {url}"
+            "Amazon Bedrock rejected the request because its AWS signature has expired. Refresh your AWS credentials and retry. If `AWS_BEARER_TOKEN_BEDROCK` is set, update or unset it, then restart Ore, url: {url}"
         )
     );
 }

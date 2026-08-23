@@ -101,7 +101,7 @@
       "description": "Analytics settings loaded from config.toml. Fields are optional so we can apply defaults.",
       "properties": {
         "enabled": {
-          "description": "When `false`, disables analytics across ore product surfaces in this profile.",
+          "description": "When `false`, disables analytics across Ore product surfaces in this profile.",
           "type": "boolean"
         }
       },
@@ -137,7 +137,7 @@
         },
         "enabled": {
           "default": true,
-          "description": "When `false`, ore does not surface this app.",
+          "description": "When `false`, Ore does not surface this app.",
           "type": "boolean"
         },
         "open_world_enabled": {
@@ -253,7 +253,7 @@
       "type": "object"
     },
     "AskForApproval": {
-      "description": "Determines the conditions under which the user is consulted to approve running the command proposed by ore.",
+      "description": "Determines the conditions under which the user is consulted to approve running the command proposed by Ore.",
       "oneOf": [
         {
           "description": "The model decides when to ask the user for approval.",
@@ -285,7 +285,7 @@
       ]
     },
     "AuthCredentialsStoreMode": {
-      "description": "Determine where ore should store CLI auth credentials.",
+      "description": "Determine where Ore should store CLI auth credentials.",
       "oneOf": [
         {
           "description": "Persist credentials in CODEX_HOME/auth.json.",
@@ -1004,7 +1004,7 @@
     },
     "ExternalConfigMigrationPrompts": {
       "additionalProperties": false,
-      "description": "Settings for notices we display to users via the tui and app-server clients (primarily the ore IDE extension). NOTE: these are different from notifications - notices are warnings, NUX screens, acknowledgements, etc.",
+      "description": "Settings for notices we display to users via the tui and app-server clients (primarily the Ore IDE extension). NOTE: these are different from notifications - notices are warnings, NUX screens, acknowledgements, etc.",
       "properties": {
         "home": {
           "description": "Tracks whether home-level external config migration prompts are hidden.",
@@ -1129,7 +1129,7 @@
       "additionalProperties": false,
       "properties": {
         "enabled": {
-          "description": "When `false`, disables the feedback flow across ore product surfaces.",
+          "description": "When `false`, disables the feedback flow across Ore product surfaces.",
           "type": "boolean"
         }
       },
@@ -1653,12 +1653,12 @@
       "properties": {
         "last_revision": {
           "default": null,
-          "description": "Git revision ore last successfully activated for this marketplace.",
+          "description": "Git revision Ore last successfully activated for this marketplace.",
           "type": "string"
         },
         "last_updated": {
           "default": null,
-          "description": "Last time ore successfully added or refreshed this marketplace.",
+          "description": "Last time Ore successfully added or refreshed this marketplace.",
           "type": "string"
         },
         "ref": {
@@ -1715,7 +1715,7 @@
       "type": "object"
     },
     "McpServerAuth": {
-      "description": "Authentication flow ore attempts after resolving an HTTP MCP server's configured bearer token and authorization headers, which always take precedence. ChatGPT authentication falls back to stored OAuth credentials when its session provider is unavailable; both modes ultimately fall back to an unauthenticated connection.",
+      "description": "Authentication flow Ore attempts after resolving an HTTP MCP server's configured bearer token and authorization headers, which always take precedence. ChatGPT authentication falls back to stored OAuth credentials when its session provider is unavailable; both modes ultimately fall back to an unauthenticated connection.",
       "oneOf": [
         {
           "description": "Use stored MCP OAuth credentials when available. Starting an OAuth login is a separate operation.",
@@ -1757,10 +1757,10 @@
     },
     "McpServerOAuthConfig": {
       "additionalProperties": false,
-      "description": "OAuth client settings used when ore launches an MCP OAuth flow.",
+      "description": "OAuth client settings used when Ore launches an MCP OAuth flow.",
       "properties": {
         "callback_port": {
-          "description": "Fixed callback port that takes precedence over ore's global OAuth callback port.",
+          "description": "Fixed callback port that takes precedence over Ore's global OAuth callback port.",
           "format": "uint16",
           "minimum": 0.0,
           "type": "integer"
@@ -1836,7 +1836,7 @@
           "type": "integer"
         },
         "min_rate_limit_remaining_percent": {
-          "description": "Minimum remaining percentage required in ore rate-limit windows before memory startup runs.",
+          "description": "Minimum remaining percentage required in Ore rate-limit windows before memory startup runs.",
           "format": "int64",
           "maximum": 100.0,
           "minimum": 0.0,
@@ -2401,7 +2401,7 @@
           "description": "Tracks scopes where external config migration prompts should be suppressed."
         },
         "fast_default_opt_out": {
-          "description": "Tracks whether the user opted out of ore-managed fast defaults.",
+          "description": "Tracks whether the user opted out of Ore-managed fast defaults.",
           "type": "boolean"
         },
         "hide_full_access_warning": {
@@ -2475,17 +2475,17 @@
       ]
     },
     "OAuthCredentialsStoreMode": {
-      "description": "Determine where ore should store and read MCP credentials.",
+      "description": "Determine where Ore should store and read MCP credentials.",
       "oneOf": [
         {
-          "description": "Prefer `Keyring` and use `File` when keyring storage is unavailable. Once an MCP client loads credentials from one store, that client keeps the resolved store for its lifetime so refreshes cannot switch to a possibly stale credential source. Credentials stored in the keyring will only be readable by ore unless the user explicitly grants access via OS-level keyring access.",
+          "description": "Prefer `Keyring` and use `File` when keyring storage is unavailable. Once an MCP client loads credentials from one store, that client keeps the resolved store for its lifetime so refreshes cannot switch to a possibly stale credential source. Credentials stored in the keyring will only be readable by Ore unless the user explicitly grants access via OS-level keyring access.",
           "enum": [
             "auto"
           ],
           "type": "string"
         },
         {
-          "description": "CODEX_HOME/.credentials.json This file will be readable to ore and other applications running as the same user.",
+          "description": "CODEX_HOME/.credentials.json This file will be readable to Ore and other applications running as the same user.",
           "enum": [
             "file"
           ],
@@ -2770,7 +2770,7 @@
         },
         "enabled": {
           "default": true,
-          "description": "When `false`, ore skips initializing this plugin MCP server.",
+          "description": "When `false`, Ore skips initializing this plugin MCP server.",
           "type": "boolean"
         },
         "enabled_tools": {
@@ -3081,7 +3081,7 @@
       "description": "Working directory to use when resuming or forking a session.",
       "oneOf": [
         {
-          "description": "Use the directory where ore was launched.",
+          "description": "Use the directory where Ore was launched.",
           "enum": [
             "current"
           ],
@@ -3757,7 +3757,7 @@
         },
         "terminal_resize_reflow_max_rows": {
           "default": null,
-          "description": "Trim terminal resize-reflow replay to the most recent rendered terminal rows when the transcript exceeds this cap. Omit to use ore's terminal-specific default. Set to `0` to keep all rendered rows.",
+          "description": "Trim terminal resize-reflow replay to the most recent rendered terminal rows when the transcript exceeds this cap. Omit to use Ore's terminal-specific default. Set to `0` to keep all rendered rows.",
           "format": "uint",
           "minimum": 0.0,
           "type": "integer"
@@ -5226,7 +5226,7 @@
           "$ref": "#/definitions/AnalyticsConfigToml"
         }
       ],
-      "description": "When `false`, disables analytics across ore product surfaces in this machine. Defaults to `true`."
+      "description": "When `false`, disables analytics across Ore product surfaces in this machine. Defaults to `true`."
     },
     "approval_policy": {
       "allOf": [
@@ -5286,7 +5286,7 @@
       "type": "string"
     },
     "check_for_update_on_startup": {
-      "description": "When `true`, checks for ore updates on startup and surfaces update prompts. Set to `false` only if your ore updates are centrally managed. Defaults to `true`.",
+      "description": "When `true`, checks for Ore updates on startup and surfaces update prompts. Set to `false` only if your Ore updates are centrally managed. Defaults to `true`.",
       "type": "boolean"
     },
     "cli_auth_credentials_store": {
@@ -5296,7 +5296,7 @@
         }
       ],
       "default": null,
-      "description": "Preferred backend for storing CLI auth credentials. file (default): Use a file in the ore home directory. keyring: Use an OS-specific keyring service. auto: Use the keyring if available, otherwise use a file."
+      "description": "Preferred backend for storing CLI auth credentials. file (default): Use a file in the Ore home directory. keyring: Use an OS-specific keyring service. auto: Use the keyring if available, otherwise use a file."
     },
     "compact_prompt": {
       "description": "Compact prompt used for history compaction.",
@@ -5773,7 +5773,7 @@
           "$ref": "#/definitions/FeedbackConfigToml"
         }
       ],
-      "description": "When `false`, disables feedback collection across ore product surfaces. Defaults to `true`."
+      "description": "When `false`, disables feedback collection across Ore product surfaces. Defaults to `true`."
     },
     "file_opener": {
       "allOf": [
@@ -5869,7 +5869,7 @@
           "$ref": "#/definitions/AbsolutePathBuf"
         }
       ],
-      "description": "Directory where ore writes log files. Setting this value explicitly also enables the TUI text log in this directory. Defaults to `$CODEX_HOME/log`."
+      "description": "Directory where Ore writes log files. Setting this value explicitly also enables the TUI text log in this directory. Defaults to `$CODEX_HOME/log`."
     },
     "marketplaces": {
       "additionalProperties": {
@@ -5880,7 +5880,7 @@
       "type": "object"
     },
     "mcp_oauth_callback_port": {
-      "description": "Optional fixed port for the local HTTP callback server used during MCP OAuth login. When unset, ore will bind to an ephemeral port chosen by the OS.",
+      "description": "Optional fixed port for the local HTTP callback server used during MCP OAuth login. When unset, Ore will bind to an ephemeral port chosen by the OS.",
       "format": "uint16",
       "minimum": 0.0,
       "type": "integer"
@@ -5896,14 +5896,14 @@
         }
       ],
       "default": null,
-      "description": "Preferred backend for storing MCP OAuth credentials. keyring: Use an OS-specific keyring service. https://github.com/ore-cli/ore/blob/main/codex-rs/rmcp-client/src/oauth.rs#L2 file: Use a file in the ore home directory. auto (default): Use the OS-specific keyring service if available, otherwise use a file."
+      "description": "Preferred backend for storing MCP OAuth credentials. keyring: Use an OS-specific keyring service. https://github.com/ore-cli/ore/blob/main/codex-rs/rmcp-client/src/oauth.rs#L2 file: Use a file in the Ore home directory. auto (default): Use the OS-specific keyring service if available, otherwise use a file."
     },
     "mcp_servers": {
       "additionalProperties": {
         "$ref": "#/definitions/RawMcpServerConfig"
       },
       "default": {},
-      "description": "Definition for MCP servers that ore can reach out to for tool calls.",
+      "description": "Definition for MCP servers that Ore can reach out to for tool calls.",
       "type": "object"
     },
     "memories": {
@@ -5950,7 +5950,7 @@
           "$ref": "#/definitions/AbsolutePathBuf"
         }
       ],
-      "description": "Optional path to a file containing model instructions that will override the built-in instructions for the selected model. Users are STRONGLY DISCOURAGED from using this field, as deviating from the instructions sanctioned by ore will likely degrade model performance."
+      "description": "Optional path to a file containing model instructions that will override the built-in instructions for the selected model. Users are STRONGLY DISCOURAGED from using this field, as deviating from the instructions sanctioned by Ore will likely degrade model performance."
     },
     "model_provider": {
       "description": "Provider to use from the model_providers map.",
@@ -6161,7 +6161,7 @@
           "$ref": "#/definitions/AbsolutePathBuf"
         }
       ],
-      "description": "Directory where ore stores the SQLite state DB. Defaults to `$CODEX_SQLITE_HOME` when set. Otherwise uses `$CODEX_HOME`."
+      "description": "Directory where Ore stores the SQLite state DB. Defaults to `$CODEX_SQLITE_HOME` when set. Otherwise uses `$CODEX_HOME`."
     },
     "suppress_unstable_features_warning": {
       "description": "Suppress warnings about unstable (under development) features.",

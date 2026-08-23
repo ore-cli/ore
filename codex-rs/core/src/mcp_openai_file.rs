@@ -1,4 +1,4 @@
-//! Bridges Apps SDK-style `openai/fileParams` metadata into ore's MCP flow.
+//! Bridges Apps SDK-style `openai/fileParams` metadata into Ore's MCP flow.
 //!
 //! Strategy:
 //! - Inspect `_meta["openai/fileParams"]` to discover which tool arguments are

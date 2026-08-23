@@ -3,7 +3,7 @@ source: tui/src/keymap_setup.rs
 expression: "render_debug(&view, 80)"
 ---
 Keypress Inspector
-Press any key to see what ore receives. Esc is inspected; Ctrl+C closes.
-Tip: ore can only inspect keys your terminal sends.
+Press any key to see what Ore receives. Esc is inspected; Ctrl+C closes.
+Tip: Ore can only inspect keys your terminal sends.
 
 Waiting for a keypress...

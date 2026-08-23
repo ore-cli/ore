@@ -70,7 +70,7 @@ pub struct OtelTlsConfig {
 #[derive(Clone, Debug)]
 pub enum OtelExporter {
     None,
-    /// Statsig metrics ingestion exporter using ore-internal defaults.
+    /// Statsig metrics ingestion exporter using Ore-internal defaults.
     ///
     /// This is intended for metrics only.
     Statsig,

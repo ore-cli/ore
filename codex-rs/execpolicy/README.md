@@ -45,7 +45,7 @@ host_executable(
 
 ## CLI
 
-- From the ore CLI, run `ore execpolicy check` subcommand with one or more policy files (for example `src/default.rules`) to check a command:
+- From the Ore CLI, run `ore execpolicy check` subcommand with one or more policy files (for example `src/default.rules`) to check a command:
 
 ```bash
 ore execpolicy check --rules path/to/policy.rules git status

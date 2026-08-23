@@ -67,17 +67,17 @@ fn version_skew_binaries() -> Result<Option<(PathBuf, PathBuf)>> {
         return Ok(None);
     };
     let current = std::env::var_os(CURRENT_CODEX_ENV_VAR)
-        .with_context(|| format!("{CURRENT_CODEX_ENV_VAR} must name the current ore binary"))?;
+        .with_context(|| format!("{CURRENT_CODEX_ENV_VAR} must name the current Ore binary"))?;
     let current = PathBuf::from(current);
     let released = PathBuf::from(released);
     anyhow::ensure!(
         current.is_file(),
-        "current ore does not exist: {}",
+        "current Ore does not exist: {}",
         current.display()
     );
     anyhow::ensure!(
         released.is_file(),
-        "released ore does not exist: {}",
+        "released Ore does not exist: {}",
         released.display()
     );
     Ok(Some((current, released)))

@@ -69,7 +69,7 @@ pub struct PluginHookSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PluginTelemetryMetadata {
-    /// Local plugin identifier used by ore configuration and the plugin cache,
+    /// Local plugin identifier used by Ore configuration and the plugin cache,
     /// when it has been resolved.
     pub plugin_id: Option<PluginId>,
     /// Optional backend identifier for remote plugins.

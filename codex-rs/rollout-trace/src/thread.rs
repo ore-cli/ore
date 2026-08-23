@@ -100,7 +100,7 @@ impl ThreadTraceContext {
 
     /// Starts a root thread trace from `CODEX_ROLLOUT_TRACE_ROOT`, or disables tracing.
     ///
-    /// Trace startup is best-effort. A tracing failure must not make the ore
+    /// Trace startup is best-effort. A tracing failure must not make the Ore
     /// session unusable, because traces are diagnostic and can be enabled while
     /// debugging unrelated production failures.
     pub fn start_root_or_disabled(metadata: ThreadStartedTraceMetadata) -> Self {
@@ -213,7 +213,7 @@ impl ThreadTraceContext {
         });
     }
 
-    /// Emits typed ore turn lifecycle events from protocol lifecycle events.
+    /// Emits typed Ore turn lifecycle events from protocol lifecycle events.
     pub fn record_codex_turn_event(&self, default_turn_id: &str, event: &EventMsg) {
         let ThreadTraceContextState::Enabled(context) = &self.state else {
             return;
@@ -233,7 +233,7 @@ impl ThreadTraceContext {
     ///
     /// These events are runtime observations on an already-dispatched tool. The
     /// dispatch trace records the caller-facing boundary; these payloads explain
-    /// what ore did while executing that boundary.
+    /// what Ore did while executing that boundary.
     pub fn record_tool_call_event(&self, codex_turn_id: impl Into<CodexTurnId>, event: &EventMsg) {
         let ThreadTraceContextState::Enabled(context) = &self.state else {
             return;
@@ -349,7 +349,7 @@ impl ThreadTraceContext {
         ToolDispatchTraceContext::start(Arc::clone(&context.writer), invocation)
     }
 
-    /// Builds reusable inference trace context for one ore turn.
+    /// Builds reusable inference trace context for one Ore turn.
     ///
     /// The returned context is intentionally not "an inference call" yet.
     /// Transport code owns retry/fallback attempts and calls `start_attempt`

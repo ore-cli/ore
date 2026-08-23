@@ -159,7 +159,7 @@ pub(crate) fn reexec_managed_updater(managed_codex_bin: &std::path::Path) -> Res
         .exec();
     Err(err).with_context(|| {
         format!(
-            "failed to replace updater with managed ore binary {}",
+            "failed to replace updater with managed Ore binary {}",
             managed_codex_bin.display()
         )
     })
@@ -175,25 +175,25 @@ async fn install_latest_standalone(http: &RouteAwareClientPool) -> Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .context("failed to invoke standalone ore updater")?;
+        .context("failed to invoke standalone Ore updater")?;
     let mut stdin = child
         .stdin
         .take()
-        .context("standalone ore updater stdin was unavailable")?;
+        .context("standalone Ore updater stdin was unavailable")?;
     stdin
         .write_all(&script)
         .await
-        .context("failed to pass standalone ore updater to shell")?;
+        .context("failed to pass standalone Ore updater to shell")?;
     drop(stdin);
     let status = child
         .wait()
         .await
-        .context("failed to wait for standalone ore updater")?;
+        .context("failed to wait for standalone Ore updater")?;
 
     if status.success() {
         Ok(())
     } else {
-        anyhow::bail!("standalone ore updater exited with status {status}")
+        anyhow::bail!("standalone Ore updater exited with status {status}")
     }
 }
 
@@ -202,7 +202,7 @@ async fn fetch_installer_script(http: &impl InstallerHttp) -> Result<Vec<u8>> {
     match http.get(INSTALL_URL).await? {
         InstallerResponse::Success(body) => Ok(body),
         InstallerResponse::Unsuccessful { status } => {
-            anyhow::bail!("standalone ore updater request failed with status {status}")
+            anyhow::bail!("standalone Ore updater request failed with status {status}")
         }
     }
 }
@@ -232,7 +232,7 @@ impl InstallerHttp for RouteAwareClientPool {
         let response = RouteAwareClientPool::get(self, url)
             .send()
             .await
-            .context("failed to fetch standalone ore updater")?;
+            .context("failed to fetch standalone Ore updater")?;
         if !response.status().is_success() {
             return Ok(InstallerResponse::Unsuccessful {
                 status: response.status().as_u16(),
@@ -241,7 +241,7 @@ impl InstallerHttp for RouteAwareClientPool {
         let body = response
             .bytes()
             .await
-            .context("failed to read standalone ore updater")?
+            .context("failed to read standalone Ore updater")?
             .to_vec();
         Ok(InstallerResponse::Success(body))
     }

@@ -35,15 +35,15 @@ impl RewriteProfile {
         self.case_sensitive_term_variants
     }
 
-    /// Rewrites source-specific documentation names and product terms to their ore forms.
+    /// Rewrites source-specific documentation names and product terms to their Ore forms.
     pub fn rewrite(self, content: &str) -> String {
         let mut rewritten =
             replace_case_insensitive_with_boundaries(content, self.doc_file_name, "AGENTS.md");
         for from in self.term_variants {
-            rewritten = replace_case_insensitive_with_boundaries(&rewritten, from, "ore");
+            rewritten = replace_case_insensitive_with_boundaries(&rewritten, from, "Ore");
         }
         for from in self.case_sensitive_term_variants {
-            rewritten = replace_with_boundaries(&rewritten, from, "ore");
+            rewritten = replace_with_boundaries(&rewritten, from, "Ore");
         }
         rewritten
     }

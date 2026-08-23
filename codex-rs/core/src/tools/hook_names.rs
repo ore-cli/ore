@@ -28,7 +28,7 @@ impl HookToolName {
     /// Returns the hook identity for file edits performed through `apply_patch`.
     ///
     /// The serialized name remains `apply_patch` so logs and policies can key
-    /// off the actual ore tool. `Write` and `Edit` are accepted as matcher
+    /// off the actual Ore tool. `Write` and `Edit` are accepted as matcher
     /// aliases for compatibility with hook configurations that describe edits
     /// using Claude Code-style names.
     pub(crate) fn apply_patch() -> Self {

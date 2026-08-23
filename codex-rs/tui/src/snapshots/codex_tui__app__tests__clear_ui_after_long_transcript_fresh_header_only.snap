@@ -3,7 +3,7 @@ source: tui/src/app/tests.rs
 expression: rendered
 ---
 ╭─────────────────────────────────────────────╮
-│ >_ ore (v<VERSION>)                         │
+│ >_ Ore (v<VERSION>)                         │
 │                                             │
 │ model:     gpt-test high   /model to change │
 │ directory: /tmp/project                     │

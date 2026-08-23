@@ -27,7 +27,7 @@ const OPEN_IDE_HINT: &str =
 #[cfg(any(unix, windows))]
 const IDE_DID_NOT_PROVIDE_CONTEXT_HINT: &str = "The IDE extension did not provide context.";
 #[cfg(any(unix, windows))]
-const KEEP_TRYING_HINT: &str = "ore will keep trying on future messages.";
+const KEEP_TRYING_HINT: &str = "Ore will keep trying on future messages.";
 
 #[derive(Debug, Error)]
 pub(crate) enum IdeContextError {
@@ -69,10 +69,10 @@ impl IdeContextError {
                 "The selected IDE context is too large. Clear any large selection in your IDE and try /ide again.".to_string()
             }
             IdeContextError::Send(_) => {
-                "ore could not request IDE context. Try /ide again.".to_string()
+                "Ore could not request IDE context. Try /ide again.".to_string()
             }
             IdeContextError::Read(_) | IdeContextError::InvalidResponse(_) => {
-                "ore could not read IDE context. Try /ide again.".to_string()
+                "Ore could not read IDE context. Try /ide again.".to_string()
             }
         }
     }
@@ -89,11 +89,11 @@ impl IdeContextError {
                 OPEN_IDE_HINT.to_string()
             }
             IdeContextError::Read(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-                "ore timed out waiting for IDE context. It will keep trying on future messages."
+                "Ore timed out waiting for IDE context. It will keep trying on future messages."
                     .to_string()
             }
             IdeContextError::RequestFailed(error) if error == "client-disconnected" => {
-                hint_with_retry("The IDE connection changed while ore was requesting context.")
+                hint_with_retry("The IDE connection changed while Ore was requesting context.")
             }
             IdeContextError::RequestFailed(error) if error == "request-timeout" => {
                 hint_with_retry("The IDE extension did not answer in time.")
@@ -106,13 +106,13 @@ impl IdeContextError {
                 "The connected IDE client does not support IDE context requests.".to_string()
             }
             IdeContextError::Send(_) => {
-                hint_with_retry("ore lost the IDE connection while requesting context.")
+                hint_with_retry("Ore lost the IDE connection while requesting context.")
             }
             IdeContextError::InvalidResponse(_) => {
-                hint_with_retry("ore received an unexpected IDE context response.")
+                hint_with_retry("Ore received an unexpected IDE context response.")
             }
             IdeContextError::RequestFailed(_) => hint_with_retry(IDE_DID_NOT_PROVIDE_CONTEXT_HINT),
-            IdeContextError::Read(_) => hint_with_retry("ore could not read IDE context."),
+            IdeContextError::Read(_) => hint_with_retry("Ore could not read IDE context."),
         }
     }
 

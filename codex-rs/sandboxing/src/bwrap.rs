@@ -14,16 +14,16 @@ use std::time::Instant;
 
 const SYSTEM_BWRAP_PROGRAM: &str = "bwrap";
 const MISSING_BWRAP_WARNING: &str = concat!(
-    "ore could not find bubblewrap on PATH. ",
+    "Ore could not find bubblewrap on PATH. ",
     "Install bubblewrap with your OS package manager. ",
     "See the sandbox prerequisites: ",
     "https://developers.openai.com/codex/concepts/sandboxing#prerequisites. ",
-    "ore will use the bundled bubblewrap in the meantime.",
+    "Ore will use the bundled bubblewrap in the meantime.",
 );
 const USER_NAMESPACE_WARNING: &str =
-    "ore's Linux sandbox uses bubblewrap and needs access to create user namespaces.";
+    "Ore's Linux sandbox uses bubblewrap and needs access to create user namespaces.";
 pub(crate) const WSL1_BWRAP_WARNING: &str = concat!(
-    "ore's Linux sandbox uses bubblewrap, which is not supported on WSL1 ",
+    "Ore's Linux sandbox uses bubblewrap, which is not supported on WSL1 ",
     "because WSL1 cannot create the required user namespaces. ",
     "Use WSL2 for sandboxed shell commands."
 );

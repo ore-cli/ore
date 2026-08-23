@@ -448,7 +448,7 @@ fn resolve_redirect_uri(server: &Server, callback_url: Option<&str>) -> Result<S
 }
 
 fn callback_id_from_server_url(server_url: &str) -> Result<String> {
-    // Native ore callback IDs intentionally hash the complete MCP URL (minus its fragment)
+    // Native Ore callback IDs intentionally hash the complete MCP URL (minus its fragment)
     // with SHA-256. Python connector callback IDs use SHAKE-256 over the origin and are distinct.
     let mut parsed =
         Url::parse(server_url).with_context(|| format!("invalid MCP server URL `{server_url}`"))?;

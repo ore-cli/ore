@@ -99,7 +99,7 @@ use codex_protocol::protocol::AskForApproval;
 use codex_protocol::user_input::UserInput;
 use codex_terminal_detection::TerminalName;
 
-/// ore CLI
+/// Ore CLI
 ///
 /// If no subcommand is specified, options will be forwarded to the interactive CLI.
 #[derive(Debug, Parser)]
@@ -139,7 +139,7 @@ enum Subcommand {
     /// Browse all agent sessions on the shared local app-server daemon.
     Agents(AgentsCommand),
 
-    /// Run ore non-interactively.
+    /// Run Ore non-interactively.
     #[clap(visible_alias = "e")]
     Exec(ExecCli),
 
@@ -152,13 +152,13 @@ enum Subcommand {
     /// Remove stored authentication credentials.
     Logout(LogoutCommand),
 
-    /// Manage external MCP servers for ore.
+    /// Manage external MCP servers for Ore.
     Mcp(McpCli),
 
-    /// Manage ore plugins.
+    /// Manage Ore plugins.
     Plugin(PluginCli),
 
-    /// Start ore as an MCP server (stdio).
+    /// Start Ore as an MCP server (stdio).
     McpServer(McpServerCommand),
 
     /// [experimental] Run the app server or related tooling.
@@ -178,13 +178,13 @@ enum Subcommand {
     /// Generate shell completion scripts.
     Completion(CompletionCommand),
 
-    /// Update ore to the latest version.
+    /// Update Ore to the latest version.
     Update,
 
-    /// Diagnose local ore installation, config, auth, and runtime health.
+    /// Diagnose local Ore installation, config, auth, and runtime health.
     Doctor(DoctorCommand),
 
-    /// Run commands within an ore-provided sandbox.
+    /// Run commands within a Ore-provided sandbox.
     Sandbox(HostSandboxArgs),
 
     /// Debugging tools.
@@ -194,7 +194,7 @@ enum Subcommand {
     #[clap(hide = true)]
     Execpolicy(ExecpolicyCommand),
 
-    /// Apply the latest diff produced by ore agent as a `git apply` to your local working tree.
+    /// Apply the latest diff produced by Ore agent as a `git apply` to your local working tree.
     #[clap(visible_alias = "a")]
     Apply(ApplyCommand),
 
@@ -309,7 +309,7 @@ struct DebugModelsCommand {
 
 #[derive(Debug, Parser)]
 struct ReviewCommand {
-    /// Error out when config.toml contains fields that are not recognized by this version of ore.
+    /// Error out when config.toml contains fields that are not recognized by this version of Ore.
     #[arg(long = "strict-config", default_value_t = false)]
     strict_config: bool,
 
@@ -319,7 +319,7 @@ struct ReviewCommand {
 
 #[derive(Debug, Parser)]
 struct McpServerCommand {
-    /// Error out when config.toml contains fields that are not recognized by this version of ore.
+    /// Error out when config.toml contains fields that are not recognized by this version of Ore.
     #[arg(long = "strict-config", default_value_t = false)]
     strict_config: bool,
 }
@@ -393,7 +393,7 @@ struct SessionArchiveConfigOverrides {
     #[clap(flatten)]
     shared: SharedCliOptions,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of ore.
+    /// Error out when config.toml contains fields that are not recognized by this version of Ore.
     #[arg(long = "strict-config", default_value_t = false)]
     strict_config: bool,
 
@@ -561,7 +561,7 @@ struct AppServerCommand {
     #[command(flatten)]
     code_mode_host: codex_app_server::AppServerCodeModeHostArgs,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of ore.
+    /// Error out when config.toml contains fields that are not recognized by this version of Ore.
     #[arg(long = "strict-config", default_value_t = false)]
     strict_config: bool,
 
@@ -609,7 +609,7 @@ struct ExecServerCommand {
     #[command(subcommand)]
     command: Option<ExecServerSubcommand>,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of ore.
+    /// Error out when config.toml contains fields that are not recognized by this version of Ore.
     #[arg(
         id = "exec_server_strict_config",
         long = "strict-config",
@@ -695,7 +695,7 @@ enum AppServerSubcommand {
     /// [experimental] Generate JSON Schema for the app server protocol.
     GenerateJsonSchema(GenerateJsonSchemaCommand),
 
-    /// [internal] Generate internal JSON Schema artifacts for ore tooling.
+    /// [internal] Generate internal JSON Schema artifacts for Ore tooling.
     #[clap(hide = true)]
     GenerateInternalJsonSchema(GenerateInternalJsonSchemaCommand),
 }
@@ -850,7 +850,7 @@ fn handle_app_exit(exit_info: AppExitInfo) -> anyhow::Result<()> {
 fn run_update_action(action: UpdateAction) -> anyhow::Result<()> {
     println!();
     let cmd_str = action.command_str();
-    println!("Updating ore via `{cmd_str}`...");
+    println!("Updating Ore via `{cmd_str}`...");
 
     let status = {
         #[cfg(windows)]
@@ -885,7 +885,7 @@ fn run_update_action(action: UpdateAction) -> anyhow::Result<()> {
     if !status.success() {
         anyhow::bail!("`{cmd_str}` failed with status {status}");
     }
-    println!("\n🎉 Update ran successfully! Please restart ore.");
+    println!("\n🎉 Update ran successfully! Please restart Ore.");
     Ok(())
 }
 
@@ -893,7 +893,7 @@ fn run_update_command() -> anyhow::Result<()> {
     #[cfg(debug_assertions)]
     {
         anyhow::bail!(
-            "`ore update` is not available in debug builds. Install a release build of ore to use this command."
+            "`ore update` is not available in debug builds. Install a release build of Ore to use this command."
         );
     }
 
@@ -901,7 +901,7 @@ fn run_update_command() -> anyhow::Result<()> {
     {
         let Some(action) = codex_tui::get_update_action() else {
             anyhow::bail!(
-                "Could not detect the ore installation method. Please update manually: https://github.com/ore-cli/ore#install"
+                "Could not detect the Ore installation method. Please update manually: https://github.com/ore-cli/ore#install"
             );
         };
         run_update_action(action)
@@ -1869,7 +1869,7 @@ async fn run_exec_server_command(
     let codex_self_exe = arg0_paths
         .codex_self_exe
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("ore executable path is not configured"))?;
+        .ok_or_else(|| anyhow::anyhow!("Ore executable path is not configured"))?;
     let runtime_paths = codex_exec_server::ExecServerRuntimePaths::new(
         codex_self_exe,
         arg0_paths.codex_linux_sandbox_exe.clone(),
@@ -2408,7 +2408,7 @@ fn reject_root_strict_config_for_subcommand(
 /// flag should be rejected after parsing.
 ///
 /// `--strict-config` is parsed on the root interactive CLI so commands like
-/// `codex --strict-config` continue to work for the TUI and for wrappers that
+/// `ore --strict-config` continue to work for the TUI and for wrappers that
 /// forward root options into another command shape. Clap will still accept that
 /// root flag before the dispatcher knows which subcommand the user selected, so
 /// unsupported subcommands need an explicit post-parse reject path.
@@ -2584,7 +2584,7 @@ async fn run_interactive_tui(
         }
 
         eprintln!(
-            "WARNING: TERM is set to \"dumb\". ore's interactive TUI may not work in this terminal."
+            "WARNING: TERM is set to \"dumb\". Ore's interactive TUI may not work in this terminal."
         );
         if !confirm("Continue anyway? [y/N]: ")? {
             return Ok(AppExitInfo::fatal(
@@ -2653,7 +2653,7 @@ async fn run_interactive_tui(
             Err(backup_err) => {
                 local_state_db::print_diagnostic_guidance(startup_error);
                 return Ok(AppExitInfo::fatal(format!(
-                    "failed to move damaged ore local database files into a backup folder automatically: {backup_err}"
+                    "failed to move damaged Ore local database files into a backup folder automatically: {backup_err}"
                 )));
             }
         }
@@ -2872,7 +2872,7 @@ mod tests {
 
     #[tokio::test]
     async fn updater_http_client_factory_honors_respect_system_proxy() {
-        let codex_home = tempfile::tempdir().expect("temporary ore home");
+        let codex_home = tempfile::tempdir().expect("temporary Ore home");
         let config = ConfigBuilder::default()
             .codex_home(codex_home.path().to_path_buf())
             .cli_overrides(vec![(

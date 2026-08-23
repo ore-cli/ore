@@ -1,4 +1,4 @@
-//! Cloud-hosted configuration data for ore.
+//! Cloud-hosted configuration data for Ore.
 //!
 //! This crate owns transport, caching, and refresh behavior for cloud-delivered
 //! config data. Parsing and composition remain in `codex-config`.

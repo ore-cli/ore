@@ -1673,7 +1673,7 @@ mod tests {
             })
             .await
             .expect_err("external rollouts cannot be referenced by thread id");
-        assert!(error.to_string().contains("must be in ore home"));
+        assert!(error.to_string().contains("must be in Ore home"));
     }
 
     #[tokio::test]

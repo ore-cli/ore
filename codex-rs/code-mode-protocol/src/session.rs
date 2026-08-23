@@ -143,7 +143,7 @@ impl CodeModeSessionDelegate for NoopCodeModeSessionDelegate {
     fn cell_closed(&self, _cell_id: &CellId) {}
 }
 
-/// A durable code-mode session owned by one ore thread.
+/// A durable code-mode session owned by one Ore thread.
 ///
 /// Cells executed in the same session share stored values. Separate sessions
 /// must keep those values isolated. Implementations may execute cells
@@ -161,7 +161,7 @@ pub trait CodeModeSession: Send + Sync {
     fn shutdown<'a>(&'a self) -> CodeModeSessionResultFuture<'a, ()>;
 }
 
-/// Creates code-mode sessions for ore threads.
+/// Creates code-mode sessions for Ore threads.
 ///
 /// Implementations may share a remote host process across all sessions created
 /// by one provider.

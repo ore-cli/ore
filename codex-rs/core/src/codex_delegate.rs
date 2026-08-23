@@ -42,7 +42,7 @@ use codex_protocol::turn_input::TurnStartOptions;
 #[cfg(test)]
 use crate::session::completed_session_loop_termination;
 
-/// Start an interactive sub-ore thread and return its runtime and IO channels.
+/// Start an interactive sub-Ore thread and return its runtime and IO channels.
 ///
 /// Delegates never request approvals, and the returned IO yields their public events.
 /// Its submission channel accepts additional `Op`s for the sub-agent.
@@ -62,7 +62,7 @@ pub(crate) async fn run_codex_thread_interactive(
 ) -> Result<(Arc<Session>, SessionIo), CodexErr> {
     if config.permissions.approval_policy.value() != AskForApproval::Never {
         return Err(CodexErr::InvalidRequest(
-            "ore delegates require approval policy `never`".to_string(),
+            "Ore delegates require approval policy `never`".to_string(),
         ));
     }
     config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);

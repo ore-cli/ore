@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Unified entry point for the ore CLI.
+// Unified entry point for the Ore CLI.
 
 import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "fs";
@@ -103,7 +103,7 @@ function findCodexExecutable() {
         ? "pnpm add -g @ore-cli/ore@latest"
         : "npm install -g @ore-cli/ore@latest";
   throw new Error(
-    `Missing optional dependency ${platformPackage}. Reinstall ore: ${updateCommand}`,
+    `Missing optional dependency ${platformPackage}. Reinstall Ore: ${updateCommand}`,
   );
 }
 
@@ -131,7 +131,7 @@ function isPnpmOwnedCodexInstall(nodeModulesDir) {
 }
 
 /**
- * Use heuristics to detect the package manager that was used to install ore
+ * Use heuristics to detect the package manager that was used to install Ore
  * in order to give the user a hint about how to update it.
  */
 function detectPackageManager() {

@@ -1,6 +1,6 @@
 # Model providers
 
-ore can talk to model providers over three wire protocols. Upstream ore
+ore can talk to model providers over three wire protocols. Upstream Ore
 removed everything except the OpenAI Responses API; ore restores the Chat
 Completions adapter and adds a native Anthropic Messages adapter so you can
 bring your own key for the provider you actually use.

@@ -294,7 +294,7 @@ impl ActionKind {
                 let _ = fs::remove_file(&path);
                 let patch = build_add_file_patch(&patch_path, content);
                 let command = shell_apply_patch_command(&patch);
-                // Bazel may need to launch the configured ore helper binary
+                // Bazel may need to launch the configured Ore helper binary
                 // to apply the verified patch, which can exceed the normal
                 // short command timeout on slower CI runners.
                 let timeout_ms = 30_000;
@@ -3226,7 +3226,7 @@ ALLOWED_PROFILES = (":workspace",)
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Print an ssh command that recreates the current ore sandbox remotely."
+        description="Print an ssh command that recreates the current Ore sandbox remotely."
     )
     parser.add_argument("--host", required=True)
     try:
@@ -3387,7 +3387,7 @@ exec {remote_bash_exec} "$@"
             "bash",
             "-lc",
         ],
-        "remote_bash.py should use the allowlisted inherited profile and managed configuration to reconstruct the ore sandbox"
+        "remote_bash.py should use the allowlisted inherited profile and managed configuration to reconstruct the Ore sandbox"
     );
     let command_argv = shlex::split(&sandbox_argv[8]).context("parse remote bash command")?;
     assert_eq!(

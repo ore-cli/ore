@@ -310,7 +310,7 @@ fn keymap_debug_tab() -> SelectionTab {
         label: "Debug".to_string(),
         header: keymap_header(
             "Inspect keypresses from your terminal.".to_string(),
-            "See the key ore detects and any shortcuts assigned to it.".to_string(),
+            "See the key Ore detects and any shortcuts assigned to it.".to_string(),
         ),
         items: vec![SelectionItem {
             name: "Inspect keypresses".to_string(),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run reviewer-derived MCP regressions against a real ore app-server."""
+"""Run reviewer-derived MCP regressions against a real Ore app-server."""
 
 import argparse
 import json
@@ -1120,7 +1120,7 @@ def _write_review_json(path: Path, value: Mapping[str, object]) -> None:
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run reviewer-derived MCP client regression tests against ore."
+        description="Run reviewer-derived MCP client regression tests against Ore."
     )
     parser.add_argument("codex_binary", type=Path)
     parser.add_argument("--mode", choices=("all", *REVIEW_MODES), default="all")
@@ -1150,7 +1150,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def _print_report(report: Mapping[str, object]) -> None:
     print(
-        "ore MCP reviewer regressions: "
+        "Ore MCP reviewer regressions: "
         + ("PASS" if report.get("success") is True else "FAIL")
     )
     print(f"Binary: {report.get('codexBinary')}")
@@ -1195,7 +1195,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     codex_binary = args.codex_binary.expanduser().resolve()
     server_script = args.server_script.expanduser().resolve()
     if not codex_binary.is_file() or not os.access(codex_binary, os.X_OK):
-        print(f"error: ore binary is not executable: {codex_binary}", file=sys.stderr)
+        print(f"error: Ore binary is not executable: {codex_binary}", file=sys.stderr)
         return 2
     if not server_script.is_file():
         print(f"error: review fixture does not exist: {server_script}", file=sys.stderr)

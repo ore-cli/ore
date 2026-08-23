@@ -1,4 +1,4 @@
-"""Version discovery for ore packages."""
+"""Version discovery for Ore packages."""
 
 import re
 

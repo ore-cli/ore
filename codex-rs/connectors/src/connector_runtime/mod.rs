@@ -65,7 +65,7 @@ impl ConnectorRuntimeContextKey {
     }
 }
 
-/// Builds the connector runtime context key for the active ore auth.
+/// Builds the connector runtime context key for the active Ore auth.
 pub fn connector_runtime_context_key(auth: Option<&CodexAuth>) -> ConnectorRuntimeContextKey {
     let account_id = auth.and_then(CodexAuth::get_account_id);
     let chatgpt_user_id = auth.and_then(CodexAuth::get_chatgpt_user_id);

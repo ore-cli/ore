@@ -1242,7 +1242,7 @@ impl RmcpClient {
             }
         };
 
-        // Preserve ore's existing snapshot and request-freshness behavior. rmcp 3
+        // Preserve Ore's existing snapshot and request-freshness behavior. rmcp 3
         // enables response caching and stale-on-error fallback by default.
         service
             .peer()

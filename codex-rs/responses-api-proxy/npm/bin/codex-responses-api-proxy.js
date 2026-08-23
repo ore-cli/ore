@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Entry point for the ore responses API proxy binary.
+// Entry point for the Ore responses API proxy binary.
 
 import { spawn } from "node:child_process";
 import path from "path";

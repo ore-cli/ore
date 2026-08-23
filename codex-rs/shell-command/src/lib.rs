@@ -1,4 +1,4 @@
-//! Command parsing and safety utilities shared across ore crates.
+//! Command parsing and safety utilities shared across Ore crates.
 
 pub mod shell_detect;
 pub mod shell_snapshot;

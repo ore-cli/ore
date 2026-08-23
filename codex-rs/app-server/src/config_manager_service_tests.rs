@@ -67,7 +67,7 @@ X-Doc = "42"
 #[tokio::test]
 async fn write_value_preserves_comments_and_order() -> Result<()> {
     let tmp = tempdir().expect("tempdir");
-    let original = r#"# ore user configuration
+    let original = r#"# Ore user configuration
 model = "gpt-5.2"
 approval_policy = "on-request"
 
@@ -93,7 +93,7 @@ unified_exec = true
         .expect("write succeeds");
 
     let updated = std::fs::read_to_string(tmp.path().join(CONFIG_TOML_FILE)).expect("read config");
-    let expected = r#"# ore user configuration
+    let expected = r#"# Ore user configuration
 model = "gpt-5.2"
 approval_policy = "on-request"
 

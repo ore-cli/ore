@@ -10,7 +10,7 @@ pub(crate) static MEMORIES_MIGRATOR: Migrator = sqlx::migrate!("./memory_migrati
 pub(crate) static QUEUE_MIGRATOR: Migrator = sqlx::migrate!("./queue_migrations");
 pub(crate) static THREAD_HISTORY_MIGRATOR: Migrator = sqlx::migrate!("./thread_history_migrations");
 
-/// Allow an older ore binary to open a database that has already been
+/// Allow an older Ore binary to open a database that has already been
 /// migrated by a newer binary running in parallel.
 ///
 /// We intentionally ignore applied migration versions that are newer than the

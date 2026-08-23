@@ -55,7 +55,7 @@ pub(crate) const FRAMES_VBARS: [&str; 36] = frames_for!("vbars");
 pub(crate) const FRAMES_SHAPES: [&str; 36] = frames_for!("shapes");
 pub(crate) const FRAMES_SLUG: [&str; 36] = frames_for!("slug");
 
-/// Upstream's ore wordmark sets, retained but not shown.
+/// Upstream's Ore wordmark sets, retained but not shown.
 ///
 /// ore ships its own art (below), so nothing selects these. They are kept —
 /// constants and frame files both — so the fork carries no deletion diff

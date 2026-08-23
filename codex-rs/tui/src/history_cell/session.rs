@@ -155,7 +155,7 @@ pub(crate) fn new_session_info(
             Line::from(vec![
                 "  ".into(),
                 "/init".into(),
-                " - create an AGENTS.md file with instructions for ore".dim(),
+                " - create an AGENTS.md file with instructions for Ore".dim(),
             ]),
             Line::from(vec![
                 "  ".into(),
@@ -165,7 +165,7 @@ pub(crate) fn new_session_info(
             Line::from(vec![
                 "  ".into(),
                 "/permissions".into(),
-                " - choose what ore is allowed to do".dim(),
+                " - choose what Ore is allowed to do".dim(),
             ]),
             Line::from(vec![
                 "  ".into(),
@@ -317,10 +317,10 @@ impl HistoryCell for SessionHeaderHistoryCell {
 
         let make_row = |spans: Vec<Span<'static>>| Line::from(spans);
 
-        // Title line rendered inside the box: ">_ ore (vX)"
+        // Title line rendered inside the box: ">_ Ore (vX)"
         let title_spans: Vec<Span<'static>> = vec![
             Span::from(">_ ").dim(),
-            Span::from("ore").bold(),
+            Span::from("Ore").bold(),
             Span::from(" ").dim(),
             Span::from(format!("(v{})", self.version)).dim(),
         ];
@@ -391,7 +391,7 @@ impl HistoryCell for SessionHeaderHistoryCell {
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
         let mut lines = vec![
-            Line::from(format!("ore (v{})", self.version)),
+            Line::from(format!("Ore (v{})", self.version)),
             Line::from(format!(
                 "model: {}{}",
                 self.model,

@@ -378,13 +378,13 @@ impl TraceReducer {
             return Ok(thread_id);
         }
         let Some(codex_turn_id) = codex_turn_id else {
-            bail!("tool call start did not include thread or ore turn context");
+            bail!("tool call start did not include thread or Ore turn context");
         };
         self.rollout
             .codex_turns
             .get(codex_turn_id)
             .map(|turn| turn.thread_id.clone())
-            .with_context(|| format!("tool call start referenced unknown ore turn {codex_turn_id}"))
+            .with_context(|| format!("tool call start referenced unknown Ore turn {codex_turn_id}"))
     }
 
     fn validate_tool_turn(&self, thread_id: &str, codex_turn_id: Option<&str>) -> Result<()> {
@@ -393,11 +393,11 @@ impl TraceReducer {
         }
         if let Some(codex_turn_id) = codex_turn_id {
             let Some(turn) = self.rollout.codex_turns.get(codex_turn_id) else {
-                bail!("tool call start referenced unknown ore turn {codex_turn_id}");
+                bail!("tool call start referenced unknown Ore turn {codex_turn_id}");
             };
             if turn.thread_id != thread_id {
                 bail!(
-                    "tool call start used thread {thread_id}, but ore turn {codex_turn_id} \
+                    "tool call start used thread {thread_id}, but Ore turn {codex_turn_id} \
                      belongs to {}",
                     turn.thread_id
                 );

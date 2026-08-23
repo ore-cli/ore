@@ -84,7 +84,7 @@ pub struct McpRuntimeInput {
     pub elicitation_lifecycle: Option<ElicitationLifecycle>,
 }
 
-/// Owns all mutable MCP state for one ore thread.
+/// Owns all mutable MCP state for one Ore thread.
 ///
 /// Publication replaces the latest state atomically. Existing bindings retain
 /// their exact connections and configuration for as long as they are needed.

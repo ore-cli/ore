@@ -201,7 +201,7 @@ fn generate_tls_material() -> anyhow::Result<TlsMaterial> {
     ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     ca_params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
     let mut ca_distinguished_name = DistinguishedName::new();
-    ca_distinguished_name.push(DnType::CommonName, "ore affinity test CA");
+    ca_distinguished_name.push(DnType::CommonName, "Ore affinity test CA");
     ca_params.distinguished_name = ca_distinguished_name;
     let ca_key_pair = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)?;
     let ca = CertifiedIssuer::self_signed(ca_params, ca_key_pair)?;

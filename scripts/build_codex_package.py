@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a canonical ore package directory and optional archive."""
+"""Build a canonical Ore package directory and optional archive."""
 
 from pathlib import Path
 import sys

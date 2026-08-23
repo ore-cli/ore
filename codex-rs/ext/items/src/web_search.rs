@@ -17,7 +17,7 @@ pub struct WebSearchItem {
     /// Structured search results returned out-of-band by standalone web search.
     ///
     /// These stay as opaque JSON at the extension/app-server boundary so new
-    /// result fields and result types can pass through without an ore release.
+    /// result fields and result types can pass through without a Ore release.
     #[serde(default)]
     pub results: Option<Vec<JsonValue>>,
 }

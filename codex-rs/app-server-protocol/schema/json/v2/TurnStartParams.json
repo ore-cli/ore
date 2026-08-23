@@ -105,7 +105,7 @@
       "type": "object"
     },
     "CollaborationMode": {
-      "description": "Collaboration mode for an ore session.",
+      "description": "Collaboration mode for a Ore session.",
       "properties": {
         "mode": {
           "$ref": "#/definitions/ModeKind"

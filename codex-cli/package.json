@@ -1,7 +1,7 @@
 {
   "name": "@ore-cli/ore",
   "version": "0.0.0-dev",
-  "description": "ore CLI is a coding agent that runs locally and talks to any OpenAI-compatible endpoint.",
+  "description": "Ore CLI is a coding agent that runs locally and talks to any OpenAI-compatible endpoint.",
   "license": "Apache-2.0",
   "bin": {
     "ore": "bin/codex.js"

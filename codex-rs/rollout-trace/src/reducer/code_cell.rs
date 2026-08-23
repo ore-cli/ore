@@ -7,7 +7,7 @@
 //!
 //! The reducer has to reconcile two clocks:
 //! - model-visible items come from inference request/response payloads;
-//! - runtime work starts as soon as ore dispatches the tool.
+//! - runtime work starts as soon as Ore dispatches the tool.
 //!
 //! In real traces `CodeCellStarted` can arrive before the inference completion
 //! payload that contains the `custom_tool_call` item. We therefore queue starts
@@ -142,7 +142,7 @@ impl TraceReducer {
 
         let Some(codex_turn_id) = codex_turn_id else {
             bail!(
-                "code cell start {} did not include an ore turn id",
+                "code cell start {} did not include a Ore turn id",
                 started.code_cell_id
             );
         };
@@ -549,7 +549,7 @@ impl TraceReducer {
             .map(|turn| turn.thread_id.clone())
             .with_context(|| {
                 format!(
-                    "{event_name} {runtime_cell_id} referenced unknown ore turn {codex_turn_id}"
+                    "{event_name} {runtime_cell_id} referenced unknown Ore turn {codex_turn_id}"
                 )
             })
     }
@@ -642,11 +642,11 @@ impl TraceReducer {
             bail!("code cell start referenced unknown thread {thread_id}");
         }
         let Some(turn) = self.rollout.codex_turns.get(codex_turn_id) else {
-            bail!("code cell start referenced unknown ore turn {codex_turn_id}");
+            bail!("code cell start referenced unknown Ore turn {codex_turn_id}");
         };
         if turn.thread_id != thread_id {
             bail!(
-                "code cell start used thread {thread_id}, but ore turn {codex_turn_id} belongs \
+                "code cell start used thread {thread_id}, but Ore turn {codex_turn_id} belongs \
                  to {}",
                 turn.thread_id
             );

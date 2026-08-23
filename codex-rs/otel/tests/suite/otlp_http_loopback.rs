@@ -221,7 +221,7 @@ fn otlp_http_exporter_sends_metrics_to_collector() -> Result<()> {
     )?;
     metrics.gauge_with_description(
         "codex.active",
-        "Number of active ore operations.",
+        "Number of active Ore operations.",
         /*value*/ 1,
         &[("component", "test")],
     )?;

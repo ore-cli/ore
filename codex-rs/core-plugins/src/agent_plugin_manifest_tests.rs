@@ -206,10 +206,10 @@ fn legacy_codex_overlay_keeps_portable_components_fixed() {
         r#"{
   "name": "different-name",
   "version": "9.9.9",
-  "description": "ore description",
+  "description": "Ore description",
   "skills": [],
   "mcpServers": null,
-  "interface": {"displayName": "ore Demo"}
+  "interface": {"displayName": "Ore Demo"}
 }"#,
     )
     .expect("write overlay");
@@ -240,7 +240,7 @@ fn legacy_codex_overlay_keeps_portable_components_fixed() {
         manifest
             .interface
             .and_then(|interface| interface.display_name),
-        Some("ore Demo".to_string())
+        Some("Ore Demo".to_string())
     );
 }
 
@@ -253,14 +253,14 @@ fn inline_openai_extension_precedes_legacy_overlay() {
         r#",
   "extensions": {
     "com.openai": {
-      "interface": {"displayName": "Inline ore"}
+      "interface": {"displayName": "Inline Ore"}
     }
   }"#,
     );
     fs::create_dir_all(plugin_root.join(".codex-plugin")).expect("create overlay dir");
     fs::write(
         plugin_root.join(".codex-plugin/plugin.json"),
-        r#"{"interface":{"displayName":"Legacy ore"}}"#,
+        r#"{"interface":{"displayName":"Legacy Ore"}}"#,
     )
     .expect("write overlay");
 
@@ -270,6 +270,6 @@ fn inline_openai_extension_precedes_legacy_overlay() {
         manifest
             .interface
             .and_then(|interface| interface.display_name),
-        Some("Inline ore".to_string())
+        Some("Inline Ore".to_string())
     );
 }

@@ -160,7 +160,7 @@ const TMUX_OPTION_NAMES: &[&str] = &[
 const NARROW_TERMINAL_COLUMNS: u16 = 80;
 const NARROW_TERMINAL_ROWS: u16 = 24;
 
-/// Options for building a local ore diagnostic report.
+/// Options for building a local Ore diagnostic report.
 ///
 /// The command always runs the full bounded diagnostic set. Human output includes
 /// detailed diagnostics by default; --summary keeps the terminal output compact.
@@ -591,7 +591,7 @@ async fn load_config(
         .harness_overrides(overrides)
         .build()
         .await
-        .context("failed to load ore config")
+        .context("failed to load Ore config")
 }
 
 fn config_overrides_from_interactive(
@@ -925,7 +925,7 @@ fn installation_check(show_details: bool) -> DoctorCheck {
                 status = status.max(CheckStatus::Warning);
                 summary = "npm-managed launch is missing package-root provenance".to_string();
                 remediation = Some(
-                    "Reinstall or update ore so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
+                    "Reinstall or update Ore so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
                         .to_string(),
                 );
             }
@@ -1337,7 +1337,7 @@ fn auth_check(config: &Config) -> DoctorCheck {
             "auth.credentials",
             "auth",
             CheckStatus::Fail,
-            "no ore credentials were found",
+            "no Ore credentials were found",
         )
         .details(details)
         .remediation("Run ore login or provide an API key through a supported auth env var."),
@@ -3533,7 +3533,7 @@ mod tests {
         let check = provider_specific_auth_check(
             /*requires_openai_auth*/ false,
             Some("PROVIDER_API_KEY"),
-            Some("Set PROVIDER_API_KEY before running ore."),
+            Some("Set PROVIDER_API_KEY before running Ore."),
             Vec::new(),
             |_| false,
         )
@@ -3546,7 +3546,7 @@ mod tests {
         );
         assert_eq!(
             check.remediation,
-            Some("Set PROVIDER_API_KEY before running ore.".to_string())
+            Some("Set PROVIDER_API_KEY before running Ore.".to_string())
         );
     }
 

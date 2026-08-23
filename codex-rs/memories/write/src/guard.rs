@@ -41,7 +41,7 @@ async fn rate_limits_check(auth_manager: &AuthManager, config: &Config) -> Optio
     if !allowed {
         info!(
             min_remaining_percent,
-            "skipping memories startup because ore rate limits are below the configured threshold"
+            "skipping memories startup because Ore rate limits are below the configured threshold"
         );
     }
 

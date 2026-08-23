@@ -115,7 +115,7 @@ fn pretrust_git_sync_ignores_repository_local_transport_config() {
     let codex_home = fixture.path().join("codex-home");
     let repository = fixture.path().join("untrusted-project");
     let marker = fixture.path().join("transport-config-ran");
-    std::fs::create_dir_all(&codex_home).expect("create ore home");
+    std::fs::create_dir_all(&codex_home).expect("create Ore home");
     std::fs::create_dir_all(&repository).expect("create repository");
     run_git(&repository, &["init", "--quiet"]);
 
@@ -211,7 +211,7 @@ async fn ordinary_clone_rejects_tracked_embedded_bare_repository() {
         &source,
         &[
             "-c",
-            "user.name=ore Tests",
+            "user.name=Ore Tests",
             "-c",
             "user.email=codex-tests@example.com",
             "commit",
@@ -695,7 +695,7 @@ fn sync_openai_plugins_repo_via_git_succeeds_with_local_rewritten_remote() {
         &work_repo,
         &[
             "-c",
-            "user.name=ore Test",
+            "user.name=Ore Test",
             "-c",
             "user.email=codex@example.com",
             "commit",
@@ -779,7 +779,7 @@ fn sync_openai_plugins_repo_via_git_succeeds_with_local_rewritten_remote() {
         &work_repo,
         &[
             "-c",
-            "user.name=ore Test",
+            "user.name=Ore Test",
             "-c",
             "user.email=codex@example.com",
             "commit",

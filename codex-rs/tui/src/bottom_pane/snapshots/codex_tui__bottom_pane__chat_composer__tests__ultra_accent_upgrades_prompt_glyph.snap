@@ -3,7 +3,7 @@ source: tui/src/bottom_pane/chat_composer.rs
 expression: terminal.backend()
 ---
 "                                                            "
-"» Ask ore to do anything                                    "
+"» Ask Ore to do anything                                    "
 "                                                            "
 "                                                            "
 "                                                            "

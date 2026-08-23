@@ -1,4 +1,4 @@
-//! Rollout persistence and discovery for ore session files.
+//! Rollout persistence and discovery for Ore session files.
 
 use std::sync::LazyLock;
 

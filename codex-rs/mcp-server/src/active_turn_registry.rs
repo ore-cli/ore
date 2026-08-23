@@ -6,7 +6,7 @@ use std::sync::PoisonError;
 use codex_protocol::ThreadId;
 use rmcp::model::RequestId;
 
-/// Tracks active MCP requests by both request ID and ore turn.
+/// Tracks active MCP requests by both request ID and Ore turn.
 ///
 /// Warning and response enqueue callbacks run while holding the same lock. This
 /// makes route removal and response enqueue atomic with respect to warning

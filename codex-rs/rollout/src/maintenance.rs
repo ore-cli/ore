@@ -1,7 +1,7 @@
 //! Coordinates maintenance jobs that replace local rollout files.
 //!
 //! Rollout compression and legacy rollout migration both publish by renaming a replacement over an
-//! existing rollout path. They must not do that at the same time for one ore home, so they share
+//! existing rollout path. They must not do that at the same time for one Ore home, so they share
 //! this process-scoped, nonblocking file lock.
 //!
 //! This is separate from per-thread writer locks, which protect live rollout appenders. It is also
@@ -20,7 +20,7 @@ pub struct RolloutMaintenanceGuard {
     _file: File,
 }
 
-/// Try to exclude rollout compression and migration for one ore home.
+/// Try to exclude rollout compression and migration for one Ore home.
 pub fn try_acquire_rollout_maintenance_lock(
     codex_home: &Path,
 ) -> io::Result<Option<RolloutMaintenanceGuard>> {

@@ -60,7 +60,7 @@ pub struct CodexWorkspaceMessagesResponse {
     pub messages: Vec<CodexWorkspaceMessage>,
 }
 
-/// Authenticated ore user settings used by CLI runtime policy.
+/// Authenticated Ore user settings used by CLI runtime policy.
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
 pub struct CodexUserSettingsResponse {
     /// Server-computed effective commit-attribution policy.

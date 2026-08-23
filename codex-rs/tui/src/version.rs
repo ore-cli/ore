@@ -1,2 +1,2 @@
-/// The current ore CLI version as embedded at compile time.
+/// The current Ore CLI version as embedded at compile time.
 pub const CODEX_CLI_VERSION: &str = env!("CARGO_PKG_VERSION");

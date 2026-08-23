@@ -76,13 +76,13 @@ pub(super) fn endpoint_check(inspection: EndpointInspection) -> DoctorCheck {
         "security.endpoint",
         "security",
         CheckStatus::Warning,
-        "endpoint protection detected; ore exclusions are unverified",
+        "endpoint protection detected; Ore exclusions are unverified",
     )
     .detail(format!("endpoint products: {}", products.join(", ")))
     .detail(format!("exclusion targets: {targets}"))
-    .detail("ore exclusions: not verified")
+    .detail("Ore exclusions: not verified")
     .remediation(
-        "ask your security administrator to verify ore exclusions and required helper allowances",
+        "ask your security administrator to verify Ore exclusions and required helper allowances",
     );
     if visibility_incomplete {
         check = check.detail("additional endpoint products: unavailable");
@@ -91,31 +91,31 @@ pub(super) fn endpoint_check(inspection: EndpointInspection) -> DoctorCheck {
     for product in products {
         let remedy = match product {
             "CrowdStrike Falcon" => {
-                "CrowdStrike Falcon: Add a certificate or IOA exclusion for ore. If sensor overhead continues, exclude the ore agent from sensor visibility. Keep monitoring descendant processes."
+                "CrowdStrike Falcon: Add a certificate or IOA exclusion for Ore. If sensor overhead continues, exclude the Ore agent from sensor visibility. Keep monitoring descendant processes."
             }
             "BeyondTrust Privilege Management" => {
-                "BeyondTrust: Remove ore from application blocking rules. Add allow rules for ore helper executables. Do not grant administrator privileges."
+                "BeyondTrust: Remove Ore from application blocking rules. Add allow rules for Ore helper executables. Do not grant administrator privileges."
             }
             "Microsoft Defender" => {
-                "Microsoft Defender: Add a certificate or executable-path exclusion for ore and its helpers. If Attack Surface Reduction blocks ore, add a rule exclusion. If Controlled Folder Access blocks ore, allow the app."
+                "Microsoft Defender: Add a certificate or executable-path exclusion for Ore and its helpers. If Attack Surface Reduction blocks Ore, add a rule exclusion. If Controlled Folder Access blocks Ore, allow the app."
             }
             "SentinelOne" => {
-                "SentinelOne: Add a signer, file-hash, or executable-path exclusion for ore and its helpers."
+                "SentinelOne: Add a signer, file-hash, or executable-path exclusion for Ore and its helpers."
             }
             "Jamf Protect" => {
                 "Jamf Protect: Add an Override Threat Prevention exception for Codex app and helper signing identities. If analytics cause delays, add an Ignore System Events for Analytics exception."
             }
-            _ => "Add an exclusion for ore and its helpers. Use the endpoint product instructions.",
+            _ => "Add an exclusion for Ore and its helpers. Use the endpoint product instructions.",
         };
         check = check.issue(
             DoctorIssue::new(
                 CheckStatus::Warning,
-                format!("{product} can interfere with ore. Verify ore exclusions."),
+                format!("{product} can interfere with Ore. Verify Ore exclusions."),
             )
             .measured("not verified")
             .expected("Codex application and helper exclusions")
             .remedy(remedy)
-            .field("ore exclusions"),
+            .field("Ore exclusions"),
         );
     }
 

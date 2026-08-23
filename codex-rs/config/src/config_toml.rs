@@ -1,4 +1,4 @@
-//! Schema-heavy configuration TOML types used by ore.
+//! Schema-heavy configuration TOML types used by Ore.
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -236,7 +236,7 @@ pub struct ConfigToml {
     /// Optional path to a file containing model instructions that will override
     /// the built-in instructions for the selected model. Users are STRONGLY
     /// DISCOURAGED from using this field, as deviating from the instructions
-    /// sanctioned by ore will likely degrade model performance.
+    /// sanctioned by Ore will likely degrade model performance.
     pub model_instructions_file: Option<AbsolutePathBuf>,
 
     /// Compact prompt used for history compaction.
@@ -251,13 +251,13 @@ pub struct ConfigToml {
     pub forced_login_method: Option<ForcedLoginMethod>,
 
     /// Preferred backend for storing CLI auth credentials.
-    /// file (default): Use a file in the ore home directory.
+    /// file (default): Use a file in the Ore home directory.
     /// keyring: Use an OS-specific keyring service.
     /// auto: Use the keyring if available, otherwise use a file.
     #[serde(default)]
     pub cli_auth_credentials_store: Option<AuthCredentialsStoreMode>,
 
-    /// Definition for MCP servers that ore can reach out to for tool calls.
+    /// Definition for MCP servers that Ore can reach out to for tool calls.
     #[serde(default)]
     // Uses the raw MCP input shape (custom deserialization) rather than `McpServerConfig`.
     #[schemars(schema_with = "crate::schema::mcp_servers_schema")]
@@ -266,13 +266,13 @@ pub struct ConfigToml {
     /// Preferred backend for storing MCP OAuth credentials.
     /// keyring: Use an OS-specific keyring service.
     ///          https://github.com/ore-cli/ore/blob/main/codex-rs/rmcp-client/src/oauth.rs#L2
-    /// file: Use a file in the ore home directory.
+    /// file: Use a file in the Ore home directory.
     /// auto (default): Use the OS-specific keyring service if available, otherwise use a file.
     #[serde(default)]
     pub mcp_oauth_credentials_store: Option<OAuthCredentialsStoreMode>,
 
     /// Optional fixed port for the local HTTP callback server used during MCP OAuth login.
-    /// When unset, ore will bind to an ephemeral port chosen by the OS.
+    /// When unset, Ore will bind to an ephemeral port chosen by the OS.
     pub mcp_oauth_callback_port: Option<u16>,
 
     /// Optional redirect URI to use during MCP OAuth login.
@@ -320,11 +320,11 @@ pub struct ConfigToml {
     #[serde(default = "default_history")]
     pub history: Option<History>,
 
-    /// Directory where ore stores the SQLite state DB.
+    /// Directory where Ore stores the SQLite state DB.
     /// Defaults to `$CODEX_SQLITE_HOME` when set. Otherwise uses `$CODEX_HOME`.
     pub sqlite_home: Option<AbsolutePathBuf>,
 
-    /// Directory where ore writes log files. Setting this value explicitly
+    /// Directory where Ore writes log files. Setting this value explicitly
     /// also enables the TUI text log in this directory.
     /// Defaults to `$CODEX_HOME/log`.
     pub log_dir: Option<AbsolutePathBuf>,
@@ -470,8 +470,8 @@ pub struct ConfigToml {
     #[serde(default)]
     pub project_root_markers: Option<Vec<String>>,
 
-    /// When `true`, checks for ore updates on startup and surfaces update prompts.
-    /// Set to `false` only if your ore updates are centrally managed.
+    /// When `true`, checks for Ore updates on startup and surfaces update prompts.
+    /// Set to `false` only if your Ore updates are centrally managed.
     /// Defaults to `true`.
     pub check_for_update_on_startup: Option<bool>,
 
@@ -480,11 +480,11 @@ pub struct ConfigToml {
     /// or placeholder replacement will occur for fast keypress bursts.
     pub disable_paste_burst: Option<bool>,
 
-    /// When `false`, disables analytics across ore product surfaces in this machine.
+    /// When `false`, disables analytics across Ore product surfaces in this machine.
     /// Defaults to `true`.
     pub analytics: Option<AnalyticsConfigToml>,
 
-    /// When `false`, disables feedback collection across ore product surfaces.
+    /// When `false`, disables feedback collection across Ore product surfaces.
     /// Defaults to `true`.
     pub feedback: Option<FeedbackConfigToml>,
 

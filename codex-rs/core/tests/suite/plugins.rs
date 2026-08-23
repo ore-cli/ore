@@ -358,7 +358,7 @@ async fn persisted_remote_plugin_command_attribution_flows_through_turn_context(
     skip_if_no_network!(Ok(()));
     skip_if_remote!(
         Ok(()),
-        "remote plugin attribution fixture uses a local ore home cache"
+        "remote plugin attribution fixture uses a local Ore home cache"
     );
 
     let server = start_mock_server().await;

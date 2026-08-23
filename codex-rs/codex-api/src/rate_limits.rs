@@ -19,7 +19,7 @@ impl Display for RateLimitError {
     }
 }
 
-/// Parses the default ore rate-limit header family into a `RateLimitSnapshot`.
+/// Parses the default Ore rate-limit header family into a `RateLimitSnapshot`.
 pub fn parse_default_rate_limit(headers: &HeaderMap) -> Option<RateLimitSnapshot> {
     parse_rate_limit_for_limit(headers, /*limit_id*/ None)
 }
@@ -175,7 +175,7 @@ fn map_event_window(window: Option<&RateLimitEventWindow>) -> Option<RateLimitWi
     })
 }
 
-/// Parses the bespoke ore rate-limit headers into a `RateLimitSnapshot`.
+/// Parses the bespoke Ore rate-limit headers into a `RateLimitSnapshot`.
 pub fn parse_promo_message(headers: &HeaderMap) -> Option<String> {
     parse_header_str(headers, "x-codex-promo-message")
         .map(str::trim)

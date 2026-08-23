@@ -1,4 +1,4 @@
-//! Resolve the release identity of the current ore runtime.
+//! Resolve the release identity of the current Ore runtime.
 
 use std::fmt;
 use std::sync::OnceLock;
@@ -29,7 +29,7 @@ pub struct BuildInfo {
 }
 
 impl BuildInfo {
-    /// Return build information for the current ore runtime.
+    /// Return build information for the current Ore runtime.
     pub fn get() -> Self {
         BUILD_INFO
             .get_or_init(|| Self::resolve(InstallContext::current(), "dev"))
@@ -72,7 +72,7 @@ impl BuildInfo {
         &self.version
     }
 
-    /// Format the version for a user-facing ore header.
+    /// Format the version for a user-facing Ore header.
     pub fn display_version(&self) -> String {
         if self.build_commit == "dev" {
             "dev".to_string()

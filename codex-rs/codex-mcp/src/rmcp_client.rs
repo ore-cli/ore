@@ -78,7 +78,7 @@ use tracing::Instrument;
 use tracing::instrument;
 use tracing::warn;
 
-/// MCP server capability indicating that ore should include [`SandboxState`]
+/// MCP server capability indicating that Ore should include [`SandboxState`]
 /// in tool-call request `_meta` under this key.
 pub const MCP_SANDBOX_STATE_META_CAPABILITY: &str = "codex/sandbox-state-meta";
 /// Experimental MCP server capability for development and testing only; production servers should
@@ -1015,7 +1015,7 @@ fn mcp_initialize_request_params(
     }
     InitializeRequestParams::new(
         capabilities,
-        Implementation::new("codex-mcp-client", env!("CARGO_PKG_VERSION")).with_title("ore"),
+        Implementation::new("codex-mcp-client", env!("CARGO_PKG_VERSION")).with_title("Ore"),
     )
     .with_protocol_version(ProtocolVersion::V_2025_06_18)
 }

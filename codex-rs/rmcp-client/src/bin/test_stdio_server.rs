@@ -329,16 +329,16 @@ impl TestToolServer {
         tool
     }
 
-    /// Tool intended for manual testing of ore TUI rendering for MCP image tool results.
+    /// Tool intended for manual testing of Ore TUI rendering for MCP image tool results.
     ///
     /// This exists to exercise edge cases where a `CallToolResult.content` includes image blocks
     /// that aren't the first item (or includes invalid image blocks before a valid image).
     ///
-    /// Manual testing approach (ore TUI):
+    /// Manual testing approach (Ore TUI):
     /// - Build this binary: `cargo build -p codex-rmcp-client --bin test_stdio_server`
     /// - Register it:
     ///   - `ore mcp add mcpimg -- /abs/path/to/test_stdio_server`
-    /// - Then in ore TUI, ask it to call:
+    /// - Then in Ore TUI, ask it to call:
     ///   - `mcpimg.image_scenario({"scenario":"image_only"})`
     ///   - `mcpimg.image_scenario({"scenario":"image_only_original_detail"})`
     ///   - `mcpimg.image_scenario({"scenario":"text_then_image","caption":"Here is the image:"})`
@@ -397,7 +397,7 @@ impl TestToolServer {
 
     fn memo_template() -> ResourceTemplate {
         ResourceTemplate::new("memo://codex/{slug}", "codex-memo")
-            .with_title("ore Memo")
+            .with_title("Ore Memo")
             .with_description("Template for memo://codex/{slug} resources used in tests.")
             .with_mime_type("text/plain")
     }
@@ -456,7 +456,7 @@ fn sync_barrier_map() -> &'static tokio::sync::Mutex<HashMap<String, SyncBarrier
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
-/// Scenarios for `image_scenario`, intended to exercise ore TUI handling of MCP image outputs.
+/// Scenarios for `image_scenario`, intended to exercise Ore TUI handling of MCP image outputs.
 ///
 /// The key behavior under test is that the TUI should render an image output cell if *any*
 /// decodable image block exists in the tool result content, even if the first block is text or an

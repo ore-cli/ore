@@ -1,6 +1,6 @@
 # MCP client conformance
 
-This directory tests the actual ore executable against the official Model
+This directory tests the actual Ore executable against the official Model
 Context Protocol client conformance suite. It exercises the shipping legacy,
 intermediate `2025-11-25`, and modern `2026-07-28` protocols, localhost HTTP,
 stdio, OAuth, and additional transport and security regression fixtures.
@@ -11,14 +11,14 @@ Use Node.js 22 and Python 3.10 or later.
 
 ## Run the conformance gate
 
-First install the frozen workspace dependencies and build ore:
+First install the frozen workspace dependencies and build Ore:
 
 ```bash
 pnpm install --frozen-lockfile
 cargo build --locked --manifest-path codex-rs/Cargo.toml -p codex-cli --bin codex
 ```
 
-From a published ore checkout, run:
+From a published Ore checkout, run:
 
 ```bash
 python3 scripts/mcp_conformance/run_codex_compliance.py \
@@ -28,7 +28,7 @@ python3 scripts/mcp_conformance/run_codex_compliance.py \
   --report /tmp/codex-mcp-conformance.json
 ```
 
-The positional executable can also point to an already built ore binary.
+The positional executable can also point to an already built Ore binary.
 `--conformance-cli` selects the exact, lockfile-installed upstream JavaScript
 runner instead of downloading a moving version during a test.
 
@@ -67,11 +67,11 @@ it to conceal a regression.
 
 ## Run the production reviewer regression gate
 
-The separate reviewer gate tests the real ore app-server across all three
+The separate reviewer gate tests the real Ore app-server across all three
 shipping, legacy, and modern protocol modes. It covers stdio and localhost
 HTTP, exact-integer tool and elicitation schemas, bounded multi-round requests,
 malformed discovery response IDs, repeated pagination cursors, SSE framing and
-keepalives, and catalog boundaries. In a published ore checkout, run:
+keepalives, and catalog boundaries. In a published Ore checkout, run:
 
 ```bash
 python3 scripts/mcp_conformance/review_regressions.py \
@@ -109,7 +109,7 @@ env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
 ## Run the required SDK integration
 
 The existing required SDK workflow runs the complete Python fixture self-tests.
-Its TypeScript job builds the actual ore executable, sets `CODEX_EXEC_PATH`,
+Its TypeScript job builds the actual Ore executable, sets `CODEX_EXEC_PATH`,
 installs the pinned upstream conformance runner, and runs both the official
 authenticated suite and the separate production reviewer regression matrix.
 Neither gate can be skipped. To reproduce the focused integration locally:

@@ -298,7 +298,7 @@ impl AccountRequestProcessor {
                     };
                     LoginSuccessPage::Hosted {
                         url: CODEX_OPEN_APP_URL.parse().map_err(|err| {
-                            internal_error(format!("invalid ore open app URL: {err}"))
+                            internal_error(format!("invalid Ore open app URL: {err}"))
                         })?,
                         app_brand,
                     }
@@ -506,7 +506,7 @@ impl AccountRequestProcessor {
             {
                 *url = open_app_url
                     .parse()
-                    .map_err(|err| internal_error(format!("invalid ore open app URL: {err}")))?;
+                    .map_err(|err| internal_error(format!("invalid Ore open app URL: {err}")))?;
             }
             opts
         };
@@ -881,7 +881,7 @@ impl AccountRequestProcessor {
         let config = self.load_latest_config().await;
         if config.model_provider.is_amazon_bedrock() && !managed_bedrock_auth {
             return Err(invalid_request(
-                "cannot log out while Amazon Bedrock is using AWS-managed credentials; manage those credentials through AWS or switch model providers before logging out ore authentication",
+                "cannot log out while Amazon Bedrock is using AWS-managed credentials; manage those credentials through AWS or switch model providers before logging out Ore authentication",
             ));
         }
 

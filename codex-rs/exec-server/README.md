@@ -38,14 +38,14 @@ Disconnecting either side closes its peer and resets the remote stream. The
 existing harness reconnect flow can then resume a retained destination session.
 The forwarder does not replay requests or persist execution state, so recovery
 is limited by the destination's session and process-output retention.
-It uses the standard ore ChatGPT sign-in state; run `ore login` first when
+It uses the standard Ore ChatGPT sign-in state; run `ore login` first when
 remote registration needs authentication. Containerized callers that receive an
 Agent Identity JWT in `CODEX_ACCESS_TOKEN` can opt into that auth path with
-`--use-agent-identity-auth`; ore then registers an Agent task and sends the
+`--use-agent-identity-auth`; Ore then registers an Agent task and sends the
 derived AgentAssertion headers on the registry request.
 
 Alternatively, API users can instead use `CODEX_API_KEY`;
-ore sends it as a bearer token on the registration request. For example:
+Ore sends it as a bearer token on the registration request. For example:
 
 ```sh
 CODEX_API_KEY="$OPENAI_API_KEY" \
@@ -418,10 +418,10 @@ The crate exports:
 Callers must pass `ExecServerRuntimePaths` and an explicitly configured
 `HttpClientFactory` to `run_main()`. The top-level `ore exec-server` command
 builds these paths from the `ore` arg0 dispatch state and resolves its HTTP
-client factory from the effective ore configuration.
+client factory from the effective Ore configuration.
 `RemoteEnvironmentConfig::new(...)` also takes the auth provider and HTTP client
 factory that remote registration mode should use; the CLI builds the auth
-provider from ore auth state before starting remote mode.
+provider from Ore auth state before starting remote mode.
 
 ## Example session
 

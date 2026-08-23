@@ -62,7 +62,7 @@ impl EnvironmentSkillMetadata {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SkillPolicy {
     pub allow_implicit_invocation: Option<bool>,
-    // TODO: Enforce product gating in ore skill selection/injection instead of only parsing and
+    // TODO: Enforce product gating in Ore skill selection/injection instead of only parsing and
     // storing this metadata.
     pub products: Vec<Product>,
 }

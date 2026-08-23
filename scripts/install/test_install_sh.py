@@ -26,10 +26,10 @@ class InstallShTest(unittest.TestCase):
             [f"https://api.github.com/repos/ore-cli/ore/releases/tags/ore-v{VERSION}"],
         )
         self.assertIn(
-            f"Could not fetch GitHub release metadata for ore {VERSION}",
+            f"Could not fetch GitHub release metadata for Ore {VERSION}",
             result.stderr,
         )
-        self.assertNotIn("Could not find ore package", result.stderr)
+        self.assertNotIn("Could not find Ore package", result.stderr)
 
     def test_exact_release_opt_out_uses_github_metadata_once(self) -> None:
         result, requests = run_installer(VERSION, use_mirror=False)
@@ -497,7 +497,7 @@ class InstallShTest(unittest.TestCase):
                     f"ore-v{VERSION}",
                 ],
             )
-            self.assertNotIn("Downloading ore CLI", second_result.stdout)
+            self.assertNotIn("Downloading Ore CLI", second_result.stdout)
 
 
 def run_installer(

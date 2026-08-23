@@ -1,4 +1,4 @@
-"""ore-built V8 artifact overrides for package Cargo builds."""
+"""Ore-built V8 artifact overrides for package Cargo builds."""
 
 from __future__ import annotations
 
@@ -150,7 +150,7 @@ def ensure_valid_artifact(artifact: Path, checksum: str, url: str) -> None:
         return
 
     artifact.unlink(missing_ok=True)
-    raise RuntimeError(f"ore-built V8 artifact {artifact} failed checksum validation.")
+    raise RuntimeError(f"Ore-built V8 artifact {artifact} failed checksum validation.")
 
 
 def has_checksum(path: Path, expected: str) -> bool:

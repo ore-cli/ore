@@ -2,14 +2,14 @@
 source: cli/src/doctor/output.rs
 expression: "render_human_report(&report, detailed_no_color_unicode_options())"
 ---
-ore Doctor v0.0.0
+Ore Doctor v0.0.0
 
 Notes
    ↑ desktop      build 123 available (ready to install)
    ⚠ terminal     narrow terminal
    ✗ auth         token expired - Run `ore login`.
    ⚠ git          this worktree is not on a Windows Dev Drive - create a trusted Windows Dev Drive: https://learn.microsoft.com/en-us/windows/dev-drive/
-   ⚠ security     Microsoft Defender can interfere with ore. Verify ore exclusions.
+   ⚠ security     Microsoft Defender can interfere with Ore. Verify Ore exclusions.
 ─────────────────────────────────────────────────────────────
 
 Environment
@@ -23,11 +23,11 @@ Environment
       GH_PAGER                 less
       LESS                     -FRX
   ✓ disk         sufficient free disk space (42.0 GiB)
-  ⚠ security     Microsoft Defender can interfere with ore. Verify ore exclusions.
+  ⚠ security     Microsoft Defender can interfere with Ore. Verify Ore exclusions.
       endpoint products        Microsoft Defender
       exclusion targets        verified Codex app and required helpers
-    ▸ ore exclusions           not verified (expected Codex application and helper exclusions)
-    → Microsoft Defender: Add a certificate or executable-path exclusion for ore and its helpers. If Attack Surface Reduction blocks ore, add a rule exclusion. If Controlled Folder Access blocks ore, allow the app.
+    ▸ Ore exclusions           not verified (expected Codex application and helper exclusions)
+    → Microsoft Defender: Add a certificate or executable-path exclusion for Ore and its helpers. If Attack Surface Reduction blocks Ore, add a rule exclusion. If Controlled Folder Access blocks Ore, allow the app.
   ✓ runtime      running local build on darwin-arm64
   ✓ install      consistent
       managed by               npm: no · bun: no · pnpm: no · package root —

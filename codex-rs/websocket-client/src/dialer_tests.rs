@@ -153,7 +153,7 @@ async fn tungstenite_default_tls_mode_subprocess_probe() {
     let factory = HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault);
     assert!(
         WebSocketConnector::new(&factory).is_err(),
-        "explicit ore TLS should reject the invalid custom CA"
+        "explicit Ore TLS should reject the invalid custom CA"
     );
     let connector =
         WebSocketConnector::new_with_tls_mode(&factory, WebSocketTlsMode::TungsteniteDefault)
@@ -164,7 +164,7 @@ async fn tungstenite_default_tls_mode_subprocess_probe() {
     let (mut websocket, _) = connector
         .connect(request, WebSocketConfig::default())
         .await
-        .expect("WebSocket should connect without constructing ore TLS");
+        .expect("WebSocket should connect without constructing Ore TLS");
     let expected = Message::Text("Tungstenite default TLS".into());
     websocket
         .send(expected.clone())

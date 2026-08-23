@@ -1,7 +1,7 @@
 //! Builds a redacted doctor report attachment for feedback uploads.
 //!
 //! Feedback upload should never depend on doctor succeeding. This module runs
-//! the configured ore executable as a subprocess, accepts only valid JSON from
+//! the configured Ore executable as a subprocess, accepts only valid JSON from
 //! `ore doctor --json`, derives a small set of Sentry tags, and otherwise
 //! skips the attachment with a warning. Keeping the report generation out of the
 //! app-server process avoids sharing doctor internals across crates while still
@@ -31,10 +31,10 @@ pub(crate) struct DoctorFeedbackReport {
     pub(crate) tags: BTreeMap<String, String>,
 }
 
-/// Runs `codex --cd <workspace> doctor --json` and returns a best-effort
+/// Runs `ore --cd <workspace> doctor --json` and returns a best-effort
 /// feedback attachment.
 ///
-/// Failure to spawn ore, finish before the timeout, or parse JSON means the
+/// Failure to spawn Ore, finish before the timeout, or parse JSON means the
 /// feedback upload proceeds without the doctor report. Callers should merge the
 /// returned tags without overriding explicit client-provided tags.
 pub(crate) async fn doctor_feedback_report(

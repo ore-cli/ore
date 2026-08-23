@@ -1,4 +1,4 @@
-//! Errors returned by the shared ore HTTP transport.
+//! Errors returned by the shared Ore HTTP transport.
 
 use crate::client::HttpError;
 use http::HeaderMap;

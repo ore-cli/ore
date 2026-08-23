@@ -1,7 +1,7 @@
 //! Entry-point for the `codex-exec` binary.
 //!
 //! When this CLI is invoked normally, it parses the standard `codex-exec` CLI
-//! options and launches the non-interactive ore agent. However, if it is
+//! options and launches the non-interactive Ore agent. However, if it is
 //! invoked with arg0 as `codex-linux-sandbox`, we instead treat the invocation
 //! as a request to run the logic for the standalone `codex-linux-sandbox`
 //! executable (i.e., parse any -s args and then run a *sandboxed* command under

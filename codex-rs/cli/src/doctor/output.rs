@@ -79,7 +79,7 @@ pub(super) fn render_human_report(report: &DoctorReport, options: HumanOutputOpt
     let _ = writeln!(
         out,
         "{} {}",
-        bold("ore Doctor", options),
+        bold("Ore Doctor", options),
         dim(&header_suffix(report), options)
     );
     out.push('\n');
@@ -1263,7 +1263,7 @@ mod tests {
         let rendered = render_human_report(&sample_report(), detailed_no_color_unicode_options());
         let expected = format!(
             "\
-ore Doctor v0.0.0
+Ore Doctor v0.0.0
 
 Notes
    ⚠ terminal     narrow terminal
@@ -1394,7 +1394,7 @@ Background Server
         let rendered = render_human_report(&sample_report(), summary_no_color_unicode_options());
         let expected = format!(
             "\
-ore Doctor v0.0.0
+Ore Doctor v0.0.0
 
 Notes
    ⚠ terminal     narrow terminal
@@ -1502,7 +1502,7 @@ Run ore doctor without --summary for detailed diagnostics.
         );
         let expected = format!(
             "\
-ore Doctor v0.0.0
+Ore Doctor v0.0.0
 
 Notes
    [!!] terminal     narrow terminal

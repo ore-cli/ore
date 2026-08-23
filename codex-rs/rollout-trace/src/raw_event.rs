@@ -120,9 +120,9 @@ pub enum RawTraceEventPayload {
     InferenceCancelled {
         inference_call_id: InferenceCallId,
         /// Provider transport request id, such as `x-request-id`, when observed
-        /// before ore stopped consuming the stream.
+        /// before Ore stopped consuming the stream.
         upstream_request_id: Option<String>,
-        /// Why ore stopped consuming the provider stream before a terminal response event.
+        /// Why Ore stopped consuming the provider stream before a terminal response event.
         reason: String,
         /// Completed output items observed before cancellation, if any.
         partial_response_payload: Option<RawPayloadRef>,
@@ -146,13 +146,13 @@ pub enum RawTraceEventPayload {
     },
     ToolCallRuntimeStarted {
         tool_call_id: ToolCallId,
-        /// Runtime/protocol observation for how ore began executing the tool.
+        /// Runtime/protocol observation for how Ore began executing the tool.
         runtime_payload: RawPayloadRef,
     },
     ToolCallRuntimeEnded {
         tool_call_id: ToolCallId,
         status: ExecutionStatus,
-        /// Runtime/protocol observation for how ore finished executing the tool.
+        /// Runtime/protocol observation for how Ore finished executing the tool.
         runtime_payload: RawPayloadRef,
     },
     ToolCallEnded {

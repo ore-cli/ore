@@ -15,7 +15,7 @@ fn send_builds_payload_with_tags_and_histograms() -> Result<()> {
 
     metrics.counter_with_description(
         "codex.turns",
-        "Total number of ore turns.",
+        "Total number of Ore turns.",
         /*inc*/ 1,
         &[("model", "gpt-5.1"), ("env", "dev")],
     )?;
@@ -26,7 +26,7 @@ fn send_builds_payload_with_tags_and_histograms() -> Result<()> {
     )?;
     metrics.gauge_with_description(
         "codex.active",
-        "Number of active ore operations.",
+        "Number of active Ore operations.",
         /*value*/ 2,
         &[("component", "test")],
     )?;
@@ -35,7 +35,7 @@ fn send_builds_payload_with_tags_and_histograms() -> Result<()> {
     let resource_metrics = latest_metrics(&exporter);
 
     let counter = find_metric(&resource_metrics, "codex.turns").expect("counter metric missing");
-    assert_eq!(counter.description(), "Total number of ore turns.");
+    assert_eq!(counter.description(), "Total number of Ore turns.");
     let counter_attributes = match counter.data() {
         opentelemetry_sdk::metrics::data::AggregatedMetrics::U64(data) => match data {
             opentelemetry_sdk::metrics::data::MetricData::Sum(sum) => {
@@ -84,7 +84,7 @@ fn send_builds_payload_with_tags_and_histograms() -> Result<()> {
     assert_eq!(histogram_attrs, expected_histogram_attributes);
 
     let gauge = find_metric(&resource_metrics, "codex.active").expect("gauge metric missing");
-    assert_eq!(gauge.description(), "Number of active ore operations.");
+    assert_eq!(gauge.description(), "Number of active Ore operations.");
     let gauge_point = match gauge.data() {
         opentelemetry_sdk::metrics::data::AggregatedMetrics::I64(data) => match data {
             opentelemetry_sdk::metrics::data::MetricData::Gauge(gauge) => {

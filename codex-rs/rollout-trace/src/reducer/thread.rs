@@ -123,7 +123,7 @@ impl TraceReducer {
         Ok(())
     }
 
-    /// Starts an ore turn inside an existing thread.
+    /// Starts a Ore turn inside an existing thread.
     pub(super) fn start_codex_turn(
         &mut self,
         seq: RawEventSeq,
@@ -155,7 +155,7 @@ impl TraceReducer {
         Ok(())
     }
 
-    /// Marks an ore turn terminal and validates any thread id carried by the raw event.
+    /// Marks a Ore turn terminal and validates any thread id carried by the raw event.
     pub(super) fn end_codex_turn(
         &mut self,
         seq: RawEventSeq,

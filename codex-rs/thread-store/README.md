@@ -1,6 +1,6 @@
 # Thread Store
 
-`codex-thread-store` is the storage boundary for ore threads. It defines the
+`codex-thread-store` is the storage boundary for Ore threads. It defines the
 `ThreadStore` trait plus local and in-memory implementations. Other storage
 implementations may live outside this repository.
 

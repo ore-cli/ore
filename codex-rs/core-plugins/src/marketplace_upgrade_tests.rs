@@ -12,7 +12,7 @@ use tempfile::TempDir;
 
 #[test]
 fn readback_ignores_unrelated_malformed_marketplace() {
-    let codex_home = TempDir::new().expect("create ore home");
+    let codex_home = TempDir::new().expect("create Ore home");
     std::fs::write(
         codex_home.path().join(CONFIG_TOML_FILE),
         r#"
@@ -44,7 +44,7 @@ last_revision = "abc123"
 
 #[test]
 fn one_upgrade_failure_does_not_block_another_marketplace() {
-    let codex_home = TempDir::new().expect("create ore home");
+    let codex_home = TempDir::new().expect("create Ore home");
     let remote_repo = TempDir::new().expect("create remote repository");
     init_marketplace_repo(remote_repo.path(), "good");
     let good_url = url::Url::from_directory_path(remote_repo.path())
@@ -154,7 +154,7 @@ fn automatic_marketplace_git_ignores_inherited_repository_configuration() {
     let project = root.path().join("project");
     let codex_home = project.join("codex-home");
     let remote = root.path().join("remote");
-    std::fs::create_dir_all(&codex_home).expect("create ore home");
+    std::fs::create_dir_all(&codex_home).expect("create Ore home");
     std::fs::create_dir_all(&remote).expect("create remote marketplace");
     init_marketplace_repo(&remote, "trusted");
     run_git(&remote, &["switch", "--create", "manual-filter"]);
@@ -222,7 +222,7 @@ fn automatic_marketplace_git_ignores_inherited_repository_configuration() {
 
 #[test]
 fn upgrade_uses_validated_source_for_git_operations() {
-    let codex_home = TempDir::new().expect("create ore home");
+    let codex_home = TempDir::new().expect("create Ore home");
     let remote_repo = TempDir::new().expect("create remote repository");
     init_marketplace_repo(remote_repo.path(), "good");
     let normalized_url = url::Url::from_directory_path(remote_repo.path())
@@ -270,7 +270,7 @@ ref = "missing-ref"
 #[test]
 fn up_to_date_fast_path_validates_marketplace_name() {
     const REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
-    let codex_home = TempDir::new().expect("create ore home");
+    let codex_home = TempDir::new().expect("create Ore home");
     let install_root = marketplace_install_root(codex_home.path());
     let destination = install_root.join("good");
     let manifest_dir = destination.join(".agents/plugins");
@@ -313,7 +313,7 @@ fn stale_activation_restores_newer_concurrently_installed_marketplace() {
     const STALE_REVISION: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     const NEWER_REVISION: &str = "cccccccccccccccccccccccccccccccccccccccc";
 
-    let codex_home = TempDir::new().expect("create ore home");
+    let codex_home = TempDir::new().expect("create Ore home");
     let install_root = marketplace_install_root(codex_home.path());
     let destination = install_root.join("good");
     std::fs::create_dir_all(&destination).expect("create installed marketplace root");
@@ -407,7 +407,7 @@ fn init_marketplace_repo(repo: &Path, marketplace_name: &str) {
     .expect("write marketplace manifest");
     run_git(repo, &["init"]);
     run_git(repo, &["config", "user.email", "codex-test@example.com"]);
-    run_git(repo, &["config", "user.name", "ore Test"]);
+    run_git(repo, &["config", "user.name", "Ore Test"]);
     run_git(repo, &["add", "."]);
     run_git(repo, &["commit", "-m", "initial"]);
 }

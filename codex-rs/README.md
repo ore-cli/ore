@@ -1,3 +1,3 @@
-# ore CLI
+# Ore CLI
 
-[**ore CLI Documentation**](https://github.com/ore-cli/ore#install)
+[**Ore CLI Documentation**](https://github.com/ore-cli/ore#install)

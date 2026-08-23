@@ -48,12 +48,12 @@ use wiremock::matchers::path;
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(60);
 #[cfg(not(any(target_os = "macos", windows)))]
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(10);
-const COMMIT_ATTRIBUTION: &str = "Co-authored-by: ore <noreply@openai.com>";
-const PR_ATTRIBUTION: &str = "Generated with [ore](https://openai.com/codex/).";
+const COMMIT_ATTRIBUTION: &str = "Co-authored-by: Ore <noreply@openai.com>";
+const PR_ATTRIBUTION: &str = "Generated with [Ore](https://openai.com/codex/).";
 const ATTRIBUTION_DISABLED: &str = "attribution is disabled for the current workspace";
 const LEGACY_COMMIT_ATTRIBUTION_INSTRUCTIONS: &str = "\
 When you write or edit a git commit message, ensure the message ends with this trailer exactly once:
-Co-authored-by: ore <noreply@openai.com>
+Co-authored-by: Ore <noreply@openai.com>
 
 Rules:
 - Keep existing trailers and append this trailer at the end if missing.
@@ -346,7 +346,7 @@ fn replace_attribution_fragment_with_legacy(
                                 LEGACY_COMMIT_ATTRIBUTION_INSTRUCTIONS.to_string()
                             }
                             LegacyAttribution::UnlinkedPullRequest => {
-                                text.replace(PR_ATTRIBUTION, "Generated with ore.")
+                                text.replace(PR_ATTRIBUTION, "Generated with Ore.")
                             }
                         };
                         replaced = true;

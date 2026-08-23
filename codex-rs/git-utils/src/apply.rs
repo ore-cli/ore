@@ -631,7 +631,7 @@ mod tests {
         // git init and minimal identity
         let _ = run(root, &["git", "init"]);
         let _ = run(root, &["git", "config", "user.email", "codex@example.com"]);
-        let _ = run(root, &["git", "config", "user.name", "ore"]);
+        let _ = run(root, &["git", "config", "user.name", "Ore"]);
         dir
     }
 

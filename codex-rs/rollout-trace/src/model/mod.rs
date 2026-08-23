@@ -18,7 +18,7 @@ pub use conversation::*;
 pub use runtime::*;
 pub use session::*;
 
-/// ore conversation/session UUID.
+/// Ore conversation/session UUID.
 pub type AgentThreadId = String;
 /// Stable multi-agent routing path such as `/root` or `/root/search_docs`.
 pub type AgentPath = String;
@@ -38,7 +38,7 @@ pub type ModelVisibleCallId = String;
 pub type CodeModeRuntimeToolId = String;
 /// Reducer-owned ID for one model-authored `exec` JavaScript cell.
 pub type CodeCellId = String;
-/// Process/session ID returned by ore's terminal runtime.
+/// Process/session ID returned by Ore's terminal runtime.
 pub type TerminalId = String;
 /// Reducer-owned ID for one command/write/poll operation against a terminal.
 pub type TerminalOperationId = String;
@@ -51,13 +51,13 @@ pub type EdgeId = String;
 /// Reducer-owned ID for request/log correlation metadata.
 pub type CorrelationId = String;
 
-/// Canonical reduced graph for one ore rollout.
+/// Canonical reduced graph for one Ore rollout.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RolloutTrace {
     pub schema_version: u32,
     /// Unique identity for this trace capture.
     ///
-    /// `rollout_id` names the ore rollout/session being observed. `trace_id`
+    /// `rollout_id` names the Ore rollout/session being observed. `trace_id`
     /// names the diagnostic artifact produced for that rollout, which keeps
     /// storage/replay identity separate from the product-level session identity.
     pub trace_id: String,

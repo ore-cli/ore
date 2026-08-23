@@ -10,7 +10,7 @@
 - **User input tips, selection, and status indicators:** Use ANSI `cyan`.
 - **Success and additions:** Use ANSI `green`.
 - **Errors, failures and deletions:** Use ANSI `red`.
-- **ore:** Use ANSI `magenta`.
+- **Ore:** Use ANSI `magenta`.
 
 # Avoid
 

@@ -241,7 +241,7 @@ pub(super) fn sandbox_check(config: &Config, arg0_paths: &Arg0DispatchPaths) -> 
                         | SetupErrorCode::OrchestratorHelperReportReadFailed
                         | SetupErrorCode::OrchestratorHelperIncomplete
                         | SetupErrorCode::HelperReadAclHelperSpawnFailed => {
-                            "repair the installed ore helpers or ask IT to allow their execution"
+                            "repair the installed Ore helpers or ask IT to allow their execution"
                         }
                         SetupErrorCode::HelperUserProvisionFailed
                         | SetupErrorCode::HelperUsersGroupCreateFailed
@@ -257,19 +257,19 @@ pub(super) fn sandbox_check(config: &Config, arg0_paths: &Arg0DispatchPaths) -> 
                         | SetupErrorCode::HelperUsersFileWriteFailed
                         | SetupErrorCode::HelperSetupMarkerWriteFailed
                         | SetupErrorCode::HelperSandboxLockFailed => {
-                            "rerun elevated setup for the authoritative ore home or ask IT"
+                            "rerun elevated setup for the authoritative Ore home or ask IT"
                         }
                         SetupErrorCode::HelperFirewallComInitFailed
                         | SetupErrorCode::HelperFirewallPolicyAccessFailed
                         | SetupErrorCode::HelperFirewallPolicyIneffective
                         | SetupErrorCode::HelperFirewallRuleCreateOrAddFailed
                         | SetupErrorCode::HelperFirewallRuleVerifyFailed => {
-                            "ask IT to allow ore sandbox rules in managed Windows Firewall policy"
+                            "ask IT to allow Ore sandbox rules in managed Windows Firewall policy"
                         }
                         SetupErrorCode::OrchestratorPayloadSerializeFailed
                         | SetupErrorCode::HelperRequestArgsFailed
                         | SetupErrorCode::HelperUnknownError => {
-                            "repair or reinstall the ore CLI from an approved distribution"
+                            "repair or reinstall the Ore CLI from an approved distribution"
                         }
                     };
                     check

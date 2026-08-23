@@ -1,4 +1,4 @@
-//! Mapping from ore protocol events into raw rollout-trace events.
+//! Mapping from Ore protocol events into raw rollout-trace events.
 //!
 //! The session layer already emits protocol events for turn lifecycle, terminal
 //! sessions, patch application, MCP calls, and collaboration tools. Rollout

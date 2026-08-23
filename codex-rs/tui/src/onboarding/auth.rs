@@ -396,7 +396,7 @@ impl AuthModeWidget {
         let mut lines: Vec<Line> = vec![
             Line::from(vec![
                 "  ".into(),
-                "Sign in with ChatGPT to use ore as part of your paid plan".into(),
+                "Sign in with ChatGPT to use Ore as part of your paid plan".into(),
             ]),
             Line::from(vec![
                 "  ".into(),
@@ -552,7 +552,7 @@ impl AuthModeWidget {
     fn render_chatgpt_success_message(&self, area: Rect, buf: &mut Buffer) {
         let mut docs_line = HyperlinkLine::new(Line::from("  For more details see the ").dim());
         docs_line.push_span(
-            "ore docs".underlined(),
+            "Ore docs".underlined(),
             Some("https://developers.openai.com/codex/security"),
         );
         let mut preferences_line =
@@ -571,10 +571,10 @@ impl AuthModeWidget {
             "".into(),
             "  Before you start:".into(),
             "".into(),
-            "  Decide how much autonomy you want to grant ore".into(),
+            "  Decide how much autonomy you want to grant Ore".into(),
             docs_line,
             "".into(),
-            "  ore can make mistakes".into(),
+            "  Ore can make mistakes".into(),
             HyperlinkLine::new(
                 "  Review the code it writes and commands it runs"
                     .dim()
@@ -613,7 +613,7 @@ impl AuthModeWidget {
         let lines = vec![
             "✓ API key configured".fg(Color::Green).into(),
             "".into(),
-            "  ore will use usage-based billing with your API key.".into(),
+            "  Ore will use usage-based billing with your API key.".into(),
         ];
 
         Paragraph::new(lines)
@@ -1264,7 +1264,7 @@ mod tests {
 
         assert_eq!(
             collect_osc8_chars(&buf, area, "https://developers.openai.com/codex/security"),
-            "ore docs"
+            "Ore docs"
         );
         assert_eq!(
             collect_osc8_chars(&buf, area, "https://chatgpt.com/#settings"),
@@ -1303,10 +1303,10 @@ mod tests {
 
           Before you start:
 
-          Decide how much autonomy you want to grant ore
-          For more details see the ore docs
+          Decide how much autonomy you want to grant Ore
+          For more details see the Ore docs
 
-          ore can make mistakes
+          Ore can make mistakes
           Review the code it writes and commands it runs
 
           Powered by your ChatGPT account

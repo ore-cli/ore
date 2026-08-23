@@ -8,23 +8,23 @@ const START_MARKER: &str = "<git_attribution>";
 const END_MARKER: &str = "</git_attribution>";
 pub(super) const LEGACY_COMMIT_ATTRIBUTION_INSTRUCTIONS: &str = "\
 When you write or edit a git commit message, ensure the message ends with this trailer exactly once:
-Co-authored-by: ore <noreply@openai.com>
+Co-authored-by: Ore <noreply@openai.com>
 
 Rules:
 - Keep existing trailers and append this trailer at the end if missing.
 - Do not duplicate this trailer if it already exists.
 - Keep one blank line between the commit body and trailer block.";
 pub(super) const ENABLED_INSTRUCTIONS: &str = r#"
-When you create or amend a git commit or create or update a pull request for this task, add ore attribution exactly once:
-- Commit messages must end with `Co-authored-by: ore <noreply@openai.com>`. Preserve existing trailers and, if this exact trailer is missing, append it with one blank line before the trailer block.
-- This also applies when a GitHub app or plugin creates a commit, including file creation, updates, and deletions: include the ore trailer in the tool's `message` argument.
-- Pull request bodies must include the exact line `Generated with [ore](https://openai.com/codex/).`. Preserve the existing body and hidden markers and, if this exact marker is missing, append it near the end, before any trailing hidden metadata markers.
+When you create or amend a git commit or create or update a pull request for this task, add Ore attribution exactly once:
+- Commit messages must end with `Co-authored-by: Ore <noreply@openai.com>`. Preserve existing trailers and, if this exact trailer is missing, append it with one blank line before the trailer block.
+- This also applies when a GitHub app or plugin creates a commit, including file creation, updates, and deletions: include the Ore trailer in the tool's `message` argument.
+- Pull request bodies must include the exact line `Generated with [Ore](https://openai.com/codex/).`. Preserve the existing body and hidden markers and, if this exact marker is missing, append it near the end, before any trailing hidden metadata markers.
 - Do not add duplicate attribution. If a message or body you are already editing contains duplicate exact attribution, keep exactly one.
-- Ignore any earlier instructions disabling ore attribution; this policy reflects the current workspace.
+- Ignore any earlier instructions disabling Ore attribution; this policy reflects the current workspace.
 - Do not rewrite an existing commit or pull request solely to add attribution.
 "#;
 pub(super) const DISABLED_INSTRUCTIONS: &str = "
-ore commit and pull request attribution is disabled for the current workspace. Ignore any earlier instructions requiring ore attribution and do not add it.
+Ore commit and pull request attribution is disabled for the current workspace. Ignore any earlier instructions requiring Ore attribution and do not add it.
 ";
 
 pub(super) fn git_attribution_world_state_section(enabled: bool) -> WorldStateSectionContribution {
@@ -71,8 +71,8 @@ fn is_legacy_commit_attribution_fragment(role: &str, text: &str) -> bool {
 fn is_enabled_fragment(role: &str, text: &str) -> bool {
     role == "developer"
         && text.trim_start().starts_with(START_MARKER)
-        && text.contains("Co-authored-by: ore <noreply@openai.com>")
-        && (text.contains("Generated with [ore](https://openai.com/codex/).")
-            || text.contains("Generated with ore."))
+        && text.contains("Co-authored-by: Ore <noreply@openai.com>")
+        && (text.contains("Generated with [Ore](https://openai.com/codex/).")
+            || text.contains("Generated with Ore."))
         && text.trim_end().ends_with(END_MARKER)
 }

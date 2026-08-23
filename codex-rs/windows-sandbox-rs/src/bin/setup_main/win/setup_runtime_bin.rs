@@ -95,7 +95,7 @@ pub(super) fn ensure_codex_app_runtime_paths_readable(
 fn runtime_paths(local_app_data: Option<PathBuf>, user_profile: Option<PathBuf>) -> Vec<PathBuf> {
     let mut runtime_paths = Vec::new();
     if let Some(local_app_data) = local_app_data {
-        let codex_root = local_app_data.join("OpenAI").join("ore");
+        let codex_root = local_app_data.join("OpenAI").join("Ore");
         runtime_paths.push(codex_root);
     }
     // The managed primary runtime is installed outside the LocalAppData runtime roots.

@@ -117,7 +117,7 @@ impl MemoriesSettingsView {
         let mut header = ColumnRenderable::new();
         header.push(Line::from("Memories".bold()));
         header.push(Line::from(
-            "Choose how ore uses and creates memories. Changes are saved to config.toml".dim(),
+            "Choose how Ore uses and creates memories. Changes are saved to config.toml".dim(),
         ));
         header
     }
@@ -126,7 +126,7 @@ impl MemoriesSettingsView {
         let mut header = ColumnRenderable::new();
         header.push(Line::from("Reset all memories?".bold()));
         header.push(Line::from(
-            "This clears local memory files and rollout summaries for the current ore home.".dim(),
+            "This clears local memory files and rollout summaries for the current Ore home.".dim(),
         ));
         header
     }

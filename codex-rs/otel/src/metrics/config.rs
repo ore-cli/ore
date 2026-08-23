@@ -16,7 +16,7 @@ use std::time::Duration;
 
 const CONVERSATION_TURN_COUNT_METRIC: &str = "codex.conversation.turn.count";
 
-// Metrics intentionally not sent through ore's built-in Statsig route.
+// Metrics intentionally not sent through Ore's built-in Statsig route.
 // Keep this as an exact-name list so custom OTLP exporters still receive them.
 const STATSIG_DISABLED_METRICS: &[&str] = &[
     API_CALL_COUNT_METRIC,

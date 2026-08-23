@@ -167,7 +167,7 @@ pub struct BackgroundTerminalInfo {
 }
 
 /// Conduit for the bidirectional stream of messages that compose a thread
-/// (formerly called a conversation) in ore.
+/// (formerly called a conversation) in Ore.
 impl CodexThread {
     pub(crate) fn new(
         session: Arc<Session>,

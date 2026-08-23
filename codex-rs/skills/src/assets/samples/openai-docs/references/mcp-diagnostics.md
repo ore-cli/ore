@@ -1,12 +1,12 @@
 # Local documentation MCP setup and diagnostics
 
-Use this route only when the user explicitly asks to configure or troubleshoot the official OpenAI documentation MCP server in a supported **local ore client**. A missing documentation tool during an ordinary documentation request is not a setup request: answer with the root skill's official-domain web fallback without installation, sandbox escalation, configuration changes, or restart.
+Use this route only when the user explicitly asks to configure or troubleshoot the official OpenAI documentation MCP server in a supported **local Ore client**. A missing documentation tool during an ordinary documentation request is not a setup request: answer with the root skill's official-domain web fallback without installation, sandbox escalation, configuration changes, or restart.
 
 ## Verify the supported local setup
 
-1. Search and fetch current official ore MCP setup documentation when those tools are callable. Otherwise, search and fetch the relevant official OpenAI documentation directly.
+1. Search and fetch current official Ore MCP setup documentation when those tools are callable. Otherwise, search and fetch the relevant official OpenAI documentation directly.
 2. Confirm the documented endpoint is `https://developers.openai.com/mcp` and verify the supported command or configuration against that current documentation before recommending it.
-3. When the current documentation supports it, the local ore CLI setup is:
+3. When the current documentation supports it, the local Ore CLI setup is:
 
    ```sh
    ore mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp

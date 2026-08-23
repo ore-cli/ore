@@ -17,7 +17,7 @@ use serde_json::Value;
 use std::path::Path;
 
 /// Determines the conditions under which the user is consulted to approve
-/// running the command proposed by ore.
+/// running the command proposed by Ore.
 #[allow(dead_code)]
 #[derive(JsonSchema)]
 #[schemars(rename = "AskForApproval")]

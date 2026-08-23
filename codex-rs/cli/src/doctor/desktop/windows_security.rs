@@ -199,10 +199,10 @@ fn classify(channels: &[Option<Vec<Evidence>>]) -> DoctorCheck {
     }
     let summary = match (status, visible) {
         (CheckStatus::Ok, _) if channels.contains(&None) => "security event coverage is incomplete",
-        (CheckStatus::Ok, _) => "no locally visible recent ore security enforcement was found",
+        (CheckStatus::Ok, _) => "no locally visible recent Ore security enforcement was found",
         (CheckStatus::Warning, false) => "security event channels could not be inspected",
-        (CheckStatus::Warning, true) => "recent ore security audit or detection requires review",
-        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined an ore executable",
+        (CheckStatus::Warning, true) => "recent Ore security audit or detection requires review",
+        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined a Ore executable",
     };
     let mut check = desktop_check("desktop.security.enforcement", status, summary).details(details);
     if status != CheckStatus::Ok {

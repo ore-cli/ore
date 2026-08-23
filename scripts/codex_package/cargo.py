@@ -1,4 +1,4 @@
-"""Cargo builds for source-built ore package artifacts."""
+"""Cargo builds for source-built Ore package artifacts."""
 
 import os
 import subprocess

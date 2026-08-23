@@ -32,7 +32,7 @@ fn init_params() -> InitializeRequestParams {
         Some(ElicitationCapability::new().with_form(FormElicitationCapability::new()));
     InitializeRequestParams::new(
         capabilities,
-        Implementation::new("codex-test", "0.0.0-test").with_title("ore rmcp resource test"),
+        Implementation::new("codex-test", "0.0.0-test").with_title("Ore rmcp resource test"),
     )
     .with_protocol_version(ProtocolVersion::V_2025_06_18)
 }
@@ -86,7 +86,7 @@ async fn rmcp_client_can_list_and_read_resources() -> anyhow::Result<()> {
         .await?;
     let mut expected_templates = ListResourceTemplatesResult::with_all_items(vec![
         rmcp::model::ResourceTemplate::new("memo://codex/{slug}", "codex-memo")
-            .with_title("ore Memo")
+            .with_title("Ore Memo")
             .with_description("Template for memo://codex/{slug} resources used in tests.")
             .with_mime_type("text/plain"),
     ]);

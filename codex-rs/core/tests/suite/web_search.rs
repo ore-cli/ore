@@ -49,7 +49,7 @@ async fn web_search_mode_cached_sets_external_web_access_false() {
     let test = builder
         .build(&server)
         .await
-        .expect("create test ore conversation");
+        .expect("create test Ore conversation");
 
     test.submit_turn_with_permission_profile(
         "hello cached web search",
@@ -298,7 +298,7 @@ async fn web_search_mode_takes_precedence_over_legacy_flags() {
     let test = builder
         .build(&server)
         .await
-        .expect("create test ore conversation");
+        .expect("create test Ore conversation");
 
     test.submit_turn_with_permission_profile(
         "hello cached+live flags",
@@ -344,7 +344,7 @@ async fn web_search_mode_defaults_to_cached_when_features_disabled() {
     let test = builder
         .build(&server)
         .await
-        .expect("create test ore conversation");
+        .expect("create test Ore conversation");
 
     test.submit_turn_with_permission_profile(
         "hello default cached web search",
@@ -399,7 +399,7 @@ async fn web_search_mode_updates_between_turns_with_permission_profile() {
     let test = builder
         .build(&server)
         .await
-        .expect("create test ore conversation");
+        .expect("create test Ore conversation");
 
     test.submit_turn_with_permission_profile("hello cached", PermissionProfile::read_only())
         .await
@@ -460,7 +460,7 @@ location = { country = "US", city = "New York", timezone = "America/New_York" }
     let test = builder
         .build(&server)
         .await
-        .expect("create test ore conversation");
+        .expect("create test Ore conversation");
 
     test.submit_turn_with_permission_profile(
         "hello configured web search",
@@ -509,7 +509,7 @@ async fn indexed_web_search_mode_sets_indexed_access() {
     let test = builder
         .build(&server)
         .await
-        .expect("create test ore conversation");
+        .expect("create test Ore conversation");
 
     test.submit_turn_with_permission_profile(
         "hello indexed web search",

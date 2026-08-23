@@ -367,7 +367,7 @@ startup_timeout_sec = 10
     let registration_request = timeout(DEFAULT_READ_TIMEOUT, registration_request_rx.recv())
         .await?
         .expect("executor registration endpoint should receive a request");
-    assert_eq!(registration_request["client_name"], json!("ore"));
+    assert_eq!(registration_request["client_name"], json!("Ore"));
     assert_eq!(
         registration_request["redirect_uris"],
         json!([redirect_uri.clone()])

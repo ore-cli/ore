@@ -570,7 +570,7 @@ pub(crate) enum AppEvent {
         url: String,
     },
 
-    /// Open the current thread in ore Desktop.
+    /// Open the current thread in Ore Desktop.
     OpenDesktopThread {
         thread_id: ThreadId,
     },

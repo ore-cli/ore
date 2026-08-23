@@ -346,9 +346,9 @@ def _load_adapter_report(report_path: Path) -> tuple[bool, str]:
     try:
         decoded = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return False, f"ore adapter did not write a valid report: {exc}"
+        return False, f"Ore adapter did not write a valid report: {exc}"
     if not isinstance(decoded, dict):
-        return False, "ore adapter report was not an object"
+        return False, "Ore adapter report was not an object"
     success = decoded.get("success") is True
     steps = decoded.get("steps")
     failed_steps: list[str] = []
@@ -359,11 +359,11 @@ def _load_adapter_report(report_path: Path) -> tuple[bool, str]:
                     f"{step.get('name')}: {step.get('detail', 'failed')}"
                 )
     if success:
-        return True, "ore adapter completed the scenario"
+        return True, "Ore adapter completed the scenario"
     if failed_steps:
         return False, redact_sensitive_text("; ".join(failed_steps))[-4_000:]
     return False, redact_sensitive_text(
-        str(decoded.get("error") or "ore adapter failed")
+        str(decoded.get("error") or "Ore adapter failed")
     )[-4_000:]
 
 

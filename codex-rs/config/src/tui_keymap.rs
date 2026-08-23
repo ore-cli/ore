@@ -484,7 +484,7 @@ fn normalize_keybinding_stroke(raw: &str) -> Result<String, String> {
     if lower.is_empty() {
         return Err(
             "keybinding cannot be empty. Use values like `ctrl-a` or `shift-enter`.\n\
-See the ore keymap documentation for supported actions and examples."
+See the Ore keymap documentation for supported actions and examples."
                 .to_string(),
         );
     }
@@ -610,7 +610,7 @@ fn normalize_key_name(key: &str, original: &str) -> Result<String, String> {
         "unknown key `{key}` in keybinding `{original}`. \
 Use a printable character (for example `a`), function keys (`f1`-`f{MAX_FUNCTION_KEY}`), \
 or one of: enter, tab, backspace, esc, delete, arrows, home/end, page-up/page-down, space, minus.\n\
-See the ore keymap documentation for supported actions and examples."
+See the Ore keymap documentation for supported actions and examples."
     ))
 }
 

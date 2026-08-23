@@ -1327,7 +1327,7 @@ printf '%s\n' "${@: -1}" >> "${payload_path}""#,
     assert_eq!(payloads[0]["last-assistant-message"], json!("done"));
     assert!(
         !notify_payload_raw.contains(
-            "The following is the ore agent history whose request action you are assessing."
+            "The following is the Ore agent history whose request action you are assessing."
         ),
         "Guardian review transcript leaked into legacy notify payload: {notify_payload_raw}"
     );

@@ -1,6 +1,6 @@
-//! Trace bundle format, writer, and reducer for ore rollouts.
+//! Trace bundle format, writer, and reducer for Ore rollouts.
 //!
-//! This crate owns the trace schema. Hot-path ore code should depend on the
+//! This crate owns the trace schema. Hot-path Ore code should depend on the
 //! small writer API here; semantic replay and viewer projections stay outside
 //! `codex-core`.
 //!
@@ -32,7 +32,7 @@ pub use compaction::CompactionTraceAttempt;
 pub use compaction::CompactionTraceContext;
 /// No-op-capable handle for recording one upstream inference attempt.
 pub use inference::InferenceTraceAttempt;
-/// Shared recorder context for inference attempts within one ore turn.
+/// Shared recorder context for inference attempts within one Ore turn.
 pub use inference::InferenceTraceContext;
 /// Trace-owned MCP execution correlation propagated to bridge request metadata.
 pub use mcp::McpCallTraceContext;
@@ -64,7 +64,7 @@ pub use thread::CODEX_ROLLOUT_TRACE_ROOT_ENV;
 pub use thread::ThreadStartedTraceMetadata;
 /// No-op-capable handle for recording one thread in a rollout bundle.
 pub use thread::ThreadTraceContext;
-/// Request data for the canonical ore tool boundary.
+/// Request data for the canonical Ore tool boundary.
 pub use tool_dispatch::ToolDispatchInvocation;
 /// Tool input observed at the registry boundary.
 pub use tool_dispatch::ToolDispatchPayload;
@@ -74,5 +74,5 @@ pub use tool_dispatch::ToolDispatchRequester;
 pub use tool_dispatch::ToolDispatchResult;
 /// No-op-capable handle for recording one resolved tool dispatch.
 pub use tool_dispatch::ToolDispatchTraceContext;
-/// Append-only writer used by hot-path ore instrumentation.
+/// Append-only writer used by hot-path Ore instrumentation.
 pub use writer::TraceWriter;

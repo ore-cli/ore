@@ -672,8 +672,8 @@ impl Daemon {
 
         let managed_codex_path = self.managed_codex_bin.display();
         Err(anyhow!(
-            "managed standalone ore install not found at {managed_codex_path}\n\n\
-             This command requires the standalone install managed by the ore installer, because \
+            "managed standalone Ore install not found at {managed_codex_path}\n\n\
+             This command requires the standalone install managed by the Ore installer, because \
              the daemon starts and updates app-server from that fixed path.\n\n\
              Install it with:\n  curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh\n\n\
              Then rerun the command you just tried."

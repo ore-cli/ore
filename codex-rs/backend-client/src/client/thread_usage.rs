@@ -1,4 +1,4 @@
-//! Authoritative estimated credit and dollar usage for an individual ore thread.
+//! Authoritative estimated credit and dollar usage for an individual Ore thread.
 
 use super::Client;
 use super::PathStyle;

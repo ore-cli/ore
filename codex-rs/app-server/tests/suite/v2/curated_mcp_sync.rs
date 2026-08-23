@@ -87,7 +87,7 @@ impl CuratedMcpSyncFixture {
         run_git(
             &real_git,
             &curated_repo,
-            &["config", "user.name", "ore Tests"],
+            &["config", "user.name", "Ore Tests"],
         )?;
         run_git(&real_git, &curated_repo, &["add", "."])?;
         run_git(

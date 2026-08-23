@@ -197,7 +197,7 @@ async fn priced_cost_waits_for_every_response_when_response_costs_are_available(
 }
 
 async fn test_runtime(server: &MockServer, auth_manager: Arc<AuthManager>) -> WorkerRuntime {
-    let codex_home = TempDir::new().expect("temporary ore home");
+    let codex_home = TempDir::new().expect("temporary Ore home");
     let mut config = ConfigBuilder::default()
         .codex_home(codex_home.path().to_path_buf())
         .build()

@@ -19,6 +19,12 @@
 
 vars:
   product: ore
+  # The product as a proper noun, for prose. Upstream keeps this split --
+  # `codex` is the command, "Codex" is the thing -- and the UI rules below match
+  # capitalized \bCodex\b precisely because it is a name there. Replacing that
+  # with the bare command produced "ore can make mistakes" and "Ask ore to do
+  # anything", which read as typos at the start of a sentence.
+  product_name: Ore
   bin: ore
   repo_slug: ore-cli/ore
   npm_scope: "@ore-cli"
@@ -61,8 +67,11 @@ engine:
     - codex-rs/core/config.schema.json
     - codex-rs/hooks/schema/*
     - codex-rs/models-manager/models.json
-    - codex-rs/models-manager/prompt.md
-    - codex-rs/models-manager/src/model_info.rs
+    # prompt.md and model_info.rs are NOT skipped -- see
+    # prompt-identity-is-ore below. Decision 11 keeps model-facing text
+    # byte-identical because the model was tuned against the behaviour it
+    # describes; the three sentences rewritten there are identity claims, not
+    # behaviour, and they are false for every model this fork can now reach.
     # Model-facing prompt text, byte-identical by ratified decision 11. These
     # prompts describe the upstream agent TO an OpenAI model, and the model was
     # tuned against that description; rebranding them changes behaviour and
@@ -201,6 +210,23 @@ categories:
       pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|unarchive|update)\b)'
       replace: '${bin}'
 
+    - name: cli-command-before-flag
+      note: >
+        cli-command-in-help-text matches `codex ` only when a SUBCOMMAND follows, by an
+        explicit lookahead list. A flag is not in that list, so every `codex -m`,
+        `codex --help` and `codex --cd` survived the rebrand -- including the model
+        picker's "Access legacy models by running codex -m <model_name>", which tells the
+        user to run a command that does not exist, and install.ps1's
+        `Get-Command codex -ErrorAction SilentlyContinue`, which probes for the wrong
+        binary when deciding whether one is already installed.
+
+        Same lookbehind as the subcommand rule, so a path, an identifier or a longer word
+        ending in "codex" is left alone; the lookahead requires one or two dashes followed
+        by a letter, which no path or identifier produces.
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/**/*.ps1"]
+      pattern: '(?<![\w./-])codex(?= -{1,2}[a-zA-Z])'
+      replace: '${bin}'
+
     - name: cli-command-in-backticks
       globs: ["codex-rs/**/*.rs", "**/*.md"]
       pattern: '`codex`'
@@ -219,15 +245,63 @@ categories:
 
   # ------------------------------------------------------------- display strings
   display-strings:
+    - name: prompt-identity-is-ore
+      note: >
+        Decision 11 keeps model-facing prompt text byte-identical, on two grounds: the
+        model was tuned against the description, and rebranding makes the text false
+        ("ore CLI is an open source project led by OpenAI"). Both are about the wrong
+        thing here. The tuning argument is about the ~200 lines of BEHAVIOUR, none of
+        which these rules touch -- they rewrite three identity sentences and nothing
+        else. And the falseness argument inverts the moment a non-OpenAI model reads
+        it: telling Claude it is "Codex, a coding agent based on GPT-5" running "a
+        project led by OpenAI" is false three times over, and users see it the first
+        time they ask the agent who it is.
+
+        Clause-level rather than word-level, exactly because a bare Codex -> ore would
+        produce the false sentences decision 11 warned about. The lead-in
+        "You are a coding agent running in the Codex CLI" is rewritten whole, so what
+        replaces it is a true statement rather than a substituted noun.
+
+        The replacement deliberately contains no "Codex": ui-bare-product-name runs
+        after this and would rewrite it, turning "forked from Codex" into "forked from
+        Ore". The lineage belongs in the README, not in a sentence whose meaning
+        depends on rule ordering.
+      files: [codex-rs/models-manager/prompt.md]
+      rust_literals_only: false
+      pattern: 'You are a coding agent running in the Codex CLI, a terminal-based coding assistant\. Codex CLI is an open source project led by OpenAI\. You are expected to be precise, safe, and helpful\.'
+      replace: 'You are a coding agent running in ${product_name}, a terminal-based coding assistant. ${product_name} is an open source coding agent. You are expected to be precise, safe, and helpful.'
+
+    - name: prompt-drops-the-old-model-disambiguation
+      note: >
+        The second half of prompt-identity-is-ore. Upstream disambiguates its CLI from
+        OpenAI's retired Codex language model, which is a distinction only OpenAI needs
+        to draw; for ore the parenthetical is noise, and rebranding it word-wise yields
+        "not the old ore language model built by OpenAI", which is meaningless.
+      files: [codex-rs/models-manager/prompt.md]
+      rust_literals_only: false
+      pattern: 'Within this context, Codex refers to the open-source agentic coding interface \(not the old Codex language model built by OpenAI\)\.'
+      replace: 'Within this context, ${product_name} refers to the open-source agentic coding interface.'
+
+    - name: prompt-personality-header-is-ore
+      note: >
+        DEFAULT_PERSONALITY_HEADER, the other half of what the agent is told it is.
+        "based on GPT-5" is the one clause where the provider genuinely matters: true
+        for an OpenAI model, false for Claude. Dropped rather than made conditional --
+        a substitution cannot branch on provider, and the base model is not something
+        the agent needs told to behave correctly.
+      files: [codex-rs/models-manager/src/model_info.rs]
+      pattern: 'You are Codex, a coding agent based on GPT-5\.'
+      replace: 'You are ${product_name}, a coding agent.'
+
     - name: ui-openai-codex
       globs: ["codex-rs/**/*.rs", "**/*.md", "*.nix", "codex-rs/**/*.nix"]
       pattern: 'OpenAI Codex'
-      replace: '${product}'
+      replace: '${product_name}'
 
     - name: ui-codex-cli-name
       globs: ["codex-rs/**/*.rs", "**/*.md", "codex-cli/**/*.json", "codex-cli/**/*.py", "codex-cli/**/*.js"]
       pattern: '\bCodex CLI\b'
-      replace: '${product} CLI'
+      replace: '${product_name} CLI'
 
     - name: ui-tagline
       globs: ["codex-rs/**/*.rs", "**/*.md"]
@@ -336,7 +410,7 @@ categories:
       globs: ["codex-rs/**/*.rs", "codex-rs/**/*.js", "codex-rs/**/*.toml", "codex-rs/**/*.txt", "codex-cli/**/*.js", "codex-cli/**/*.json", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/install/*"]
       exclude: ["codex-rs/tui/src/pets/*"]
       pattern: '(?<!You are )\bCodex\b(?! (?:backend|app(?!-)|App|extension|Extension|[Cc]loud))'
-      replace: '${product}'
+      replace: '${product_name}'
 
     - name: article-before-product-name
       globs: ["codex-rs/**/*.rs", "**/*.md"]
@@ -371,7 +445,7 @@ categories:
         never fires on the middle occurrences; this rule covers exactly that shape.
       files: [codex-rs/external-agent-migration/src/service_tests/general/repo_import.rs]
       pattern: '(?<=\\n)Codex(?=\\n)'
-      replace: '${product}'
+      replace: '${product_name}'
 
   # ------------------------------------------------------------------------ URLs
   urls:
@@ -562,7 +636,7 @@ categories:
     - name: installer-ps1-programs-dir
       globs: ["scripts/install/install.ps1"]
       pattern: 'Programs\\\\OpenAI\\\\Codex'
-      replace: 'Programs\\${product}'
+      replace: 'Programs\\${product_name}'
       optional: true
 
     - name: installer-brew-uninstall-hint
@@ -571,9 +645,15 @@ categories:
       replace: 'brew uninstall ${brew_tap}/${brew_formula}'
 
     - name: installer-profile-markers
+      note: >
+        `# >>> Ore installer` is the marker install.sh writes into a shell profile and
+        greps for on the next run, so changing it orphans blocks an earlier build wrote.
+        Capitalized anyway: nothing has been installed by anyone but us, so the entire
+        install base is a few test sandboxes. Matching upstream's proper-noun convention
+        is worth more than compatibility with three prereleases nobody downloaded.
       globs: ["scripts/install/install.sh"]
       pattern: '(# [<>]{3} )Codex( installer)'
-      replace: '\1${product}\2'
+      replace: '\1${product_name}\2'
       optional: true
 
     - name: installer-command-probe

@@ -104,7 +104,7 @@ impl PtyCodex {
             .stdout(stdout)
             .stderr(slave)
             .spawn()
-            .context("start ore in focus-test pseudo-terminal")?;
+            .context("start Ore in focus-test pseudo-terminal")?;
 
         Ok(Self {
             master,
@@ -126,20 +126,20 @@ impl PtyCodex {
             self.read_output(Duration::from_millis(/*millis*/ 50))?;
             self.answer_startup_queries()?;
 
-            if self.palette_answered && self.screen_contains("ore") {
+            if self.palette_answered && self.screen_contains("Ore") {
                 return Ok(());
             }
 
             if let Some(status) = self.child.try_wait()? {
                 bail!(
-                    "ore exited before the focus test started ({status}); screen:\n{}",
+                    "Ore exited before the focus test started ({status}); screen:\n{}",
                     self.screen_contents(),
                 );
             }
         }
 
         bail!(
-            "ore did not initialize within {:?}; screen:\n{}",
+            "Ore did not initialize within {:?}; screen:\n{}",
             STARTUP_TIMEOUT,
             self.screen_contents(),
         );
@@ -258,7 +258,7 @@ fn write_test_config(codex_home: &Path, repo_root: &Path) -> Result<()> {
          [projects.\"{repo_root}\"]\ntrust_level = \"trusted\"\n"
     );
     std::fs::write(codex_home.join("config.toml"), config)
-        .context("write focus-test ore configuration")?;
+        .context("write focus-test Ore configuration")?;
     std::fs::write(
         codex_home.join("auth.json"),
         r#"{"OPENAI_API_KEY":"focus-palette-test","tokens":null,"last_refresh":null}"#,

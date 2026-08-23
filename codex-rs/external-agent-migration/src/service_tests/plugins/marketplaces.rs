@@ -208,7 +208,7 @@ source = {configured_marketplace_root:?}
 "#
         ),
     )
-    .expect("write ore config");
+    .expect("write Ore config");
     fs::write(
         configured_marketplace_root.join(".agents/plugins/marketplace.json"),
         r#"{

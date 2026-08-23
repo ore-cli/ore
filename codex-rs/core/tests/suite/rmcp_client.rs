@@ -2945,7 +2945,7 @@ impl RemoteStreamableHttpServer {
 }
 
 impl StreamableHttpTestServer {
-    /// Returns the MCP endpoint URL that ore should connect to.
+    /// Returns the MCP endpoint URL that Ore should connect to.
     fn url(&self) -> &str {
         &self.server_url
     }
@@ -2975,7 +2975,7 @@ impl StreamableHttpTestServer {
     }
 }
 
-/// What this tests: ore can discover and call a Streamable HTTP MCP tool in
+/// What this tests: Ore can discover and call a Streamable HTTP MCP tool in
 /// both local and remote-aware placements, and the tool observes the expected
 /// environment value from the server process that actually handled the request.
 #[test_case(false; "plain")]
@@ -2987,7 +2987,7 @@ async fn streamable_http_tool_call_round_trip(with_headers_helper: bool) -> anyh
         return Ok(());
     }
 
-    // Phase 1: script the model responses so ore will call the MCP echo tool
+    // Phase 1: script the model responses so Ore will call the MCP echo tool
     // and then complete the turn after the tool result is returned.
     let server = responses::start_mock_server().await;
 
@@ -3043,7 +3043,7 @@ async fn streamable_http_tool_call_round_trip(with_headers_helper: bool) -> anyh
         }
     });
 
-    // Phase 3: configure ore with the Streamable HTTP MCP server and build a
+    // Phase 3: configure Ore with the Streamable HTTP MCP server and build a
     // fixture that selects remote MCP placement only when the remote test
     // environment is active.
     let fixture = test_codex()
@@ -3077,7 +3077,7 @@ async fn streamable_http_tool_call_round_trip(with_headers_helper: bool) -> anyh
         ))
         .await?;
 
-    // Phase 5: assert ore begins the expected tool invocation.
+    // Phase 5: assert Ore begins the expected tool invocation.
     let begin_event = wait_for_event(&fixture.codex, |ev| {
         matches!(ev, EventMsg::McpToolCallBegin(_))
     })
@@ -3340,7 +3340,7 @@ fn streamable_http_with_oauth_round_trip() -> anyhow::Result<()> {
 async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
     skip_if_no_network!(Ok(()));
 
-    // Phase 1: script the model responses so ore will call the OAuth-backed
+    // Phase 1: script the model responses so Ore will call the OAuth-backed
     // MCP echo tool and then finish the turn after receiving the result.
     let server = responses::start_mock_server().await;
 
@@ -3445,7 +3445,7 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
         OAuthCredentialExpiry::Valid,
     )?;
 
-    // Phase 4: configure ore with the OAuth-backed Streamable HTTP MCP
+    // Phase 4: configure Ore with the OAuth-backed Streamable HTTP MCP
     // server and build the fixture in the active local or remote-aware mode.
     let fixture = test_codex()
         .with_model_info_override("gpt-5.4", |model| model.supports_search_tool = false)
@@ -3660,7 +3660,7 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
         ))
         .await?;
 
-    // Phase 7: assert ore begins the expected tool invocation.
+    // Phase 7: assert Ore begins the expected tool invocation.
     let begin_event = wait_for_event(&fixture.codex, |ev| {
         matches!(
             ev,
@@ -3847,7 +3847,7 @@ async fn start_remote_streamable_http_test_server(
     let server_url = format!("http://{}:{}/mcp", container_ip, remote_bind_addr.port());
     // The orchestrator can see the Docker container IP, but the behavior under
     // test is whether the remote-side MCP client can reach it. Probe through
-    // remote HTTP before handing the URL to the ore fixture.
+    // remote HTTP before handing the URL to the Ore fixture.
     wait_for_remote_streamable_http_server(&server_url, Duration::from_secs(5)).await?;
     if expected_token.is_some() {
         wait_for_streamable_http_metadata(&server_url, Duration::from_secs(5)).await?;

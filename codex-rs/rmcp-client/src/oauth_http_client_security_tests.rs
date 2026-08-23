@@ -88,7 +88,7 @@ async fn oauth_registration_redirects_never_forward_resource_only_headers() -> R
                     .method("POST")
                     .uri(format!("{}/register", resource_server.uri()))
                     .header("content-type", "application/json")
-                    .body(br#"{"client_name":"ore"}"#.to_vec())?,
+                    .body(br#"{"client_name":"Ore"}"#.to_vec())?,
                 OAuthHttpRedirectPolicy::Follow,
                 /*timeout*/ None,
             )

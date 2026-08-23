@@ -1,8 +1,8 @@
 //! Types used when representing Model Context Protocol (MCP) values inside the
-//! ore protocol.
+//! Ore protocol.
 //!
 //! We intentionally keep these types TS/JSON-schema friendly (via `ts-rs` and
-//! `schemars`) so they can be embedded in ore's own protocol structures.
+//! `schemars`) so they can be embedded in Ore's own protocol structures.
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
@@ -43,7 +43,7 @@ pub struct McpResourceOrigin {
 /// Client extensions that must not be advertised to MCP servers.
 const MCP_CLIENT_ONLY_EXTENSION_IDS: [&str; 1] = [OPENAI_STANDARD_FORM_INPUT_EXTENSION_ID];
 
-/// MCP extensions supplied by the client that created an ore session.
+/// MCP extensions supplied by the client that created a Ore session.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ClientMcpExtensions {
     extensions: HashMap<String, serde_json::Value>,

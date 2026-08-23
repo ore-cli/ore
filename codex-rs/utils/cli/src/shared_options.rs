@@ -1,4 +1,4 @@
-//! Shared command-line flags used by both interactive and non-interactive ore entry points.
+//! Shared command-line flags used by both interactive and non-interactive Ore entry points.
 
 use crate::CliConfigOverrides;
 use crate::SandboxModeCliArg;

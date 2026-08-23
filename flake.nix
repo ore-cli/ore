@@ -1,5 +1,5 @@
 {
-  description = "Development Nix flake for ore CLI";
+  description = "Development Nix flake for Ore CLI";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

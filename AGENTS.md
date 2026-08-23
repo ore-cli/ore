@@ -29,7 +29,7 @@ In the codex-rs folder where the rust code lives:
 - When writing tests, prefer comparing the equality of entire objects over fields one by one.
 - Do not add tests for values that are statically defined.
 - Do not add negative tests for logic that was removed.
-- Do not add general product or user-facing documentation to the `docs/` folder. The official ore documentation lives elsewhere. The exception is app-server API documentation, which is covered by the app-server guidance below.
+- Do not add general product or user-facing documentation to the `docs/` folder. The official Ore documentation lives elsewhere. The exception is app-server API documentation, which is covered by the app-server guidance below.
 - Prefer private modules and explicitly exported public crate API.
 - If you change `ConfigToml` or nested config types, run `just write-config-schema` to update `codex-rs/core/config.schema.json`.
 - When working with MCP tool calls, prefer using `codex-rs/codex-mcp/src/mcp_connection_manager.rs` to handle mutation of tools and tool calls. Aim to minimize the footprint of changes and leverage existing abstractions rather than plumbing code through multiple levels of function calls.
@@ -90,7 +90,7 @@ Keep crate API surfaces as small as possible. Avoid proliferating test-only help
 
 ### Model visible context
 
-ore maintains a context (history of messages) that is sent to the model in inference requests.
+Ore maintains a context (history of messages) that is sent to the model in inference requests.
 
 1. No history rewrite - the context must be built up incrementally.
 2. Avoid frequent changes to context that cause cache misses.
@@ -223,7 +223,7 @@ Use `just bench-smoke` to dry-run the benchmark for a single iteration to ensure
 
 #### codex_core integration testing
 
-- Prefer the utilities in `core_test_support::responses` when writing end-to-end ore tests.
+- Prefer the utilities in `core_test_support::responses` when writing end-to-end Ore tests.
 - Use `TestCodexBuilder::build_with_auto_env()` by default to ensure that new tests work with
   foreign app/exec OSes. See $remote-tests for details.
 - All `mount_sse*` helpers return a `ResponseMock`; hold onto it so you can assert against outbound `/responses` POST bodies.
@@ -318,5 +318,5 @@ closest `pyproject.toml`'s `requires-python` field to see what minimum runtime v
 
 Tests and features must support Linux, macOS and Windows unless feature is explicitly OS-specific.
 
-ore supports running connected app-server and exec-server on different operating systems. See the
+Ore supports running connected app-server and exec-server on different operating systems. See the
 `$remote-tests` skill for details about integration testing these configurations.

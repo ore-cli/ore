@@ -281,7 +281,7 @@ mod tests {
         let plugin_root = tmp.path().join("plugins/sample");
         let codex_path = plugin_root.join(".codex-plugin/plugin.json");
         let claude_path = plugin_root.join(ALTERNATE_PLUGIN_CLA_MANIFEST_RELATIVE_PATH);
-        fs::create_dir_all(&codex_path).expect("nonregular ore manifest");
+        fs::create_dir_all(&codex_path).expect("nonregular Ore manifest");
         fs::create_dir_all(claude_path.parent().expect("Claude manifest parent"))
             .expect("Claude manifest parent");
         fs::write(&claude_path, r#"{"name":"sample"}"#).expect("Claude manifest");
@@ -296,14 +296,14 @@ mod tests {
         let plugin_root = tmp.path().join("plugins/sample");
         let codex_path = plugin_root.join(".codex-plugin/plugin.json");
         let claude_path = plugin_root.join(ALTERNATE_PLUGIN_CLA_MANIFEST_RELATIVE_PATH);
-        fs::create_dir_all(codex_path.parent().expect("ore manifest parent"))
-            .expect("ore manifest parent");
+        fs::create_dir_all(codex_path.parent().expect("Ore manifest parent"))
+            .expect("Ore manifest parent");
         fs::create_dir_all(claude_path.parent().expect("Claude manifest parent"))
             .expect("Claude manifest parent");
         fs::write(plugin_root.join("benign.json"), r#"{"name":"sample"}"#)
             .expect("benign manifest");
         fs::write(&claude_path, r#"{"name":"sample"}"#).expect("Claude manifest");
-        std::os::unix::fs::symlink("../benign.json", &codex_path).expect("ore manifest symlink");
+        std::os::unix::fs::symlink("../benign.json", &codex_path).expect("Ore manifest symlink");
 
         assert_eq!(find_plugin_manifest_path(&plugin_root), None);
     }
@@ -325,7 +325,7 @@ mod tests {
         .expect("benign manifest");
         fs::write(&claude_path, r#"{"name":"sample"}"#).expect("Claude manifest");
         std::os::unix::fs::symlink(&manifest_directory, plugin_root.join(".codex-plugin"))
-            .expect("ore manifest directory symlink");
+            .expect("Ore manifest directory symlink");
 
         assert_eq!(find_plugin_manifest_path(&plugin_root), None);
     }
@@ -366,7 +366,7 @@ mod tests {
             find_plugin_manifest_path(&plugin_root),
             Some(codex_path.clone())
         );
-        fs::remove_file(codex_path).expect("remove ore manifest");
+        fs::remove_file(codex_path).expect("remove Ore manifest");
         assert_eq!(find_plugin_manifest_path(&plugin_root), Some(claude_path));
     }
 }

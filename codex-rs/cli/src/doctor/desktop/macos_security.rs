@@ -144,7 +144,7 @@ fn enforcement_check(gatekeeper: Evidence, events: Evidence) -> DoctorCheck {
         (
             CheckStatus::Fail,
             "macos XProtect blocked or remediated the desktop application",
-            "collect the XProtect detection and ask your security administrator to review the official ore installation",
+            "collect the XProtect detection and ask your security administrator to review the official Ore installation",
         )
     } else if gatekeeper == Evidence::Blocked {
         (
@@ -162,7 +162,7 @@ fn enforcement_check(gatekeeper: Evidence, events: Evidence) -> DoctorCheck {
         (
             CheckStatus::Warning,
             "macos system-policy diagnostics indicate file descriptor exhaustion",
-            "restart your Mac, retry ore once, and contact support if the problem returns",
+            "restart your Mac, retry Ore once, and contact support if the problem returns",
         )
     } else if events == Evidence::Audit {
         (

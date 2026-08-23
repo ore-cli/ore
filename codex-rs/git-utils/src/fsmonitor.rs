@@ -1,6 +1,6 @@
 //! Policy for preserving Git's built-in filesystem monitor.
 //!
-//! ore overrides `core.fsmonitor` so repository configuration cannot select
+//! Ore overrides `core.fsmonitor` so repository configuration cannot select
 //! an executable helper. Preserve the built-in daemon only when the effective
 //! value is boolean true and Git advertises daemon support.
 //!
@@ -42,7 +42,7 @@ pub trait FsmonitorProbeRunner: Send {
 /// Returns the safe filesystem monitor override for the target repository.
 ///
 /// This intentionally probes every time. Effective Git configuration is
-/// layered, may use conditional includes, and can change while ore is
+/// layered, may use conditional includes, and can change while Ore is
 /// running:
 /// https://git-scm.com/docs/git-config#SCOPES
 /// https://git-scm.com/docs/git-config#_conditional_includes

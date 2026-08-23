@@ -454,7 +454,7 @@ fn is_generated_managed_ca_artifact_path(path: &Path, proxy_dir: &Path, prefix: 
     format!("{:x}", Sha256::digest(trust_bundle)) == expected_hash
 }
 
-/// Returns whether `path` points at a current ore-generated MITM CA bundle.
+/// Returns whether `path` points at a current Ore-generated MITM CA bundle.
 pub fn is_managed_mitm_ca_trust_bundle_path(path: &str) -> bool {
     let Ok(proxy_dir) = managed_ca_dir() else {
         return false;

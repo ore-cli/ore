@@ -17,7 +17,7 @@ pub(crate) fn apply_managed_new_thread_defaults(
     // dedicated flags such as `-m` (`harness_overrides`) and generic `-c key=value` settings
     // (`cli_kv_overrides`), then fill only the fields that were not selected for this invocation.
     // Model and reasoning effort are a compatibility-sensitive pair, so an explicit override of
-    // either opts out of both managed values. For example, `codex -m gpt-5.4` keeps that model and
+    // either opts out of both managed values. For example, `ore -m gpt-5.4` keeps that model and
     // its existing/default effort, while `-c model_reasoning_effort=low` does not switch to the
     // managed model. Service tier remains independent and is resolved against the selected model
     // before the thread starts.

@@ -694,7 +694,7 @@ description = "Research role"
 model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"
 developer_instructions = """
-Research with ore carefully."""
+Research with Ore carefully."""
 "#,
     )
     .expect("parse expected agent");

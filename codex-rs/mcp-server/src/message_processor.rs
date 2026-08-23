@@ -251,9 +251,9 @@ impl MessageProcessor {
         }
 
         let server_info =
-            Implementation::new("codex-mcp-server", env!("CARGO_PKG_VERSION")).with_title("ore");
+            Implementation::new("codex-mcp-server", env!("CARGO_PKG_VERSION")).with_title("Ore");
 
-        // Preserve ore's existing non-spec `serverInfo.user_agent` field.
+        // Preserve Ore's existing non-spec `serverInfo.user_agent` field.
         let mut server_info_value = match serde_json::to_value(&server_info) {
             Ok(value) => value,
             Err(err) => {
@@ -380,7 +380,7 @@ impl MessageProcessor {
                     Ok(cfg) => cfg,
                     Err(e) => {
                         let result = CallToolResult::error(vec![rmcp::model::ContentBlock::text(
-                            format!("Failed to load ore configuration from overrides: {e}"),
+                            format!("Failed to load Ore configuration from overrides: {e}"),
                         )]);
                         self.outgoing.send_response(id, result);
                         return;
@@ -388,7 +388,7 @@ impl MessageProcessor {
                 },
                 Err(e) => {
                     let result = CallToolResult::error(vec![rmcp::model::ContentBlock::text(
-                        format!("Failed to parse configuration for ore tool: {e}"),
+                        format!("Failed to parse configuration for Ore tool: {e}"),
                     )]);
                     self.outgoing.send_response(id, result);
                     return;
@@ -408,10 +408,10 @@ impl MessageProcessor {
         let thread_manager = self.thread_manager.clone();
         let active_turns = Arc::clone(&self.active_turns);
 
-        // Spawn an async task to handle the ore session so that we do not
+        // Spawn an async task to handle the Ore session so that we do not
         // block the synchronous message-processing loop.
         task::spawn(async move {
-            // Run the ore session and stream events back to the client.
+            // Run the Ore session and stream events back to the client.
             crate::codex_tool_runner::run_codex_tool_session(
                 id,
                 initial_prompt,
@@ -437,9 +437,9 @@ impl MessageProcessor {
             Some(json_val) => match serde_json::from_value::<CodexToolCallReplyParam>(json_val) {
                 Ok(params) => params,
                 Err(e) => {
-                    tracing::error!("Failed to parse ore tool call reply parameters: {e}");
+                    tracing::error!("Failed to parse Ore tool call reply parameters: {e}");
                     let result = CallToolResult::error(vec![rmcp::model::ContentBlock::text(
-                        format!("Failed to parse configuration for ore tool: {e}"),
+                        format!("Failed to parse configuration for Ore tool: {e}"),
                     )]);
                     self.outgoing.send_response(request_id, result);
                     return;
@@ -549,7 +549,7 @@ impl MessageProcessor {
         };
         tracing::info!("thread_id: {thread_id}");
 
-        // Obtain the ore thread from the server.
+        // Obtain the Ore thread from the server.
         let codex_arc = match self.thread_manager.get_thread(thread_id).await {
             Ok(c) => c,
             Err(_) => {
@@ -558,12 +558,12 @@ impl MessageProcessor {
             }
         };
 
-        // Submit interrupt to ore.
+        // Submit interrupt to Ore.
         if let Err(e) = codex_arc
             .submit(codex_protocol::protocol::Op::Interrupt)
             .await
         {
-            tracing::error!("Failed to submit interrupt to ore: {e}");
+            tracing::error!("Failed to submit interrupt to Ore: {e}");
             return;
         }
         // Stop routing extension events to the cancelled turn.

@@ -13,7 +13,7 @@
 //!
 //! `StartupSyncHttpClient` keeps those two policies behind one request API without making lenient
 //! custom-CA handling a global HTTP-client behavior. This module selects the transport only;
-//! startup-sync request helpers remain responsible for applying the standard ore headers.
+//! startup-sync request helpers remain responsible for applying the standard Ore headers.
 
 use std::sync::Arc;
 use std::time::Duration;

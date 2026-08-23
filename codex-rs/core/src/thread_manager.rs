@@ -147,7 +147,7 @@ impl Drop for TempCodexHomeGuard {
     }
 }
 
-/// Represents a newly created ore thread (formerly called a conversation), including the first event
+/// Represents a newly created Ore thread (formerly called a conversation), including the first event
 /// (which is [`EventMsg::SessionConfigured`]).
 pub struct NewThread {
     pub thread_id: ThreadId,

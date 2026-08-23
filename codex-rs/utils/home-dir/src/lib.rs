@@ -2,7 +2,7 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 use dirs::home_dir;
 use std::path::PathBuf;
 
-/// Returns the path to the ore configuration directory, which can be
+/// Returns the path to the Ore configuration directory, which can be
 /// specified by the `ORE_HOME` environment variable, or by `CODEX_HOME` which
 /// is honored as a full alias. If neither is set, defaults to `~/.ore`.
 ///

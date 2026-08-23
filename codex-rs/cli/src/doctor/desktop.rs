@@ -141,7 +141,7 @@ fn desktop_log_root(identity: &str) -> Option<PathBuf> {
             let local = env::var_os("LOCALAPPDATA").map(PathBuf::from).or_else(|| {
                 env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join("AppData/Local"))
             })?;
-            local.join("ore/Logs")
+            local.join("Ore/Logs")
         }
         _ => return None,
     };

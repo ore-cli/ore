@@ -666,7 +666,7 @@ impl ExecutorStdioServerLauncher {
             Vec::new()
         } else {
             // `source = "remote"` means the value is read from the executor's
-            // environment, not copied from ore. Start from `All` only so the
+            // environment, not copied from Ore. Start from `All` only so the
             // named remote variable is available to the filter below; the
             // effective child env is still limited by `include_only`.
             crate::utils::DEFAULT_ENV_VARS

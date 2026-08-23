@@ -1,4 +1,4 @@
-//! Shared model metadata types exchanged between ore services and clients.
+//! Shared model metadata types exchanged between Ore services and clients.
 //!
 //! These types are serialized across core, TUI, app-server, and SDK boundaries, so field defaults
 //! are used to preserve compatibility when older payloads omit newly introduced attributes.
@@ -218,7 +218,7 @@ pub struct ModelServiceTier {
     pub description: String,
 }
 
-/// Metadata describing an ore-supported model.
+/// Metadata describing a Ore-supported model.
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq)]
 pub struct ModelPreset {
     /// Stable identifier for the preset.

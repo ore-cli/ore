@@ -65,7 +65,7 @@ async fn quota_exceeded_emits_single_error_event() -> Result<()> {
         }
     }
 
-    assert_eq!(error_events, 1, "expected exactly one ore:Error event");
+    assert_eq!(error_events, 1, "expected exactly one Ore:Error event");
 
     Ok(())
 }

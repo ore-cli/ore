@@ -474,7 +474,7 @@ pub(crate) fn reject_unknown_builtin_permission_profile(profile_name: &str) -> i
 }
 
 /// Returns a list of paths that must be readable by shell tools in order
-/// for ore to function. These should always be added to the
+/// for Ore to function. These should always be added to the
 /// `FileSystemSandboxPolicy` for a thread.
 pub(crate) fn get_readable_roots_required_for_codex_runtime(
     codex_home: &Path,
@@ -771,7 +771,7 @@ fn remove_trailing_glob_suffix(path: &str) -> &str {
 }
 
 // WARNING: keep this parser forward-compatible.
-// Adding a new `:special_path` must not make older ore versions reject the
+// Adding a new `:special_path` must not make older Ore versions reject the
 // config. Unknown values intentionally round-trip through
 // `FileSystemSpecialPath::Unknown` so they can be surfaced as warnings and
 // ignored, rather than aborting config load.
@@ -888,7 +888,7 @@ fn push_warning(startup_warnings: &mut Vec<String>, message: String) {
 
 fn missing_filesystem_entries_warning(profile_name: &str) -> String {
     format!(
-        "Permissions profile `{profile_name}` does not define any recognized filesystem entries for this version of ore. Filesystem access will remain restricted. Upgrade ore if this profile expects filesystem permissions."
+        "Permissions profile `{profile_name}` does not define any recognized filesystem entries for this version of Ore. Filesystem access will remain restricted. Upgrade Ore if this profile expects filesystem permissions."
     )
 }
 
@@ -903,10 +903,10 @@ fn maybe_push_unknown_special_path_warning(
         startup_warnings,
         match subpath.as_deref() {
             Some(subpath) => format!(
-                "Configured filesystem path `{path}` with nested entry `{subpath}` is not recognized by this version of ore and will be ignored. Upgrade ore if this path is required."
+                "Configured filesystem path `{path}` with nested entry `{subpath}` is not recognized by this version of Ore and will be ignored. Upgrade Ore if this path is required."
             ),
             None => format!(
-                "Configured filesystem path `{path}` is not recognized by this version of ore and will be ignored. Upgrade ore if this path is required."
+                "Configured filesystem path `{path}` is not recognized by this version of Ore and will be ignored. Upgrade Ore if this path is required."
             ),
         },
     );

@@ -4,13 +4,13 @@ expression: commands
 ---
 /model - choose what model and reasoning effort to use
 /ide - include current selection, open files, and other context from your IDE
-/permissions - choose what ore is allowed to do
+/permissions - choose what Ore is allowed to do
 /keymap - remap TUI shortcuts
 /vim - toggle Vim mode for the composer
 /experimental - toggle experimental features
 /approve - approve one retry of a recent auto-review denial
 /memories - configure memory use and generation
-/skills - use skills to improve how ore performs specific tasks
+/skills - use skills to improve how Ore performs specific tasks
 /import - import setup, this project, and recent chats from Claude Code
 /hooks - view and manage lifecycle hooks
 /review - review my current changes and find issues
@@ -21,7 +21,7 @@ expression: commands
 /resume - resume a saved chat
 /fork - fork the current chat
 /app - continue this session in the Desktop app
-/init - create an AGENTS.md file with instructions for ore
+/init - create an AGENTS.md file with instructions for Ore
 /compact - summarize conversation to prevent hitting the context limit
 /agents - view and switch between all active agent sessions
 /side - start a side conversation in an ephemeral fork
@@ -39,7 +39,7 @@ expression: commands
 /pets - choose or hide the terminal pet
 /mcp - list configured MCP tools; use /mcp verbose for details
 /logout - log out of your account
-/exit - exit ore
+/exit - exit Ore
 /feedback - send logs to maintainers
 /rollout - print the rollout file path
 /ps - list background terminals

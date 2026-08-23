@@ -273,7 +273,7 @@ async fn build_codex(server: &StreamingSseServer) -> Arc<CodexThread> {
         .with_model("gpt-5.4")
         .build_with_streaming_server(server)
         .await
-        .expect("build streaming ore test session")
+        .expect("build streaming Ore test session")
         .codex
 }
 
@@ -464,7 +464,7 @@ async fn queue_only_agent_mail_wakes_sleeping_root_and_persists_message() {
         .with_extensions(Arc::new(extensions.build()))
         .build_with_streaming_server(&server)
         .await
-        .expect("build ore test session")
+        .expect("build Ore test session")
         .codex;
 
     enqueue_queue_only_agent_mail(&codex, CHILD_MESSAGE).await;
@@ -521,7 +521,7 @@ async fn steer_interrupts_wait_agent_and_is_sent_in_follow_up_request() {
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build ore test session")
+        .expect("build Ore test session")
         .codex;
 
     submit_user_input(&codex, INITIAL_PROMPT).await;
@@ -605,7 +605,7 @@ async fn any_new_input_interrupts_sleep() {
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build ore test session")
+        .expect("build Ore test session")
         .codex;
 
     submit_user_input(&codex, INITIAL_PROMPT).await;
@@ -1132,7 +1132,7 @@ async fn steered_user_input_waits_for_model_continuation_after_mid_turn_compact(
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build streaming ore test session")
+        .expect("build streaming Ore test session")
         .codex;
 
     submit_user_input(&codex, "first prompt").await;
@@ -1217,7 +1217,7 @@ async fn steered_user_input_follows_compact_when_only_the_steer_needs_follow_up(
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build streaming ore test session")
+        .expect("build streaming Ore test session")
         .codex;
 
     submit_user_input(&codex, "first prompt").await;
@@ -1334,7 +1334,7 @@ async fn steered_user_input_waits_when_tool_output_triggers_compact_before_next_
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build streaming ore test session");
+        .expect("build streaming Ore test session");
     let codex = test.codex.clone();
 
     submit_danger_full_access_user_turn(&test, "first prompt").await;

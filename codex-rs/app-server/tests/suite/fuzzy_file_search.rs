@@ -218,7 +218,7 @@ async fn assert_no_session_updates_for(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_fuzzy_file_search_sorts_and_includes_indices() -> Result<()> {
-    // Prepare a temporary ore home and a separate root with test files.
+    // Prepare a temporary Ore home and a separate root with test files.
     let codex_home = TempDir::new()?;
     create_config_toml(codex_home.path())?;
     let root = TempDir::new()?;

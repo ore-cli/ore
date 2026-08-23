@@ -30,7 +30,7 @@ pub struct ConversationItem {
     pub codex_turn_id: Option<CodexTurnId>,
     pub first_seen_at_unix_ms: i64,
     pub role: ConversationRole,
-    /// ore channel for assistant/tool content, when the item is channel-specific.
+    /// Ore channel for assistant/tool content, when the item is channel-specific.
     pub channel: Option<ConversationChannel>,
     pub kind: ConversationItemKind,
     /// Routing metadata carried by a Responses `agent_message` item.
@@ -63,7 +63,7 @@ pub enum ConversationRole {
     Tool,
 }
 
-/// ore channel for model-visible content.
+/// Ore channel for model-visible content.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConversationChannel {

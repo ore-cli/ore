@@ -953,7 +953,7 @@ async fn assert_disabled_permissions_surface_requested_user_input(
     assert_eq!(reviewer.review_count.load(Ordering::SeqCst), 0);
 
     let codex_protocol::mcp::RequestId::String(request_id) = request.id else {
-        panic!("expected ore-owned string request ID");
+        panic!("expected Ore-owned string request ID");
     };
     let user_response = ElicitationResponse {
         action: ElicitationAction::Accept,
@@ -1205,7 +1205,7 @@ async fn shared_elicitation_router_targets_the_exact_pending_request() {
         codex_protocol::mcp::RequestId::String(request_b_id),
     ) = (request_a.id, request_b.id)
     else {
-        panic!("expected ore-owned string request IDs");
+        panic!("expected Ore-owned string request IDs");
     };
     assert_ne!(request_a_id, request_b_id);
 
@@ -1298,7 +1298,7 @@ async fn cancelled_elicitation_is_removed_without_affecting_other_pending_reques
         codex_protocol::mcp::RequestId::String(pending_id),
     ) = (cancelled_request.id, pending_request.id)
     else {
-        panic!("expected ore-owned string request IDs");
+        panic!("expected Ore-owned string request IDs");
     };
 
     cancelled.abort();

@@ -1,6 +1,6 @@
 # codex-http-client
 
-`codex-http-client` is the low-level HTTP transport shared by ore crates. It is the intended
+`codex-http-client` is the low-level HTTP transport shared by Ore crates. It is the intended
 owner of the workspace's direct `reqwest` integration; product crates should use the types in this
 crate instead of constructing `reqwest::Client` values themselves.
 
@@ -15,7 +15,7 @@ short-lived clients that fragment reqwest's connection pool. In particular, this
 - the opt-in ChatGPT Cloudflare cookie store.
 
 Another important motivation is consistent support for the `respect_system_proxy` feature. That
-feature requires more than enabling reqwest's default proxy behavior: ore must resolve platform
+feature requires more than enabling reqwest's default proxy behavior: Ore must resolve platform
 system settings and PAC/WPAD for each destination, pool connections without mixing routes, and
 resolve redirect targets independently.
 
@@ -92,7 +92,7 @@ route. This preserves connection reuse without accidentally sending a URL over a
 the wrong route.
 
 Redirects need the same treatment. Reqwest normally follows them inside one client execution, which
-would skip ore's route selection for the redirect target. In `RespectSystemProxy` mode the pool
+would skip Ore's route selection for the redirect target. In `RespectSystemProxy` mode the pool
 follows redirects itself, resolves every hop, and removes sensitive headers when an origin changes.
 
 Do not create a new `HttpClient`, `HttpClientFactory`, or `RouteAwareClientPool` for every request.

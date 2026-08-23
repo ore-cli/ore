@@ -1,4 +1,4 @@
-"""Archive writers for canonical ore package directories."""
+"""Archive writers for canonical Ore package directories."""
 
 import shutil
 import subprocess

@@ -1,4 +1,4 @@
-//! Aggregates MCP server connections for ore.
+//! Aggregates MCP server connections for Ore.
 //!
 //! [`McpConnectionSet`] is the private connection set behind
 //! [`crate::McpRuntime`] and [`crate::McpBinding`]. It coordinates startup status

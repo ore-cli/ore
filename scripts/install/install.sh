@@ -63,7 +63,7 @@ validate_version() {
   fi
 
   if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-alpha(\.[0-9]+){0,2}|-beta(\.[0-9]+)?)?$'; then
-    echo "Invalid ore release version: $version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]." >&2
+    echo "Invalid Ore release version: $version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]." >&2
     return 1
   fi
 }
@@ -128,7 +128,7 @@ download_file() {
     return
   fi
 
-  echo "curl or wget is required to install ore." >&2
+  echo "curl or wget is required to install Ore." >&2
   exit 1
 }
 
@@ -159,7 +159,7 @@ download_text() {
     return
   fi
 
-  echo "curl or wget is required to install ore." >&2
+  echo "curl or wget is required to install Ore." >&2
   exit 1
 }
 
@@ -327,7 +327,7 @@ parse_downloaded_release_metadata() {
   requested_release="$1"
   source_name="$2"
   if ! release_metadata="$(printf '%s\n' "$release_json" | parse_release_metadata)"; then
-    echo "Could not parse $source_name release metadata for ore $requested_release." >&2
+    echo "Could not parse $source_name release metadata for Ore $requested_release." >&2
     return 1
   fi
 }
@@ -339,7 +339,7 @@ resolve_metadata_version() {
     *) metadata_version="" ;;
   esac
   if [ -z "$metadata_version" ]; then
-    echo "Failed to resolve the latest ore release version." >&2
+    echo "Failed to resolve the latest Ore release version." >&2
     return 1
   fi
   validate_version "$metadata_version"
@@ -357,7 +357,7 @@ resolve_release_from_github() {
   fi
 
   if ! release_json="$(download_text "$metadata_url")"; then
-    echo "Could not fetch GitHub release metadata for ore $requested_release. GitHub API may be unavailable or rate limited." >&2
+    echo "Could not fetch GitHub release metadata for Ore $requested_release. GitHub API may be unavailable or rate limited." >&2
     exit 1
   fi
 
@@ -393,7 +393,7 @@ resolve_release_from_releases() {
     return 1
   fi
   if [ "$normalized_version" != "latest" ] && [ "$metadata_version" != "$normalized_version" ]; then
-    echo "Release metadata version did not match requested ore version $normalized_version." >&2
+    echo "Release metadata version did not match requested Ore version $normalized_version." >&2
     return 1
   fi
   resolved_version="$metadata_version"
@@ -474,7 +474,7 @@ select_release_assets() {
     install_layout="legacy-platform-npm"
     asset="codex-npm-$npm_tag-$resolved_version.tgz"
   else
-    echo "Could not find ore package or platform npm release assets for ore $resolved_version." >&2
+    echo "Could not find Ore package or platform npm release assets for Ore $resolved_version." >&2
     return 1
   fi
 
@@ -536,7 +536,7 @@ file_sha256() {
     return
   fi
 
-  echo "sha256sum, shasum, or openssl is required to verify the ore download." >&2
+  echo "sha256sum, shasum, or openssl is required to verify the Ore download." >&2
   exit 1
 }
 
@@ -546,7 +546,7 @@ verify_archive_digest() {
   actual_digest="$(file_sha256 "$archive_path")"
 
   if [ "$actual_digest" != "$expected_digest" ]; then
-    echo "Downloaded ore archive checksum did not match expected digest." >&2
+    echo "Downloaded Ore archive checksum did not match expected digest." >&2
     echo "expected: $expected_digest" >&2
     echo "actual:   $actual_digest" >&2
     return 1
@@ -555,7 +555,7 @@ verify_archive_digest() {
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    echo "$1 is required to install ore." >&2
+    echo "$1 is required to install Ore." >&2
     exit 1
   fi
 }
@@ -596,8 +596,8 @@ add_to_path() {
 
   profile="$(pick_profile)"
   path_profile="$profile"
-  begin_marker="# >>> ore installer >>>"
-  end_marker="# <<< ore installer <<<"
+  begin_marker="# >>> Ore installer >>>"
+  end_marker="# <<< Ore installer <<<"
   path_line="export PATH=\"$BIN_DIR:\$PATH\""
 
   if [ -f "$profile" ] && grep -F "$begin_marker" "$profile" >/dev/null 2>&1; then
@@ -885,8 +885,8 @@ print_launch_instructions() {
 }
 
 maybe_launch_codex_now() {
-  if prompt_yes_no "Start ore now?"; then
-    step "Launching ore"
+  if prompt_yes_no "Start Ore now?"; then
+    step "Launching Ore"
     "$BIN_PATH"
   fi
 }
@@ -901,8 +901,8 @@ detect_conflicting_install() {
 
   conflict_manager="$manager"
   conflict_path="$existing_path"
-  step "Detected existing $manager-managed ore at $existing_path"
-  warn "Multiple managed ore installs can be ambiguous because PATH order decides which one runs."
+  step "Detected existing $manager-managed Ore at $existing_path"
+  warn "Multiple managed Ore installs can be ambiguous because PATH order decides which one runs."
 }
 
 handle_conflicting_install() {
@@ -922,13 +922,13 @@ handle_conflicting_install() {
       ;;
   esac
 
-  if prompt_yes_no "Uninstall the existing $conflict_manager-managed ore now?"; then
+  if prompt_yes_no "Uninstall the existing $conflict_manager-managed Ore now?"; then
     step "Running: $uninstall_cmd"
     if ! sh -c "$uninstall_cmd"; then
-      warn "Failed to uninstall the existing $conflict_manager-managed ore. Continuing with the standalone install."
+      warn "Failed to uninstall the existing $conflict_manager-managed Ore. Continuing with the standalone install."
     fi
   else
-    warn "Leaving the existing $conflict_manager-managed ore installed. PATH order will determine which ore runs."
+    warn "Leaving the existing $conflict_manager-managed Ore installed. PATH order will determine which ore runs."
   fi
 }
 
@@ -1130,11 +1130,11 @@ release_dir="$RELEASES_DIR/$release_name"
 current_version="$(current_installed_version)"
 
 if [ -n "$current_version" ] && [ "$current_version" != "$resolved_version" ]; then
-  step "Updating ore CLI from $current_version to $resolved_version"
+  step "Updating Ore CLI from $current_version to $resolved_version"
 elif [ -n "$current_version" ]; then
-  step "Updating ore CLI"
+  step "Updating Ore CLI"
 else
-  step "Installing ore CLI"
+  step "Installing Ore CLI"
 fi
 step "Detected platform: $platform_label"
 step "Resolved version: $resolved_version"
@@ -1161,7 +1161,7 @@ if ! release_dir_is_complete "$release_dir" "$resolved_version" "$vendor_target"
   archive_path="$tmp_dir/$asset"
   checksum_path="$tmp_dir/$checksum_asset"
 
-  step "Downloading ore CLI"
+  step "Downloading Ore CLI"
   if [ "$install_layout" = "package" ]; then
     checksum_digest="$(release_asset_digest "$checksum_asset")"
     download_file_with_fallback "$checksum_url" "$checksum_fallback_url" "$checksum_path" "$checksum_digest" "$checksum_asset" "$asset"
@@ -1179,7 +1179,7 @@ if ! release_dir_is_complete "$release_dir" "$resolved_version" "$vendor_target"
   fi
 fi
 if ! release_dir_is_complete "$release_dir" "$resolved_version" "$vendor_target" "$install_layout"; then
-  echo "Installed ore command did not report expected version $resolved_version." >&2
+  echo "Installed Ore command did not report expected version $resolved_version." >&2
   exit 1
 fi
 update_current_link "$release_dir"
@@ -1205,5 +1205,5 @@ case "$path_action" in
     ;;
 esac
 
-printf 'ore CLI %s installed successfully.\n' "$resolved_version"
+printf 'Ore CLI %s installed successfully.\n' "$resolved_version"
 maybe_launch_codex_now

@@ -10,5 +10,5 @@ pub use process_id::ProcessId;
 pub use protocol::*;
 pub use rpc::*;
 
-/// Oldest ore release supported by the executor protocol.
+/// Oldest Ore release supported by the executor protocol.
 pub const MINIMUM_SUPPORTED_CODEX_VERSION: &str = "0.145.0";

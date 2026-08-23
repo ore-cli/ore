@@ -1,4 +1,4 @@
-//! Proxy-aware WebSocket connection setup shared by ore API clients.
+//! Proxy-aware WebSocket connection setup shared by Ore API clients.
 
 mod dialer;
 
@@ -36,10 +36,10 @@ pub struct WebSocketConnector {
     tcp_nodelay: TcpNodelay,
 }
 
-/// Selects whether WebSocket TLS follows ore custom-CA policy or Tungstenite defaults.
+/// Selects whether WebSocket TLS follows Ore custom-CA policy or Tungstenite defaults.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum WebSocketTlsMode {
-    /// Build an explicit TLS configuration from native roots and configured ore custom CAs.
+    /// Build an explicit TLS configuration from native roots and configured Ore custom CAs.
     ExplicitCodexTls,
     /// Let Tungstenite build its default TLS configuration when the target requires TLS.
     TungsteniteDefault,
@@ -52,16 +52,16 @@ pub(crate) enum TcpNodelay {
 }
 
 impl WebSocketConnector {
-    /// Creates a connector using native roots and any configured ore custom CA bundle.
+    /// Creates a connector using native roots and any configured Ore custom CA bundle.
     pub fn new(
         http_client_factory: &HttpClientFactory,
     ) -> Result<Self, BuildCustomCaTransportError> {
         Self::new_with_tls_mode(http_client_factory, WebSocketTlsMode::ExplicitCodexTls)
     }
 
-    /// Creates a connector with explicit ore TLS or the transport's existing TLS defaults.
+    /// Creates a connector with explicit Ore TLS or the transport's existing TLS defaults.
     ///
-    /// HTTPS proxy connections still build ore TLS configuration when they establish their
+    /// HTTPS proxy connections still build Ore TLS configuration when they establish their
     /// proxy tunnel; default-mode target connections otherwise remain entirely with Tungstenite.
     pub fn new_with_tls_mode(
         http_client_factory: &HttpClientFactory,

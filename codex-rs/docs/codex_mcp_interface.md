@@ -1,6 +1,6 @@
-# ore MCP Server Interface [experimental]
+# Ore MCP Server Interface [experimental]
 
-This document describes ore's experimental MCP server interface: a JSON-RPC API that runs over the Model Context Protocol (MCP) transport to control a local ore engine.
+This document describes Ore's experimental MCP server interface: a JSON-RPC API that runs over the Model Context Protocol (MCP) transport to control a local Ore engine.
 
 - Status: experimental and subject to change without notice
 - Server binary: `ore mcp-server` (or `codex-mcp-server`)
@@ -8,7 +8,7 @@ This document describes ore's experimental MCP server interface: a JSON-RPC API 
 
 ## Overview
 
-ore exposes MCP-compatible methods to manage threads, turns, accounts, config, and approvals. The types live in `app-server-protocol/src/protocol/{common,v1,v2}.rs` and are consumed by the app server implementation in `app-server/`.
+Ore exposes MCP-compatible methods to manage threads, turns, accounts, config, and approvals. The types live in `app-server-protocol/src/protocol/{common,v1,v2}.rs` and are consumed by the app server implementation in `app-server/`.
 
 At a glance:
 
@@ -34,7 +34,7 @@ See code for full type definitions and exact shapes: `app-server-protocol/src/pr
 
 ## Starting the server
 
-Run ore as an MCP server and connect an MCP client:
+Run Ore as an MCP server and connect an MCP client:
 
 ```bash
 ore mcp-server | your_mcp_client
@@ -58,7 +58,7 @@ For complete request and response shapes, see the app-server README and the prot
 
 ## Models
 
-Fetch the catalog of models available in the current ore build with `model/list`. The request accepts optional pagination inputs:
+Fetch the catalog of models available in the current Ore build with `model/list`. The request accepts optional pagination inputs:
 
 - `limit` - number of models to return (defaults to a server-selected value)
 - `cursor` - opaque string from the previous response's `nextCursor`
@@ -96,30 +96,30 @@ When sending `turn/start` with `collaborationMode`, `settings.developer_instruct
 
 While a conversation runs, the server sends notifications:
 
-- `codex/event` with the serialized ore event payload. The shape matches `core/src/protocol.rs`'s `Event` and `EventMsg` types. Some notifications include a `_meta.requestId` to correlate with the originating request.
+- `codex/event` with the serialized Ore event payload. The shape matches `core/src/protocol.rs`'s `Event` and `EventMsg` types. Some notifications include a `_meta.requestId` to correlate with the originating request.
 - `fuzzyFileSearch/sessionUpdated` and `fuzzyFileSearch/sessionCompleted` for the legacy fuzzy search flow.
 
 Clients should render events and, when present, surface approval requests (see next section).
 
 ## Tool responses
 
-The `ore` and `codex-reply` tools return standard MCP `CallToolResult` payloads. For compatibility with MCP clients that prefer `structuredContent`, ore mirrors the content blocks inside `structuredContent` alongside the `threadId`.
+The `ore` and `codex-reply` tools return standard MCP `CallToolResult` payloads. For compatibility with MCP clients that prefer `structuredContent`, Ore mirrors the content blocks inside `structuredContent` alongside the `threadId`.
 
 Example:
 
 ```json
 {
-  "content": [{ "type": "text", "text": "Hello from ore" }],
+  "content": [{ "type": "text", "text": "Hello from Ore" }],
   "structuredContent": {
     "threadId": "019bbed6-1e9e-7f31-984c-a05b65045719",
-    "content": "Hello from ore"
+    "content": "Hello from Ore"
   }
 }
 ```
 
 ## Approvals (server -> client)
 
-When ore needs approval to apply changes or run commands, the server issues JSON-RPC requests to the client:
+When Ore needs approval to apply changes or run commands, the server issues JSON-RPC requests to the client:
 
 - `applyPatchApproval { conversationId, callId, fileChanges, reason?, grantRoot? }`
 - `execCommandApproval { conversationId, callId, approvalId?, command, cwd, reason? }`

@@ -8,7 +8,7 @@ use crate::environment::CODEX_EXEC_SERVER_URL_ENV_VAR;
 use crate::environment::LOCAL_ENVIRONMENT_ID;
 use crate::environment::REMOTE_ENVIRONMENT_ID;
 
-/// Lists the remote environment transports available to ore.
+/// Lists the remote environment transports available to Ore.
 ///
 /// Implementations own a startup snapshot containing both the available
 /// environment transport list in configured order and the default environment

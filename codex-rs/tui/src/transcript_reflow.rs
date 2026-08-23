@@ -1,8 +1,8 @@
-//! Tracks when ore-owned transcript scrollback must be repaired after terminal resize.
+//! Tracks when Ore-owned transcript scrollback must be repaired after terminal resize.
 //!
-//! Terminal scrollback is not a retained widget tree: once ore writes wrapped lines into the
+//! Terminal scrollback is not a retained widget tree: once Ore writes wrapped lines into the
 //! terminal, the terminal owns those rows. Width resize reflow treats the in-memory transcript cells
-//! as the source of truth, clears ore-owned history, and re-emits the cells at the current width.
+//! as the source of truth, clears Ore-owned history, and re-emits the cells at the current width.
 //! Height-only growth also schedules a rebuild so rows exposed above the inline viewport are
 //! restored from the same source of truth.
 //!
@@ -21,7 +21,7 @@ pub(crate) const TRANSCRIPT_REFLOW_DEBOUNCE: Duration = Duration::from_millis(75
 ///
 /// The state intentionally separates observed terminal width from rebuilt terminal width. Terminal
 /// emulators can report an intermediate size during drag-resize, then settle on the final size after
-/// ore has already rebuilt scrollback. Keeping those widths distinct lets the next draw request a
+/// Ore has already rebuilt scrollback. Keeping those widths distinct lets the next draw request a
 /// final rebuild instead of assuming the latest observed size has already been repaired.
 #[derive(Debug, Default)]
 pub(crate) struct TranscriptReflowState {

@@ -194,9 +194,9 @@ pub(crate) enum TurnToolSource {
     Mcp { server_name: String },
 }
 
-/// Caller-owned snapshot of ore metadata sent to ResponsesAPI.
+/// Caller-owned snapshot of Ore metadata sent to ResponsesAPI.
 ///
-/// The full ore turn metadata blob is transported canonically as
+/// The full Ore turn metadata blob is transported canonically as
 /// `client_metadata["x-codex-turn-metadata"]`. Flat `client_metadata` keys and direct HTTP/ws
 /// headers are generated compatibility projections of this snapshot, not separate sources of
 /// truth.
@@ -381,9 +381,9 @@ impl CodexResponsesMetadata {
             tool_namespaces_info: self.tool_namespaces_info.as_ref(),
             turn_started_at_unix_ms: self.turn_started_at_unix_ms,
             compaction,
-            // Extra metadata enriches the ore turn metadata blob, not literal top-level
+            // Extra metadata enriches the Ore turn metadata blob, not literal top-level
             // Responses client_metadata. Product metadata is validated while loading config;
-            // app-server metadata has reserved ore-owned keys filtered when it enters turn state.
+            // app-server metadata has reserved Ore-owned keys filtered when it enters turn state.
             extra: &self.extra,
         }
     }

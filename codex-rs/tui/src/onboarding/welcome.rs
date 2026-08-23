@@ -129,7 +129,7 @@ impl WidgetRef for &WelcomeWidget {
         let welcome = Line::from(vec![
             "  ".into(),
             "Welcome to ".into(),
-            "ore".bold(),
+            "Ore".bold(),
             ", a command-line coding agent".into(),
         ]);
         if used < area.height {

@@ -12,7 +12,7 @@ pub struct Cli {
     #[arg(value_name = "PROMPT", value_hint = clap::ValueHint::Other)]
     pub prompt: Option<String>,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of ore.
+    /// Error out when config.toml contains fields that are not recognized by this version of Ore.
     #[arg(long = "strict-config", default_value_t = false)]
     pub strict_config: bool,
 

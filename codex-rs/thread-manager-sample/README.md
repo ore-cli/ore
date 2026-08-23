@@ -1,6 +1,6 @@
 # ThreadManager Sample
 
-Small one-shot binary that starts an ore thread with `ThreadManager` from
+Small one-shot binary that starts a Ore thread with `ThreadManager` from
 `codex-core-api`, submits a single user turn, and prints the final assistant
 message.
 

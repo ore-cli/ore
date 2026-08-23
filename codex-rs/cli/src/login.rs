@@ -575,7 +575,7 @@ mod tests {
 
     #[tokio::test]
     async fn clears_existing_auth_before_login() {
-        let codex_home = tempdir().expect("create temporary ore home");
+        let codex_home = tempdir().expect("create temporary Ore home");
         login_with_api_key(
             codex_home.path(),
             "sk-existing",

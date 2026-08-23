@@ -81,7 +81,7 @@ function Assert-ValidReleaseVersion {
     )
 
     if ($Version -cne "latest" -and $Version -cnotmatch "^[0-9]+\.[0-9]+\.[0-9]+(?:-alpha(?:\.[0-9]+){0,2}|-beta(?:\.[0-9]+)?)?$") {
-        throw "Invalid ore release version: $Version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]."
+        throw "Invalid Ore release version: $Version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]."
     }
 }
 
@@ -197,7 +197,7 @@ function Resolve-ReleaseAssetSelection {
     }
     $packageMetadata = Find-ReleaseAssetMetadata -AssetName $packageAsset -ReleaseMetadata $releaseMetadata -Url $packageUrl -FallbackUrl $packageFallbackUrl
     if ($null -eq $packageMetadata) {
-        throw "Could not find ore package or platform npm release assets for ore $version."
+        throw "Could not find Ore package or platform npm release assets for Ore $version."
     }
 
     return [PSCustomObject]@{
@@ -216,7 +216,7 @@ function Test-ArchiveDigest {
 
     $actualDigest = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualDigest -ne $ExpectedDigest) {
-        throw "Downloaded ore archive checksum did not match expected digest. Expected $ExpectedDigest but got $actualDigest."
+        throw "Downloaded Ore archive checksum did not match expected digest. Expected $ExpectedDigest but got $actualDigest."
     }
 }
 
@@ -317,7 +317,7 @@ function Resolve-VersionFromReleaseMetadata {
     )
 
     if (-not $ReleaseMetadata.tag_name) {
-        throw "Failed to resolve the latest ore release version."
+        throw "Failed to resolve the latest Ore release version."
     }
 
     $resolvedVersion = Normalize-Version -RawVersion $ReleaseMetadata.tag_name
@@ -342,7 +342,7 @@ function Resolve-ReleaseFromGitHub {
     try {
         $releaseMetadata = Invoke-RestMethod -Uri $metadataUri
     } catch {
-        throw "Could not fetch GitHub release metadata for ore $requestedRelease. GitHub API may be unavailable or rate limited. $($_.Exception.Message)"
+        throw "Could not fetch GitHub release metadata for Ore $requestedRelease. GitHub API may be unavailable or rate limited. $($_.Exception.Message)"
     }
 
     if ($NormalizedVersion -eq "latest") {
@@ -371,7 +371,7 @@ function Resolve-ReleaseFromReleases {
         $releaseMetadata = [string]$metadataResponse.Content | ConvertFrom-Json -ErrorAction Stop
         $resolvedVersion = Resolve-VersionFromReleaseMetadata -ReleaseMetadata $releaseMetadata
         if ($NormalizedVersion -ne "latest" -and $resolvedVersion -cne $NormalizedVersion) {
-            throw "Release metadata version did not match requested ore version $NormalizedVersion."
+            throw "Release metadata version did not match requested Ore version $NormalizedVersion."
         }
         $resolvedRelease = [PSCustomObject]@{
             Version = $resolvedVersion
@@ -494,9 +494,9 @@ function Move-OldStandaloneBinIfApproved {
         return $null
     }
 
-    Write-Step "We found an older ore install at $VisibleBinDir"
-    Write-WarningStep "To continue, ore needs to update the install at this path."
-    if (-not (Prompt-YesNo "Replace it with the current ore setup now?")) {
+    Write-Step "We found an older Ore install at $VisibleBinDir"
+    Write-WarningStep "To continue, Ore needs to update the install at this path."
+    if (-not (Prompt-YesNo "Replace it with the current Ore setup now?")) {
         throw "Cannot replace older standalone install without confirmation: $VisibleBinDir"
     }
 
@@ -763,7 +763,7 @@ function Test-ReleaseIsComplete {
             $codexPath = Join-Path $ReleaseDir "ore.exe"
         }
         default {
-            throw "Unknown ore installer layout: $Layout"
+            throw "Unknown Ore installer layout: $Layout"
         }
     }
 
@@ -772,7 +772,7 @@ function Test-ReleaseIsComplete {
 }
 
 function Get-ExistingCodexCommand {
-    $existing = Get-Command codex -ErrorAction SilentlyContinue
+    $existing = Get-Command ore -ErrorAction SilentlyContinue
     if ($null -eq $existing) {
         return $null
     }
@@ -816,8 +816,8 @@ function Get-ConflictingInstall {
         return $null
     }
 
-    Write-Step "Detected existing $manager-managed ore at $existingPath"
-    Write-WarningStep "Multiple managed ore installs can be ambiguous because PATH order decides which one runs."
+    Write-Step "Detected existing $manager-managed Ore at $existingPath"
+    Write-WarningStep "Multiple managed Ore installs can be ambiguous because PATH order decides which one runs."
 
     return [PSCustomObject]@{
         Manager = $manager
@@ -843,15 +843,15 @@ function Maybe-HandleConflictingInstall {
     }
     $uninstallCommand = if ($manager -eq "bun") { "bun" } else { "npm" }
 
-    if (Prompt-YesNo "Uninstall the existing $manager-managed ore now?") {
+    if (Prompt-YesNo "Uninstall the existing $manager-managed Ore now?") {
         Write-Step "Running: $uninstallCommand $($uninstallArgs -join ' ')"
         try {
             & $uninstallCommand @uninstallArgs
         } catch {
-            Write-WarningStep "Failed to uninstall the existing $manager-managed ore. Continuing with the standalone install."
+            Write-WarningStep "Failed to uninstall the existing $manager-managed Ore. Continuing with the standalone install."
         }
     } else {
-        Write-WarningStep "Leaving the existing $manager-managed ore installed. PATH order will determine which codex runs."
+        Write-WarningStep "Leaving the existing $manager-managed Ore installed. PATH order will determine which codex runs."
     }
 }
 
@@ -863,7 +863,7 @@ function Test-VisibleCodexCommand {
     $codexCommand = Join-Path $VisibleBinDir "ore.exe"
     & $codexCommand --version *> $null
     if ($LASTEXITCODE -ne 0) {
-        throw "Installed ore command failed verification: $codexCommand --version"
+        throw "Installed Ore command failed verification: $codexCommand --version"
     }
 }
 
@@ -873,7 +873,7 @@ if ($env:OS -ne "Windows_NT") {
 }
 
 if (-not [Environment]::Is64BitOperatingSystem) {
-    Write-Error "ore requires a 64-bit version of Windows."
+    Write-Error "Ore requires a 64-bit version of Windows."
     exit 1
 }
 
@@ -908,7 +908,7 @@ $releasesDir = Join-Path $standaloneRoot "releases"
 $currentDir = Join-Path $standaloneRoot "current"
 $lockPath = Join-Path $standaloneRoot "install.lock"
 
-$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\ore\bin"
+$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\Ore\bin"
 if ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_DIR)) {
     $visibleBinDir = $defaultVisibleBinDir
 } else {
@@ -923,11 +923,11 @@ $releaseName = "$resolvedVersion-$target"
 $releaseDir = Join-Path $releasesDir $releaseName
 
 if (-not [string]::IsNullOrWhiteSpace($currentVersion) -and $currentVersion -ne $resolvedVersion) {
-    Write-Step "Updating ore CLI from $currentVersion to $resolvedVersion"
+    Write-Step "Updating Ore CLI from $currentVersion to $resolvedVersion"
 } elseif (-not [string]::IsNullOrWhiteSpace($currentVersion)) {
-    Write-Step "Updating ore CLI"
+    Write-Step "Updating Ore CLI"
 } else {
-    Write-Step "Installing ore CLI"
+    Write-Step "Installing Ore CLI"
 }
 Write-Step "Detected platform: $platformLabel"
 Write-Step "Resolved version: $resolvedVersion"
@@ -957,7 +957,7 @@ try {
             $checksumPath = Join-Path $tempDir $checksumAsset
             $stagingDir = Join-Path $releasesDir ".staging.$releaseName.$PID"
 
-            Write-Step "Downloading ore CLI"
+            Write-Step "Downloading Ore CLI"
             if ($installLayout -eq "Package") {
                 Invoke-WebRequestWithFallback -Metadata $checksumMetadata -OutFile $checksumPath -ExpectedDigest $checksumMetadata.Sha256 -AssetName $checksumAsset -ReleaseVersion $resolvedVersion -RequiredManifestAsset $packageAsset
                 $expectedPackageDigest = Get-PackageArchiveDigest -ManifestPath $checksumPath -AssetName $packageAsset
@@ -974,7 +974,7 @@ try {
             if ($installLayout -eq "Package") {
                 tar -xzf $archivePath -C $stagingDir
                 if (-not (Test-PackageContentsAreComplete -PackageDir $stagingDir)) {
-                    throw "Downloaded ore package archive did not contain the expected package layout."
+                    throw "Downloaded Ore package archive did not contain the expected package layout."
                 }
             } else {
                 $extractDir = Join-Path $tempDir "extract"
@@ -996,7 +996,7 @@ try {
                 }
 
                 if (-not (Test-LegacyPlatformNpmContentsAreComplete -PackageDir $stagingDir)) {
-                    throw "Downloaded ore npm archive did not contain the expected legacy platform package layout."
+                    throw "Downloaded Ore npm archive did not contain the expected legacy platform package layout."
                 }
             }
 
@@ -1007,7 +1007,7 @@ try {
         }
 
         if (-not (Test-ReleaseIsComplete -ReleaseDir $releaseDir -ExpectedVersion $resolvedVersion -ExpectedTarget $target -Layout $installLayout)) {
-            throw "Installed ore command did not report expected version $resolvedVersion."
+            throw "Installed Ore command did not report expected version $resolvedVersion."
         }
 
         New-Item -ItemType Directory -Force -Path $standaloneRoot | Out-Null
@@ -1080,10 +1080,10 @@ if ($prioritizeVisibleBin) {
 
 Write-Step "Current PowerShell session: codex"
 Write-Step "Future PowerShell windows: open a new PowerShell window and run: codex"
-Write-Host "ore CLI $resolvedVersion installed successfully."
+Write-Host "Ore CLI $resolvedVersion installed successfully."
 
 $codexCommand = Join-Path $visibleBinDir "ore.exe"
-if (Prompt-YesNo "Start ore now?") {
-    Write-Step "Launching ore"
+if (Prompt-YesNo "Start Ore now?") {
+    Write-Step "Launching Ore"
     & $codexCommand
 }

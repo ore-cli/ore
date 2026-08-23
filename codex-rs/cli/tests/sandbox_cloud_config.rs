@@ -141,7 +141,7 @@ async fn sandbox_fetches_and_enforces_cloud_managed_permission_profile() -> Resu
     if !nested_macos_sandbox_unavailable {
         assert!(
             String::from_utf8(output.stdout)?.starts_with("ore"),
-            "expected the sandboxed ore version command to run",
+            "expected the sandboxed Ore version command to run",
         );
     }
 

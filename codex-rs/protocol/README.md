@@ -1,6 +1,6 @@
 # codex-protocol
 
-This crate defines the "types" for the protocol used by ore CLI, which includes both "internal types" for communication between `codex-core` and `codex-tui`, as well as "external types" used with `ore app-server`.
+This crate defines the "types" for the protocol used by Ore CLI, which includes both "internal types" for communication between `codex-core` and `codex-tui`, as well as "external types" used with `ore app-server`.
 
 This crate should have minimal dependencies.
 

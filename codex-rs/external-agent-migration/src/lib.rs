@@ -1,4 +1,4 @@
-//! Migration helpers for importing external-agent configuration into ore.
+//! Migration helpers for importing external-agent configuration into Ore.
 
 mod config_values;
 mod detect;

@@ -121,7 +121,7 @@ async fn thread_rollback_does_not_emit_deprecation_notice_to_codex_tui() -> Resu
 
 #[tokio::test]
 async fn thread_rollback_drops_last_turns_and_persists_to_rollout() -> Result<()> {
-    // Three ore turns hit the mock model (session start + two turn/start calls).
+    // Three Ore turns hit the mock model (session start + two turn/start calls).
     let responses = vec![
         create_final_assistant_message_sse_response("Done")?,
         create_final_assistant_message_sse_response("Done")?,

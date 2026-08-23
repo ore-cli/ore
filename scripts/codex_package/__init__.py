@@ -1,1 +1,1 @@
-"""Helpers for building canonical ore package archives."""
+"""Helpers for building canonical Ore package archives."""

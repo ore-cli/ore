@@ -36,7 +36,7 @@ const SANDBOX_DENIED_KEYWORDS: [(FileSystemSandboxViolationReason, &str); 7] = [
 // 127: command not found
 const QUICK_REJECT_EXIT_CODES: [i32; 3] = [2, 126, 127];
 
-/// A normalized sandbox violation observed by ore sandbox enforcement.
+/// A normalized sandbox violation observed by Ore sandbox enforcement.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SandboxViolationEvent {
     FileSystem(FileSystemSandboxViolation),

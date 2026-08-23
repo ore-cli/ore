@@ -106,7 +106,7 @@ pub struct CompactionRequest {
     pub raw_response_payload_id: Option<RawPayloadId>,
 }
 
-/// Runtime operation requested by the model, a JS code cell, or ore itself.
+/// Runtime operation requested by the model, a JS code cell, or Ore itself.
 ///
 /// A `ToolCall` is not a chat transcript row. Model-visible call/output items
 /// link to it through `model_visible_*_item_ids`; runtime-only tools can have
@@ -131,12 +131,12 @@ pub struct ToolCall {
     /// Terminal operation started by this tool, when the tool touched a terminal.
     pub terminal_operation_id: Option<TerminalOperationId>,
     pub summary: ToolCallSummary,
-    /// Original invocation at the ore tool boundary.
+    /// Original invocation at the Ore tool boundary.
     ///
     /// Direct model tools store the model's function/custom call payload here.
     /// Code-mode nested tools store the JSON call made by model-authored JS.
     /// Runtime protocol events are deliberately kept separate below because
-    /// they describe how ore executed the request, not what the caller sent.
+    /// they describe how Ore executed the request, not what the caller sent.
     pub raw_invocation_payload_id: Option<RawPayloadId>,
     /// Result returned to the immediate requester.
     ///

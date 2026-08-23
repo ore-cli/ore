@@ -210,7 +210,7 @@ fn installed_windows_app() -> Result<Option<InstalledApp>, DiscoveryError> {
         .ok_or(DiscoveryError)?;
 
     Ok(Some(InstalledApp {
-        identity: "OpenAI.ore",
+        identity: "OpenAI.Ore",
         version: version.to_string(),
         package_family: PACKAGE_FAMILY,
     }))
@@ -221,7 +221,7 @@ async fn installed_macos_app() -> Result<Option<InstalledApp>, DiscoveryError> {
     let applications = std::iter::once(PathBuf::from("/Applications"))
         .chain(std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Applications")))
         .flat_map(|directory| {
-            ["ChatGPT.app", "ore.app"]
+            ["ChatGPT.app", "Ore.app"]
                 .into_iter()
                 .map(move |application| directory.join(application))
         });

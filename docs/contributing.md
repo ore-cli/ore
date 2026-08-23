@@ -1,16 +1,16 @@
 ## Contributing
 
-We welcome community contributions through the [openai/codex issue tracker](https://github.com/ore-cli/ore/issues). Bug reports, root-cause analyses, and feature requests help us understand what matters most and improve ore.
+We welcome community contributions through the [openai/codex issue tracker](https://github.com/ore-cli/ore/issues). Bug reports, root-cause analyses, and feature requests help us understand what matters most and improve Ore.
 
 **We do not accept external code contributions or pull requests.**
 
 ### Why we do not accept external code contributions
 
-Effective changes to ore require architectural context, an understanding of system-level constraints, and visibility into the project's roadmap. External pull requests often focus on issues that are lower priority, affect a small number of users, or need substantial changes to fit the broader system. Reviewing and iterating on those changes can take more time than implementing a fix directly, diverting attention from higher-priority work.
+Effective changes to Ore require architectural context, an understanding of system-level constraints, and visibility into the project's roadmap. External pull requests often focus on issues that are lower priority, affect a small number of users, or need substantial changes to fit the broader system. Reviewing and iterating on those changes can take more time than implementing a fix directly, diverting attention from higher-priority work.
 
-Community expertise is most valuable when shared through detailed bug reports, reproduction steps, logs, root-cause analysis, and design discussions in issues. Understanding the problem, identifying the right solution, and prioritizing the work are typically the hard parts; implementation is comparatively straightforward with the help of ore itself.
+Community expertise is most valuable when shared through detailed bug reports, reproduction steps, logs, root-cause analysis, and design discussions in issues. Understanding the problem, identifying the right solution, and prioritizing the work are typically the hard parts; implementation is comparatively straightforward with the help of Ore itself.
 
-For these reasons, we focus community contributions on issue reports, analysis, and feedback, while the ore team handles code changes.
+For these reasons, we focus community contributions on issue reports, analysis, and feedback, while the Ore team handles code changes.
 
 ### Reporting bugs
 
@@ -20,7 +20,7 @@ When reporting a bug, include as much relevant detail as possible:
 
 - Clear, detailed steps to reproduce the problem.
 - Expected and actual behavior.
-- Your ore version, operating system, and other relevant environment details.
+- Your Ore version, operating system, and other relevant environment details.
 - Logs, error messages, or other diagnostic information, with sensitive information removed.
 - Root-cause analysis, technical observations, or potential approaches to a fix, if available.
 

@@ -5,7 +5,7 @@
 
 `codex-app-server-daemon` backs the machine-readable `ore app-server`
 lifecycle commands used by remote clients such as the desktop and mobile apps.
-It is intended for ore instances launched over SSH, including fresh developer
+It is intended for Ore instances launched over SSH, including fresh developer
 machines that should expose app-server with `remote_control` enabled.
 
 ## Platform support
@@ -46,7 +46,7 @@ pidfile-backed detached process, and launches a detached updater loop.
 
 ## Installation and update cases
 
-The daemon assumes ore is installed through `install.sh` and always launches
+The daemon assumes Ore is installed through `install.sh` and always launches
 the standalone managed binary under `CODEX_HOME`.
 
 | Situation | What starts | Does this daemon fetch new binaries? | Does a running app-server eventually move to a newer binary on its own? |

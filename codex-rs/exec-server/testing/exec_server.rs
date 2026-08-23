@@ -1,6 +1,6 @@
 //! Minimal exec-server fixture for Bazel-only integration tests.
 //!
-//! Linking only exec-server avoids depending on the full ore CLI binary
+//! Linking only exec-server avoids depending on the full Ore CLI binary
 //! when a test only needs a WebSocket executor endpoint. It handles the arg0
 //! helper mode because sandboxed process requests re-exec this binary.
 

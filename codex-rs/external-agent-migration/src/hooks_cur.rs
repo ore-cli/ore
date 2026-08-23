@@ -67,7 +67,7 @@ fn hook_migration_cur(
             let Some(handler) = handler.as_object() else {
                 continue;
             };
-            // ore does not currently support a per-hook failure policy, so accept
+            // Ore does not currently support a per-hook failure policy, so accept
             // Cursor's `failClosed` field without copying it into the migrated handler.
             if handler.keys().any(|key| {
                 !matches!(

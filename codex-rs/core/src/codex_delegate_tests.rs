@@ -298,7 +298,7 @@ async fn run_codex_thread_interactive_rejects_approval_policy_that_can_prompt() 
             if matches!(
                 err.details(),
                 CodexErrorDetails::InvalidRequest(message)
-                    if message == "ore delegates require approval policy `never`"
+                    if message == "Ore delegates require approval policy `never`"
             )
     ));
 }
