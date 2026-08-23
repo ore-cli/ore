@@ -119,9 +119,9 @@ class InstallShTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             install_bin = root / "install-bin"
             current = root / "codex-home" / "packages" / "standalone" / "current"
-            codex_path = install_bin / "codex"
+            codex_path = install_bin / "ore"
             host_path = install_bin / "codex-code-mode-host"
-            self.assertEqual(os.readlink(codex_path), str(current / "bin" / "codex"))
+            self.assertEqual(os.readlink(codex_path), str(current / "bin" / "ore"))
             self.assertEqual(
                 os.readlink(host_path),
                 str(current / "bin" / "codex-code-mode-host"),
@@ -707,7 +707,7 @@ def create_package_release(
     (package_dir / "codex-path").mkdir()
     (package_dir / "codex-package.json").write_text("{}\n", encoding="utf-8")
     write_executable(
-        package_dir / "bin" / "codex",
+        package_dir / "bin" / "ore",
         f"#!/bin/sh\nprintf 'codex-cli {VERSION}\\n'\n",
     )
     write_executable(

@@ -25,18 +25,30 @@ and a built-in Anthropic provider are planned, not yet shipped.
 
 ## Install
 
+ore is in prerelease, so install a pinned version:
+
 ```bash
-curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/ore-cli/ore/releases/download/ore-v1.149.0-alpha.1/install.sh \
+  | sh -s -- --release 1.149.0-alpha.1
 ```
 
 macOS and Linux, Apple Silicon and x86_64. It installs `ore` into
 `~/.local/bin`; set `CODEX_INSTALL_DIR` to put it somewhere else.
 
-Or with Homebrew:
+The shorter one-liner you would expect does not work yet, and neither does
+Homebrew:
 
 ```bash
+curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh
 brew install ore-cli/tap/ore
 ```
+
+Both resolve through `releases/latest`, which by GitHub's definition skips
+prereleases -- the release workflow sets `make_latest=false` for any tag
+carrying `-alpha`/`-beta`, because an alpha should not be what an unpinned
+install silently gives you. The formula is published on stable tags only for
+the same reason. Both commands start working with the first stable `ore-v1.149.x`
+and are what this section will say then.
 
 npm is not yet published: upstream's package layout requires binaries for every
 platform including Windows, so `@ore-cli/ore` arrives with the first

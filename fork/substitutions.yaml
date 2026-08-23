@@ -268,6 +268,26 @@ categories:
       pattern: 'Join-Path \$env:USERPROFILE "\.codex"'
       replace: 'Join-Path $env:USERPROFILE ".ore"'
 
+    - name: installer-test-bundle-entrypoint-is-ore
+      note: >
+        test_install_sh.py builds fake release bundles for install.sh to consume, and it built
+        them with a `bin/codex` entrypoint. The real bundles carry `bin/ore` -- targets.py sets
+        executable_stem="ore", and ore-release's tag-check greps for exactly that -- so the
+        substituted install.sh chmods `bin/ore`, finds nothing, and all 17 tests fail with
+        "chmod: .../bin/ore: No such file or directory". The literal is split across Path
+        components (`/ "bin" / "codex"`), so no path-shaped rule can see it.
+
+        Only the packaged entrypoint moves. `codex-path/`, `codex-package.json`,
+        `bin/codex-code-mode-host` and the asset stem `codex-package-<target>.tar.gz` are the
+        names the real assets actually use, and the legacy npm layout keeps
+        `vendor/<target>/codex/codex`: install.sh reads that path unchanged and copies it out
+        to `ore`. Rebranding any of those would make the fixture describe a bundle that does
+        not exist.
+      files: [scripts/install/test_install_sh.py]
+      rust_literals_only: false
+      pattern: '(?P<lead>(?:install_bin|package_dir|current) / (?:"bin" / )?)"codex"'
+      replace: '\g<lead>"ore"'
+
     - name: ui-bare-product-name
       note: >
         Rust literals/comments only; the auth fence and wire identifiers are skipped wholesale above.
