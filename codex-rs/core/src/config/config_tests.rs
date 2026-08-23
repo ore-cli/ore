@@ -12694,3 +12694,82 @@ fn sqlite_home_env_conflict_reports_an_override() -> std::io::Result<()> {
 
     Ok(())
 }
+
+/// ore: `ORE_MODEL_PROVIDER` / `ORE_MODEL`.
+///
+/// Serial, and each test restores what it found: these read process
+/// environment, which every thread in the test binary shares.
+mod ore_env_selection {
+    use pretty_assertions::assert_eq;
+
+    use crate::config::ORE_MODEL_ENV_VAR;
+    use crate::config::ORE_MODEL_PROVIDER_ENV_VAR;
+    use crate::config::env_var_nonempty;
+
+    struct EnvGuard {
+        name: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvGuard {
+        fn set(name: &'static str, value: Option<&str>) -> Self {
+            let previous = std::env::var(name).ok();
+            match value {
+                // SAFETY: the enclosing tests are #[serial], so no other thread
+                // in this binary is reading or writing the environment.
+                Some(value) => unsafe { std::env::set_var(name, value) },
+                None => unsafe { std::env::remove_var(name) },
+            }
+            Self { name, previous }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match self.previous.take() {
+                Some(value) => unsafe { std::env::set_var(self.name, value) },
+                None => unsafe { std::env::remove_var(self.name) },
+            }
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn a_set_variable_is_read() {
+        let _g = EnvGuard::set(ORE_MODEL_PROVIDER_ENV_VAR, Some("anthropic"));
+        assert_eq!(
+            env_var_nonempty(ORE_MODEL_PROVIDER_ENV_VAR).as_deref(),
+            Some("anthropic")
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn an_unset_variable_is_absent_rather_than_empty() {
+        let _g = EnvGuard::set(ORE_MODEL_ENV_VAR, None);
+        assert_eq!(env_var_nonempty(ORE_MODEL_ENV_VAR), None);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn blank_and_whitespace_only_values_fall_through() {
+        for blank in ["", "   ", "\t"] {
+            let _g = EnvGuard::set(ORE_MODEL_ENV_VAR, Some(blank));
+            assert_eq!(
+                env_var_nonempty(ORE_MODEL_ENV_VAR),
+                None,
+                "`export ORE_MODEL=` must fall through to config, not select a model named {blank:?}"
+            );
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn values_are_trimmed() {
+        let _g = EnvGuard::set(ORE_MODEL_ENV_VAR, Some("  claude-opus-5\n"));
+        assert_eq!(
+            env_var_nonempty(ORE_MODEL_ENV_VAR).as_deref(),
+            Some("claude-opus-5")
+        );
+    }
+}

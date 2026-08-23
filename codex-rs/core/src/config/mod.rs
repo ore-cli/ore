@@ -3657,7 +3657,14 @@ impl Config {
         let model_providers = merge_configured_model_providers(built_in, cfg.model_providers)
             .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidData, message))?;
 
+        // ore: CLI, then environment, then config.toml. The env layer is what makes
+        // a provider reachable without writing a file -- exporting ANTHROPIC_BASE_URL
+        // and ANTHROPIC_API_KEY configures the Anthropic provider but never selects
+        // it, so without this the reward for setting both is an OpenAI login screen.
+        // Above config.toml because a shell export is the narrower, more deliberate
+        // scope: it lasts for one terminal, where the file is the standing default.
         let model_provider_id = model_provider
+            .or_else(|| env_var_nonempty(ORE_MODEL_PROVIDER_ENV_VAR))
             .or(cfg.model_provider)
             .unwrap_or_else(|| "openai".to_string());
         let model_provider = model_providers
@@ -3794,7 +3801,11 @@ impl Config {
 
         let forced_login_method = cfg.forced_login_method;
 
-        let model = model.or(cfg.model);
+        // ore: same precedence as the provider above. A provider without a model is
+        // half a switch -- the default model is an OpenAI slug that Anthropic rejects.
+        let model = model
+            .or_else(|| env_var_nonempty(ORE_MODEL_ENV_VAR))
+            .or(cfg.model);
         let notices = cfg.notice.unwrap_or_default();
         let service_tier = match service_tier_override {
             Some(Some(service_tier)) => Some(service_tier),
@@ -4625,6 +4636,24 @@ fn normalize_guardian_policy_config(value: Option<&str>) -> Option<String> {
 ///   value will be canonicalized and this function will Err otherwise.
 /// - If `CODEX_HOME` is not set, this function does not verify that the
 ///   directory exists.
+/// ore: select the provider without writing a config file. `ORE_` rather than
+/// `CODEX_` because these are the fork's own knobs -- decision 14 keeps the
+/// upstream `CODEX_*` names only for variables upstream already defined.
+pub const ORE_MODEL_PROVIDER_ENV_VAR: &str = "ORE_MODEL_PROVIDER";
+/// The companion of [`ORE_MODEL_PROVIDER_ENV_VAR`]: switching provider without
+/// switching model leaves an OpenAI slug pointed at a provider that rejects it.
+pub const ORE_MODEL_ENV_VAR: &str = "ORE_MODEL";
+
+/// Reads an environment variable, treating unset, empty and whitespace-only as
+/// absent, so `export ORE_MODEL=` falls through to config rather than selecting
+/// a model named "".
+fn env_var_nonempty(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 pub fn find_codex_home() -> std::io::Result<AbsolutePathBuf> {
     codex_utils_home_dir::find_codex_home()
 }
