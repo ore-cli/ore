@@ -226,6 +226,18 @@ categories:
       pattern: "OpenAI's command-line coding agent"
       replace: 'a command-line coding agent'
 
+    - name: logout-names-the-account-not-the-product
+      note: >
+        "/logout" ends the signed-in session: logout_with_revoke revokes the token with
+        the auth provider and clears the stored credential. You log out OF a service, and
+        ore is not one -- "log out of ore" describes something that does not exist. Naming
+        the account instead is also the only phrasing that stays true across ore's auth
+        modes, which now include an API key and Anthropic as well as ChatGPT sign-in.
+        Ordered before ui-bare-product-name so it matches the upstream literal.
+      files: [codex-rs/tui/src/slash_command.rs]
+      pattern: 'log out of Codex'
+      replace: 'log out of your account'
+
     - name: ui-bare-product-name
       note: >
         Rust literals/comments only; the auth fence and wire identifiers are skipped wholesale above.
