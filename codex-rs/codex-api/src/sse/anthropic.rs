@@ -34,8 +34,20 @@ pub(crate) fn spawn_anthropic_stream(
     telemetry: Option<Arc<dyn SseTelemetry>>,
 ) -> ResponseStream {
     let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent, ApiError>>(1600);
+
+    // Emitted before the body is polled: the limits arrive on the response
+    // headers, so there is no reason to make /status wait for the turn to
+    // finish. `None` when Anthropic reported nothing usable, in which case no
+    // event is sent and the snapshot stays absent rather than reading as zero.
+    let rate_limits = parse_anthropic_rate_limits(&stream_response.headers);
+
     let bytes = stream_response.bytes;
     tokio::spawn(async move {
+        if let Some(snapshot) = rate_limits {
+            // A send failure here means the receiver is already gone, which the
+            // body loop below will discover on its own.
+            let _ = tx_event.send(Ok(ResponseEvent::RateLimits(snapshot))).await;
+        }
         process_anthropic_sse(bytes, tx_event, idle_timeout, telemetry).await;
     });
     let upstream_request_id = stream_response
@@ -1054,3 +1066,9 @@ mod tests {
         assert_eq!(announced, 2, "{events:?}");
     }
 }
+
+// Mounted here rather than from `sse/mod.rs`: that file is upstream's, and this
+// module is entirely the fork's.
+#[path = "anthropic_rate_limits.rs"]
+mod anthropic_rate_limits;
+use anthropic_rate_limits::parse_anthropic_rate_limits;
