@@ -863,23 +863,23 @@ prompt_yes_no() {
 print_launch_instructions() {
   case "$path_action" in
     added)
-      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && ore"
+      step "Future terminals: open a new terminal and run: ore"
       step "PATH was added to $path_profile"
       ;;
     updated)
-      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && ore"
+      step "Future terminals: open a new terminal and run: ore"
       step "PATH was updated in $path_profile"
       ;;
     configured)
-      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && ore"
+      step "Future terminals: open a new terminal and run: ore"
       step "PATH is already configured in $path_profile"
       ;;
     *)
-      step "Current terminal: codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: ore"
+      step "Future terminals: open a new terminal and run: ore"
       ;;
   esac
 }
@@ -928,7 +928,7 @@ handle_conflicting_install() {
       warn "Failed to uninstall the existing $conflict_manager-managed ore. Continuing with the standalone install."
     fi
   else
-    warn "Leaving the existing $conflict_manager-managed ore installed. PATH order will determine which codex runs."
+    warn "Leaving the existing $conflict_manager-managed ore installed. PATH order will determine which ore runs."
   fi
 }
 
@@ -1035,7 +1035,7 @@ release_codex_relative_path() {
   if [ -x "$release_dir/bin/ore" ]; then
     printf 'bin/ore\n'
   else
-    printf 'codex\n'
+    printf 'ore\n'
   fi
 }
 

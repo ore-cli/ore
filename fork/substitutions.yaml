@@ -268,6 +268,42 @@ categories:
       pattern: 'Join-Path \$env:USERPROFILE "\.codex"'
       replace: 'Join-Path $env:USERPROFILE ".ore"'
 
+    - name: installer-tells-you-to-run-ore
+      note: >
+        install.sh links exactly one visible command, `ore` (BIN_PATH="$BIN_DIR/ore"), and then
+        signed off with "Future terminals: open a new terminal and run: codex" -- a command the
+        install it just finished does not provide. Eight of these across the four PATH cases,
+        plus "PATH order will determine which codex runs" in the conflict warning, where the
+        same sentence already says "ore" one clause earlier.
+
+        `printf 'codex\n'` is the other half of release_codex_relative_path, whose `bin/codex`
+        branch was rebranded to `bin/ore` because it carried the `bin/` prefix a path-shaped
+        rule could see. The bare fallback names the legacy npm layout's entrypoint, which
+        install_legacy_release stages as "$stage_release/ore" and release_dir_is_complete
+        checks as "$release_dir/ore" -- so update_visible_command would have pointed the
+        symlink at a file that is not there. Latent today (npm is dormant until Windows), wrong
+        whenever it wakes.
+
+        Deliberately untouched: codex-package_SHA256SUMS and codex-package-<target>.tar.gz are
+        real asset names, and the CODEX_* environment variables are decision 14.
+      files: [scripts/install/install.sh]
+      rust_literals_only: false
+      pattern: '(?P<lead>&& |run: |terminal: |which )codex(?P<tail>"|\\n'"'"'| runs)'
+      replace: '\g<lead>ore\g<tail>'
+
+    - name: installer-legacy-entrypoint-fallback-is-ore
+      note: >
+        The other half of release_codex_relative_path. Its `bin/codex` branch carried a `bin/`
+        prefix and was rebranded; this bare fallback was not, so for the legacy npm layout it
+        returned "codex" while install_legacy_release had staged the binary as
+        "$stage_release/ore" -- update_visible_command would have symlinked a path that does not
+        exist. Separate from installer-tells-you-to-run-ore because the literal contains both a
+        quote and a backslash-n, which the other rule's alternation cannot carry.
+      files: [scripts/install/install.sh]
+      rust_literals_only: false
+      pattern: '(?P<lead>printf .)codex(?P<tail>\\n)'
+      replace: '\g<lead>ore\g<tail>'
+
     - name: installer-test-bundle-entrypoint-is-ore
       note: >
         test_install_sh.py builds fake release bundles for install.sh to consume, and it built
