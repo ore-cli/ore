@@ -40,6 +40,19 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 filter = 'test(approval_matrix_covers_all_modes)'
 slow-timeout = { period = "30s", terminate-after = 2 }
 
+# ore: this test measures image-budget policy over real encode work and lands at
+# 39-45s on a free 4-core runner -- inside the default 30s x 2 = 60s kill, but
+# only just. It timed out on main and delta in the same hour, on runs whose only
+# other failures were flakes that passed on retry. A timeout burns the whole
+# budget on every attempt, so nextest's retry cannot absorb it: one slow runner
+# turns a green tree red.
+#
+# 45s x 2 = 90s is double the worst time observed, and still fails a genuine
+# hang fast enough to be useful.
+[[profile.default.overrides]]
+filter = 'package(codex-core) & test(detail_policies_apply_the_expected_budgets)'
+slow-timeout = { period = "45s", terminate-after = 2 }
+
 [[profile.default.overrides]]
 filter = 'package(codex-app-server-protocol) & (test(typescript_schema_fixtures_match_generated) | test(json_schema_fixtures_match_generated) | test(generate_ts_with_experimental_api_retains_experimental_entries) | test(generated_ts_optional_nullable_fields_only_in_params) | test(generate_json_filters_experimental_fields_and_methods))'
 test-group = 'app_server_protocol_codegen'

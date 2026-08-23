@@ -37,6 +37,14 @@ engine:
   skip_dirs: [.git, target, node_modules, __pycache__, .venv, venv, bazel-out, bazel-bin, bazel-testlogs, dist, build, vendor, third_party]
   skip_files: [Cargo.lock, MODULE.bazel.lock, pnpm-lock.yaml, uv.lock, package-lock.json, flake.lock, LICENSE, NOTICE]
   skip_paths:
+    # Fork-authored, and it asserts ABOUT the assembled installer: it checks
+    # `assertNotIn("rust-v", …)` to prove the upstream tag prefix is gone, and
+    # `assertNotIn(UPSTREAM_REPO, …)` likewise. Rebranding those literals turns
+    # "rust-v" into "ore-v" and inverts every assertion into one the assembled
+    # tree can never satisfy. Upstream's own test_install_sh.py is NOT skipped:
+    # it tests upstream's install.sh with upstream's literals, so it has to be
+    # rebranded alongside the script it exercises.
+    - scripts/install/test_install_ps1.py
     - fork/*
     - .github/workflows/*
     - codex-rs/login/*
@@ -225,6 +233,40 @@ categories:
       globs: ["codex-rs/**/*.rs", "**/*.md"]
       pattern: "OpenAI's command-line coding agent"
       replace: 'a command-line coding agent'
+
+    - name: logout-names-the-account-not-the-product
+      note: >
+        "/logout" ends the signed-in session: logout_with_revoke revokes the token with
+        the auth provider and clears the stored credential. You log out OF a service, and
+        ore is not one -- "log out of ore" describes something that does not exist. Naming
+        the account instead is also the only phrasing that stays true across ore's auth
+        modes, which now include an API key and Anthropic as well as ChatGPT sign-in.
+        Ordered before ui-bare-product-name so it matches the upstream literal.
+      files: [codex-rs/tui/src/slash_command.rs]
+      pattern: 'log out of Codex'
+      replace: 'log out of your account'
+
+    - name: installer-home-matches-the-resolver
+      note: >
+        The installers defaulted to ~/.codex while the binary resolves its home with
+        find_codex_home(): ORE_HOME, then CODEX_HOME as a full alias, then ~/.ore. So a
+        standalone install landed where nothing looks for it -- install-context checks
+        that the running exe sits under <home>/packages/standalone/releases, and the
+        app-server daemon resolves its managed binary the same way, so both silently
+        stopped recognising a managed install. Decision 14 keeps the CODEX_* env NAMES,
+        which this preserves; it is the default PATH that has to follow the home.
+      files: [scripts/install/install.sh]
+      rust_literals_only: false
+      pattern: 'CODEX_HOME_DIR="\$\{CODEX_HOME:-\$HOME/\.codex\}"'
+      replace: 'CODEX_HOME_DIR="${ORE_HOME:-${CODEX_HOME:-$HOME/.ore}}"'
+
+    - name: installer-ps1-home-matches-the-resolver
+      note: >
+        The install.ps1 counterpart of installer-home-matches-the-resolver.
+      files: [scripts/install/install.ps1]
+      rust_literals_only: false
+      pattern: 'Join-Path \$env:USERPROFILE "\.codex"'
+      replace: 'Join-Path $env:USERPROFILE ".ore"'
 
     - name: ui-bare-product-name
       note: >

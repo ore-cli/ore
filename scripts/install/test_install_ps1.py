@@ -186,7 +186,7 @@ class InstallPs1Test(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             binary = fake_binary(
                 Path(temp_dir),
-                "ore 1.149.0\\ncodex-base: ore-v0.149.0 (758ef40f50)\\n",
+                "ore 1.149.0\\ncodex-base: rust-v0.149.0 (758ef40f50)\\n",
             )
 
             result = run_driver(
@@ -218,7 +218,7 @@ class InstallPs1Test(unittest.TestCase):
     @unittest.skipUnless(RENDERED, NOT_RENDERED)
     def test_release_coordinates_point_at_the_fork(self) -> None:
         self.assertNotIn(UPSTREAM_REPO, SOURCE)
-        self.assertNotIn("ore-v", SOURCE)
+        self.assertNotIn("rust-v", SOURCE)
 
     @unittest.skipUnless(RENDERED, NOT_RENDERED)
     def test_entrypoint_is_the_fork_binary(self) -> None:
