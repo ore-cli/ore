@@ -1032,9 +1032,21 @@ jobs:
           make_latest: ${{ needs.tag-check.outputs.make_latest }}
           generate_release_notes: true
 
+  # DORMANT until Windows ships, for the same reason publish-npm is: the
+  # dotslash config keeps its Windows rows by ratified decision W3, and
+  # dotslash-publish-release fails closed on a row whose asset is absent --
+  #   could not find asset matching regex
+  #   '^codex-package-x86_64-pc-windows-msvc\.tar\.zst$'
+  # -- so every release without Windows artifacts fails here. Keeping the rows
+  # is right; publishing manifests that promise binaries this release does not
+  # contain is not. Set ORE_DOTSLASH_PUBLISH=true with the first
+  # Windows-complete release, alongside ORE_NPM_STAGE.
+  #
+  # Found by ore-v1.149.0-alpha.1, after signing had already succeeded.
   publish-dotslash:
     name: dotslash manifests
     needs: [tag-check, release]
+    if: vars.ORE_DOTSLASH_PUBLISH == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
