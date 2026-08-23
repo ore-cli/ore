@@ -210,6 +210,23 @@ categories:
       pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|unarchive|update)\b)'
       replace: '${bin}'
 
+    - name: cli-command-before-flag
+      note: >
+        cli-command-in-help-text matches `codex ` only when a SUBCOMMAND follows, by an
+        explicit lookahead list. A flag is not in that list, so every `codex -m`,
+        `codex --help` and `codex --cd` survived the rebrand -- including the model
+        picker's "Access legacy models by running codex -m <model_name>", which tells the
+        user to run a command that does not exist, and install.ps1's
+        `Get-Command codex -ErrorAction SilentlyContinue`, which probes for the wrong
+        binary when deciding whether one is already installed.
+
+        Same lookbehind as the subcommand rule, so a path, an identifier or a longer word
+        ending in "codex" is left alone; the lookahead requires one or two dashes followed
+        by a letter, which no path or identifier produces.
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/**/*.ps1"]
+      pattern: '(?<![\w./-])codex(?= -{1,2}[a-zA-Z])'
+      replace: '${bin}'
+
     - name: cli-command-in-backticks
       globs: ["codex-rs/**/*.rs", "**/*.md"]
       pattern: '`codex`'
