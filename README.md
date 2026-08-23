@@ -28,8 +28,8 @@ and a built-in Anthropic provider are planned, not yet shipped.
 ore is in prerelease, so install a pinned version:
 
 ```bash
-curl -fsSL https://github.com/ore-cli/ore/releases/download/ore-v1.149.0-alpha.2/install.sh \
-  | sh -s -- --release 1.149.0-alpha.2
+curl -fsSL https://github.com/ore-cli/ore/releases/download/ore-v1.149.0-alpha.3/install.sh \
+  | sh -s -- --release 1.149.0-alpha.3
 ```
 
 macOS and Linux, Apple Silicon and x86_64. It installs `ore` into
