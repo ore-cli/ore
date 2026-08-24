@@ -189,6 +189,11 @@ const KNOWN_MODEL_FACTS: &[KnownModelFacts] = &[
 /// Facts for `slug`; longest matching prefix wins, so dated snapshots inherit
 /// their base model's row.
 pub fn anthropic_model_facts(slug: &str) -> AnthropicModelFacts {
+    // A gateway namespaces the model it proxies (`anthropic/claude-opus-5`,
+    // `vertex/gemini-2.5-pro`). Discovery keeps that id because it is what the
+    // wire accepts, so match on the last segment too rather than treating a
+    // proxied model as unknown and handing it the fallback caps.
+    let slug = slug.rsplit_once('/').map_or(slug, |(_, suffix)| suffix);
     KNOWN_MODEL_FACTS
         .iter()
         .filter(|known| slug.starts_with(known.slug_prefix))
