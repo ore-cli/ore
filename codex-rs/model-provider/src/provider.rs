@@ -31,6 +31,8 @@ use crate::auth::ResolvedProviderAuth;
 use crate::auth::auth_manager_for_provider;
 use crate::auth::resolve_provider_auth;
 use crate::auth::resolve_provider_auth_for_scope;
+use crate::discovered_models::with_model_discovery;
+use crate::gemini::GeminiModelProvider;
 use crate::models_endpoint::OpenAiModelsEndpoint;
 
 pub(crate) fn enforce_managed_residency(provider: &mut Provider) {
@@ -312,13 +314,19 @@ pub fn create_model_provider(
     provider_info: ModelProviderInfo,
     auth_manager: Option<Arc<AuthManager>>,
 ) -> SharedModelProvider {
-    if provider_info.is_amazon_bedrock() {
+    let provider: SharedModelProvider = if provider_info.is_amazon_bedrock() {
         Arc::new(AmazonBedrockModelProvider::new(provider_info, auth_manager))
     } else if provider_info.wire_api == codex_model_provider_info::WireApi::Anthropic {
         Arc::new(AnthropicModelProvider::new(provider_info, auth_manager))
+    } else if provider_info.wire_api == codex_model_provider_info::WireApi::Gemini {
+        Arc::new(GeminiModelProvider::new(provider_info, auth_manager))
     } else {
         Arc::new(ConfiguredModelProvider::new(provider_info, auth_manager))
-    }
+    };
+    // A gateway's own `/models` list, not the shipped catalog, decides which
+    // models its picker offers. Providers that discovery does not apply to come
+    // back unchanged.
+    with_model_discovery(provider)
 }
 
 /// Runtime model provider backed by configured `ModelProviderInfo`.

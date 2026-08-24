@@ -25,11 +25,14 @@ codex-otel = { workspace = true }
 codex-protocol = { workspace = true }
 codex-response-debug-context = { workspace = true }
 http = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+# Gemini reports failures as a JSON envelope the shared error mapper does not
+# understand; `gemini/error.rs` has to read it to reach the message.
+serde_json = { workspace = true }
 tokio = { workspace = true, features = ["process", "sync", "time"] }
 tracing = { workspace = true, features = ["log"] }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
-serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 wiremock = { workspace = true }

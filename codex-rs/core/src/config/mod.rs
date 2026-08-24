@@ -85,11 +85,15 @@ use codex_mcp::McpServerRegistration;
 use codex_mcp::ResolvedMcpCatalog;
 use codex_memories_read::memory_root;
 use codex_model_provider::ANTHROPIC_PROVIDER_ID;
+use codex_model_provider::GEMINI_PROVIDER_ID;
 use codex_model_provider::ProviderCapabilities;
 use codex_model_provider::create_anthropic_provider;
+use codex_model_provider::create_gemini_provider;
 use codex_model_provider_info::LEGACY_OLLAMA_CHAT_PROVIDER_ID;
+use codex_model_provider_info::LMSTUDIO_OSS_PROVIDER_ID;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::OLLAMA_CHAT_PROVIDER_REMOVED_ERROR;
+use codex_model_provider_info::OLLAMA_OSS_PROVIDER_ID;
 use codex_model_provider_info::built_in_model_providers;
 use codex_model_provider_info::merge_configured_model_providers;
 use codex_models_manager::ModelsManagerConfig;
@@ -3648,6 +3652,38 @@ impl Config {
         // merge_configured_model_providers resolves collisions with `or_insert`, so a
         // built-in would otherwise silently outrank the user's own table and quietly
         // ignore a custom base_url.
+        // ore: the oss providers ship with no credential, which was right when a
+        // local server never asked for one. Current LM Studio does: it answers
+        // `Authorization: Bearer $LM_API_TOKEN` or 401s, and ore's built-in had no
+        // way to send it -- nor could config repair it, because `lmstudio` is a
+        // RESERVED id that a user table may not override.
+        //
+        // Attached only when the variable is actually set, because a declared
+        // `env_key` makes it MANDATORY: api_key() turns a missing one into a hard
+        // CodexErr::EnvVar, which would break every existing no-auth install.
+        // `create_oss_provider` itself is off limits -- model-provider-info/src/lib.rs
+        // is inside the ratified auth fence.
+        for (provider_id, env_var) in [
+            (OLLAMA_OSS_PROVIDER_ID, "OLLAMA_API_KEY"),
+            (LMSTUDIO_OSS_PROVIDER_ID, "LM_API_TOKEN"),
+        ] {
+            if env_var_nonempty(env_var).is_some()
+                && let Some(provider) = built_in.get_mut(provider_id)
+            {
+                provider.env_key = Some(env_var.to_string());
+            }
+        }
+
+        // ore: same registration rule as Anthropic below -- a built-in only when the
+        // user has not claimed the id, so a hand-written [model_providers.gemini]
+        // keeps its own base_url instead of being silently outranked by ours.
+        if !cfg.model_providers.contains_key(GEMINI_PROVIDER_ID) {
+            built_in.insert(
+                GEMINI_PROVIDER_ID.to_string(),
+                create_gemini_provider(/*base_url*/ None),
+            );
+        }
+
         if !cfg.model_providers.contains_key(ANTHROPIC_PROVIDER_ID) {
             built_in.insert(
                 ANTHROPIC_PROVIDER_ID.to_string(),

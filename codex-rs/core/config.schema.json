@@ -5199,6 +5199,13 @@
             "anthropic"
           ],
           "type": "string"
+        },
+        {
+          "description": "Google's Gemini API at `models/{model}:streamGenerateContent`.\n\nUnlike the other three, the model is part of the PATH rather than the body, so this wire cannot share their endpoint construction.",
+          "enum": [
+            "gemini"
+          ],
+          "type": "string"
         }
       ]
     },

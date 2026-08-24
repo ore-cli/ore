@@ -1930,6 +1930,16 @@ impl ModelClientSession {
                 ))
                 .await
             }
+            WireApi::Gemini => {
+                Box::pin(self.stream_gemini_messages(
+                    prompt,
+                    model_info,
+                    session_telemetry,
+                    effort,
+                    inference_trace,
+                ))
+                .await
+            }
         }
     }
 
@@ -2555,6 +2565,8 @@ impl WebsocketTelemetry for ApiTelemetry {
 mod anthropic;
 #[path = "client_chat.rs"]
 mod chat;
+#[path = "client_gemini.rs"]
+mod gemini;
 
 #[cfg(test)]
 #[path = "client_tests.rs"]

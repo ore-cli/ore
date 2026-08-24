@@ -294,7 +294,7 @@ fn proto_wire_api(wire_api: WireApi) -> proto::WireApi {
         WireApi::Responses => proto::WireApi::Responses,
         // The fork does not carry the new wires over remote thread config; the
         // proto stays byte-identical to upstream.
-        WireApi::Chat | WireApi::Anthropic => proto::WireApi::Unspecified,
+        WireApi::Chat | WireApi::Anthropic | WireApi::Gemini => proto::WireApi::Unspecified,
     }
 }
 
