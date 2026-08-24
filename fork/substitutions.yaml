@@ -390,6 +390,27 @@ categories:
       pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
       replace: 'You are ${product_name}, a coding agent.'
 
+    - name: test-constant-tracks-the-rebranded-identity
+      note: >
+        codex-app-server's thread_resume suite hardcodes the gpt-5.2 instructions
+        opening as a &str constant and asserts the resumed thread's instructions
+        still contain it. models-json-identity-is-ore rewrites that same sentence
+        in models.json, which is where the runtime template actually comes from,
+        so on an assembled tree the two sides disagree and
+        thread_resume_accepts_personality_override fails -- while passing on the
+        series, where no substitution has run. That split is why it went
+        unnoticed: ore-ci tests delta unsubstituted.
+
+        Rewriting the constant keeps the test doing its real job -- asserting a
+        personality override does not displace the base instructions -- instead of
+        retiring it into known-failing, which is scoped to the telemetry seams and
+        would silently drop the coverage. Same pattern and replacement as the
+        models.json rule so the two cannot drift; rust_literals_only stays at its
+        default, so only the string literal's contents are reachable.
+      files: [codex-rs/app-server/tests/suite/v2/thread_resume.rs]
+      pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
+      replace: 'You are ${product_name}, a coding agent.'
+
     - name: models-json-remaining-product-name
       note: >
         models-json-identity-is-ore rewrote the seven instructions_template openings, and
