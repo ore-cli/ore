@@ -110,6 +110,11 @@ pub enum WireApi {
     Chat,
     /// The Anthropic Messages API at `/v1/messages`.
     Anthropic,
+    /// Google's Gemini API at `models/{model}:streamGenerateContent`.
+    ///
+    /// Unlike the other three, the model is part of the PATH rather than the
+    /// body, so this wire cannot share their endpoint construction.
+    Gemini,
 }
 
 impl fmt::Display for WireApi {
@@ -118,6 +123,7 @@ impl fmt::Display for WireApi {
             Self::Responses => "responses",
             Self::Chat => "chat",
             Self::Anthropic => "anthropic",
+            Self::Gemini => "gemini",
         };
         f.write_str(value)
     }
@@ -133,9 +139,10 @@ impl<'de> Deserialize<'de> for WireApi {
             "responses" => Ok(Self::Responses),
             "chat" => Ok(Self::Chat),
             "anthropic" => Ok(Self::Anthropic),
+            "gemini" => Ok(Self::Gemini),
             _ => Err(serde::de::Error::unknown_variant(
                 &value,
-                &["responses", "chat", "anthropic"],
+                &["responses", "chat", "anthropic", "gemini"],
             )),
         }
     }

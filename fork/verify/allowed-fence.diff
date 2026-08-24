@@ -23,7 +23,7 @@ diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-i
  pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
  pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
  
-@@ -64,12 +63,20 @@ pub enum WireApi {
+@@ -64,12 +63,26 @@ pub enum WireApi {
      /// The Responses API exposed by OpenAI at `/v1/responses`.
      #[default]
      Responses,
@@ -33,6 +33,11 @@ diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-i
 +    Chat,
 +    /// The Anthropic Messages API at `/v1/messages`.
 +    Anthropic,
++    /// Google's Gemini API at `models/{model}:streamGenerateContent`.
++    ///
++    /// Unlike the other three, the model is part of the PATH rather than the
++    /// body, so this wire cannot share their endpoint construction.
++    Gemini,
  }
  
  impl fmt::Display for WireApi {
@@ -41,10 +46,11 @@ diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-i
              Self::Responses => "responses",
 +            Self::Chat => "chat",
 +            Self::Anthropic => "anthropic",
++            Self::Gemini => "gemini",
          };
          f.write_str(value)
      }
-@@ -83,8 +90,12 @@ impl<'de> Deserialize<'de> for WireApi {
+@@ -83,8 +96,13 @@ impl<'de> Deserialize<'de> for WireApi {
          let value = String::deserialize(deserializer)?;
          match value.as_str() {
              "responses" => Ok(Self::Responses),
@@ -52,9 +58,10 @@ diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-i
 -            _ => Err(serde::de::Error::unknown_variant(&value, &["responses"])),
 +            "chat" => Ok(Self::Chat),
 +            "anthropic" => Ok(Self::Anthropic),
++            "gemini" => Ok(Self::Gemini),
 +            _ => Err(serde::de::Error::unknown_variant(
 +                &value,
-+                &["responses", "chat", "anthropic"],
++                &["responses", "chat", "anthropic", "gemini"],
 +            )),
          }
      }

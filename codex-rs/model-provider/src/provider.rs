@@ -32,6 +32,8 @@ use crate::auth::auth_manager_for_provider;
 use crate::auth::resolve_provider_auth;
 use crate::auth::resolve_provider_auth_for_scope;
 use crate::combined_auth::compose_auth;
+use crate::discovered_models::with_model_discovery;
+use crate::gemini::GeminiModelProvider;
 use crate::models_endpoint::OpenAiModelsEndpoint;
 use crate::workspace_routing::WorkspaceRoutingContext;
 
@@ -371,27 +373,33 @@ pub fn create_model_provider(
     provider_info: ModelProviderInfo,
     auth_manager: Option<Arc<AuthManager>>,
 ) -> SharedModelProvider {
-    if provider_info.is_amazon_bedrock() {
-        return Arc::new(AmazonBedrockModelProvider::new(provider_info, auth_manager));
-    }
-    if provider_info.wire_api == codex_model_provider_info::WireApi::Anthropic {
-        return Arc::new(AnthropicModelProvider::new(provider_info, auth_manager));
-    }
-    let gateway_auth_manager = provider_info.gateway_oauth.as_ref().map(|config| {
-        provider_info.validate()?;
-        let manager = auth_manager
-            .as_ref()
-            .ok_or_else(|| "gateway_oauth requires auth runtime configuration".to_string())?;
-        crate::shared_state::process_shared_state()
-            .gateway_auth(config, &manager.runtime_config())
-            .map_err(|_| "failed to create provider OAuth HTTP client".to_string())
-    });
-    let auth_manager = auth_manager_for_provider(auth_manager, &provider_info);
-    Arc::new(ConfiguredModelProvider::new(
-        provider_info,
-        auth_manager,
-        gateway_auth_manager,
-    ))
+    let provider: SharedModelProvider = if provider_info.is_amazon_bedrock() {
+        Arc::new(AmazonBedrockModelProvider::new(provider_info, auth_manager))
+    } else if provider_info.wire_api == codex_model_provider_info::WireApi::Anthropic {
+        Arc::new(AnthropicModelProvider::new(provider_info, auth_manager))
+    } else if provider_info.wire_api == codex_model_provider_info::WireApi::Gemini {
+        Arc::new(GeminiModelProvider::new(provider_info, auth_manager))
+    } else {
+        let gateway_auth_manager = provider_info.gateway_oauth.as_ref().map(|config| {
+            provider_info.validate()?;
+            let manager = auth_manager
+                .as_ref()
+                .ok_or_else(|| "gateway_oauth requires auth runtime configuration".to_string())?;
+            crate::shared_state::process_shared_state()
+                .gateway_auth(config, &manager.runtime_config())
+                .map_err(|_| "failed to create provider OAuth HTTP client".to_string())
+        });
+        let auth_manager = auth_manager_for_provider(auth_manager, &provider_info);
+        Arc::new(ConfiguredModelProvider::new(
+            provider_info,
+            auth_manager,
+            gateway_auth_manager,
+        ))
+    };
+    // A gateway's own `/models` list, not the shipped catalog, decides which
+    // models its picker offers. Providers that discovery does not apply to come
+    // back unchanged.
+    with_model_discovery(provider)
 }
 
 /// Runtime model provider that orchestrates primary and gateway credentials.
