@@ -35,8 +35,7 @@ jobs:
       github.event.pull_request.base.ref == 'main' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       startsWith(github.event.pull_request.head.ref, 'sync/') &&
-      contains(github.event.pull_request.labels.*.name, 'sync') &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+      contains(github.event.pull_request.labels.*.name, 'sync')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -46,6 +45,41 @@ jobs:
         with:
           app-id: ${{ secrets.ORE_SYNC_APP_ID }}
           private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      # author_association is computed for the viewer of the payload, so a
+      # reviewer whose organization membership is private arrives as NONE even
+      # when they administer the repository -- which is what skipped this job on
+      # the first sync PR. Ask the API for the permission instead: accurate, and
+      # unaffected by membership visibility.
+      - name: Require the reviewer to have write access
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REVIEWER: ${{ github.event.review.user.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          perm="$(gh api "repos/$REPO/collaborators/$REVIEWER/permission" --jq .permission)"
+          case "$perm" in
+            admin|maintain|write) echo "reviewer $REVIEWER has '$perm'" ;;
+            *) echo "::error::$REVIEWER has '$perm' on $REPO; finalize needs write"; exit 1 ;;
+          esac
+
+      # finalize fast-forwards main, and ore-release runs no tests of its own, so
+      # without this one approving review is enough to ship a red tree.
+      - name: Require ore-ci green on the reviewed commit
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          M: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          concl="$(gh api "repos/$REPO/commits/$M/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "required")] | last | .conclusion // "missing"')"
+          if [ "$concl" != "success" ]; then
+            echo "::error::ore-ci 'required' on $M is '$concl', not success"
+            exit 1
+          fi
+          echo "ore-ci required: success on $M"
 
       # ref: main, not the PR merge ref -- the job only needs the object
       # database plus origin/* refs, and a merge ref does not exist when the
