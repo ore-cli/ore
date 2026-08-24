@@ -133,6 +133,50 @@ async fn a_blank_environment_value_falls_through_to_the_default() -> std::io::Re
     Ok(())
 }
 
+#[tokio::test]
+#[serial_test::serial]
+async fn an_env_provider_does_not_inherit_a_config_model() -> std::io::Result<()> {
+    // The regression this pairing exists for. `model` is a commonly-set config
+    // key and `model_provider` is rarely set, so the two resolving independently
+    // pointed an OpenAI slug at the Anthropic Messages API.
+    let _p = EnvGuard::set(ORE_MODEL_PROVIDER_ENV_VAR, Some("anthropic"));
+    let _m = EnvGuard::set(ORE_MODEL_ENV_VAR, Some("claude-opus-5"));
+
+    let (provider, model) = provider_and_model_for(ConfigToml {
+        model: Some("gpt-5.4".to_string()),
+        ..ConfigToml::default()
+    })
+    .await?;
+
+    assert_eq!(provider, "anthropic");
+    assert_eq!(
+        model.as_deref(),
+        Some("claude-opus-5"),
+        "an OpenAI slug must not be carried onto a provider chosen by the environment"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn a_config_model_survives_when_config_also_chose_the_provider() -> std::io::Result<()> {
+    // The other side of the pairing: if config picked the provider, its model is
+    // the right one and the environment must not displace it.
+    let _p = EnvGuard::set(ORE_MODEL_PROVIDER_ENV_VAR, Some("anthropic"));
+    let _m = EnvGuard::set(ORE_MODEL_ENV_VAR, Some("claude-opus-5"));
+
+    let (provider, model) = provider_and_model_for(ConfigToml {
+        model_provider: Some("openai".to_string()),
+        model: Some("gpt-5.4".to_string()),
+        ..ConfigToml::default()
+    })
+    .await?;
+
+    assert_eq!(provider, "openai");
+    assert_eq!(model.as_deref(), Some("gpt-5.4"));
+    Ok(())
+}
+
 // ------------------------------------------------------------- the helper
 #[test]
 #[serial_test::serial]
