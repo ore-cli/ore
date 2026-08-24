@@ -918,6 +918,8 @@ jobs:
     name: build (windows)
     needs: tag-check
     uses: ./.github/workflows/ore-release-windows.yml
+    with:
+      tag: ${{ needs.tag-check.outputs.tag }}
 
   release:
     name: publish
@@ -946,12 +948,23 @@ jobs:
           mkdir -p dist
           # Signing reports and the unsigned hand-off are diagnostics, not
           # release assets.
+          # windows-binaries-* and cargo-timings-* are intra-workflow hand-offs
+          # from ore-release-windows.yml -- raw .exe/.pdb pairs under their
+          # codex names, and build timing reports. ore collects assets by
+          # downloading every artifact and filtering, where upstream downloads
+          # an explicit allowlist, so turning Windows on means naming them here
+          # or publishing them by accident.
           find staged -type f \
             -not -path '*-signing-reports/*' \
             -not -path '*-unsigned/*' \
+            -not -path '*windows-binaries-*/*' \
+            -not -path '*cargo-timings-*/*' \
             -exec cp {} dist/ \;
-          # No install.ps1 until Phase 3 ships Windows binaries for it to fetch.
+          # Both installers ship now that Windows does, as upstream publishes
+          # both: install.ps1 fetches the package archives this release now
+          # actually contains.
           cp scripts/install/install.sh dist/
+          cp scripts/install/install.ps1 dist/
           cp codex-rs/core/config.schema.json dist/config-schema.json
           ls -la dist
 
