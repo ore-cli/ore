@@ -474,13 +474,13 @@ async fn codex_tool_passes_base_instructions() -> anyhow::Result<()> {
     let developer_text = developer_contents.join("\n");
     assert_eq!(
         developer_text
-            .matches("Co-authored-by: Ore <noreply@openai.com>")
+            .matches("Co-authored-by: Ore <noreply@ore-cli.github.io>")
             .count(),
         1
     );
     assert_eq!(
         developer_text
-            .matches("Generated with [Ore](https://openai.com/codex/).")
+            .matches("Generated with [Ore](https://github.com/ore-cli/ore).")
             .count(),
         1
     );

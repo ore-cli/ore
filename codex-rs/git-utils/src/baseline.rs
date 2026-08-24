@@ -15,7 +15,7 @@ use tokio::task;
 use crate::operations::run_git_for_status;
 
 const BASELINE_COMMIT_MESSAGE: &str =
-    "Initialize Ore git baseline\n\nCo-authored-by: Ore <noreply@openai.com>";
+    "Initialize Ore git baseline\n\nCo-authored-by: Ore <noreply@ore-cli.github.io>";
 
 /// File-level change status between a git baseline and the current directory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

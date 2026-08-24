@@ -353,14 +353,19 @@ categories:
         Rewritten as whole literals so the address and URL move with the name. The
         matching predicate at the bottom of the same file is rewritten by the same rules,
         so what the agent is told to write and what the checker accepts stay in step.
-      files: [codex-rs/ext/git-attribution/src/world_state.rs]
+      # Globs, not one file. Scoping this to world_state.rs fixed 3 of 8 sites and
+      # left the other 5 saying `Co-authored-by: Ore <noreply@openai.com>` -- so the
+      # agent was told to write one trailer while the checkers and tests asserted
+      # another, and app-server's git_attribution suite failed on the mismatch. The
+      # pattern is the whole literal, so no unrelated openai.com reference matches.
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.md", "**/*.md"]
       pattern: 'Co-authored-by: Codex <noreply@openai\.com>'
       replace: 'Co-authored-by: ${product_name} <noreply@ore-cli.github.io>'
 
     - name: git-attribution-link-is-ore
       note: >
         The pull-request half of git-attribution-is-ore.
-      files: [codex-rs/ext/git-attribution/src/world_state.rs]
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.md", "**/*.md"]
       pattern: 'Generated with \[Codex\]\(https://openai\.com/codex/\)'
       replace: 'Generated with [${product_name}](https://github.com/${repo_slug})'
 
@@ -382,6 +387,27 @@ categories:
         slugs, ids, wire field names -- is reachable by it.
       files: [codex-rs/models-manager/models.json]
       rust_literals_only: false
+      pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
+      replace: 'You are ${product_name}, a coding agent.'
+
+    - name: test-constant-tracks-the-rebranded-identity
+      note: >
+        codex-app-server's thread_resume suite hardcodes the gpt-5.2 instructions
+        opening as a &str constant and asserts the resumed thread's instructions
+        still contain it. models-json-identity-is-ore rewrites that same sentence
+        in models.json, which is where the runtime template actually comes from,
+        so on an assembled tree the two sides disagree and
+        thread_resume_accepts_personality_override fails -- while passing on the
+        series, where no substitution has run. That split is why it went
+        unnoticed: ore-ci tests delta unsubstituted.
+
+        Rewriting the constant keeps the test doing its real job -- asserting a
+        personality override does not displace the base instructions -- instead of
+        retiring it into known-failing, which is scoped to the telemetry seams and
+        would silently drop the coverage. Same pattern and replacement as the
+        models.json rule so the two cannot drift; rust_literals_only stays at its
+        default, so only the string literal's contents are reachable.
+      files: [codex-rs/app-server/tests/suite/v2/thread_resume.rs]
       pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
       replace: 'You are ${product_name}, a coding agent.'
 
