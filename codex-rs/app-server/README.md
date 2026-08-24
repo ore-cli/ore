@@ -109,7 +109,7 @@ legacy alias for declaring the `openai/form` extension.
 App-server keeps the complete value under `io.modelcontextprotocol/ui`, rather
 than deriving a WebView boolean, so clients can advertise additional supported
 MIME types and future extension settings. The MCP extension profile is fixed
-when a Ore session is created by `thread/start`, `thread/resume`, or
+when an Ore session is created by `thread/start`, `thread/resume`, or
 `thread/fork`. Ore advertises that profile in the downstream MCP
 `initialize` request; it is not repeated in individual tool-call metadata.
 Every turn and direct MCP tool call in that loaded session therefore uses the
@@ -1054,7 +1054,7 @@ const offer = await pc.createOffer();
 await pc.setLocalDescription(offer);
 ```
 
-Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend_prompt` for the backend instructions and the thread conversation id as the default Realtime API session identifier. This `realtimeSessionId` value refers to the upstream Realtime API session, not a Ore session/thread-group id. The start response is `{}`; the remote answer SDP arrives later as `thread/realtime/sdp` and should be passed to `setRemoteDescription()`:
+Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend_prompt` for the backend instructions and the thread conversation id as the default Realtime API session identifier. This `realtimeSessionId` value refers to the upstream Realtime API session, not an Ore session/thread-group id. The start response is `{}`; the remote answer SDP arrives later as `thread/realtime/sdp` and should be passed to `setRemoteDescription()`:
 
 ```json
 { "method": "thread/realtime/start", "id": 40, "params": {
@@ -1564,7 +1564,7 @@ The fuzzy file search session API emits per-query notifications:
 
 The thread realtime API emits thread-scoped notifications for session lifecycle and streaming media:
 
-- `thread/realtime/started` — `{ threadId, realtimeSessionId }` once realtime starts for the thread (experimental). `realtimeSessionId` is the upstream Realtime API session identifier, not a Ore session/thread-group id.
+- `thread/realtime/started` — `{ threadId, realtimeSessionId }` once realtime starts for the thread (experimental). `realtimeSessionId` is the upstream Realtime API session identifier, not an Ore session/thread-group id.
 - `thread/realtime/itemAdded` — `{ threadId, item }` for raw non-audio realtime items that do not have a dedicated typed app-server notification, including `handoff_request` (experimental). `item` is forwarded as raw JSON while the upstream websocket item schema remains unstable.
 - `thread/realtime/transcript/delta` — `{ threadId, role, delta }` for live realtime transcript deltas (experimental).
 - `thread/realtime/transcript/done` — `{ threadId, role, text }` when realtime emits the final full text for a transcript part (experimental).
@@ -1895,11 +1895,11 @@ Use `skills/extraRoots/set` to replace additional standalone skill roots for the
         "skills": [
             {
               "name": "skill-creator",
-              "description": "Create or update a Ore skill",
+              "description": "Create or update an Ore skill",
               "enabled": true,
               "interface": {
                 "displayName": "Skill Creator",
-                "shortDescription": "Create or update a Ore skill",
+                "shortDescription": "Create or update an Ore skill",
                 "iconSmall": "icon.svg",
                 "iconLarge": "icon-large.svg",
                 "brandColor": "#111111",
@@ -2373,7 +2373,7 @@ Ore stores the key and region as the primary Ore auth, replacing any previously 
 { "method": "account/updated", "params": { "authMode": null, "planType": null } }
 ```
 
-When using a Ore-managed Bedrock key, logout removes the key and clears `model_provider` if it is still set to `"amazon-bedrock"`. When using AWS-managed credentials, manage them through AWS or switch providers before logging out.
+When using an Ore-managed Bedrock key, logout removes the key and clears `model_provider` if it is still set to `"amazon-bedrock"`. When using AWS-managed credentials, manage them through AWS or switch providers before logging out.
 
 ### 7) Rate limits (ChatGPT)
 

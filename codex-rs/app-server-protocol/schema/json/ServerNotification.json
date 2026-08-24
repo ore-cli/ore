@@ -789,7 +789,7 @@
       "type": "string"
     },
     "CollaborationMode": {
-      "description": "Collaboration mode for a Ore session.",
+      "description": "Collaboration mode for an Ore session.",
       "properties": {
         "mode": {
           "$ref": "#/definitions/ModeKind"
@@ -4734,7 +4734,7 @@
             },
             "results": {
               "default": null,
-              "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a Ore release.",
+              "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without an Ore release.",
               "items": true,
               "type": [
                 "array",

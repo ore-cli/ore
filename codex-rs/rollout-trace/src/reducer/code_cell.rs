@@ -142,7 +142,7 @@ impl TraceReducer {
 
         let Some(codex_turn_id) = codex_turn_id else {
             bail!(
-                "code cell start {} did not include a Ore turn id",
+                "code cell start {} did not include an Ore turn id",
                 started.code_cell_id
             );
         };

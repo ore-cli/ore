@@ -1382,7 +1382,7 @@
     },
     "History": {
       "additionalProperties": false,
-      "description": "Settings that govern if and what will be written to `~/.codex/history.jsonl`.",
+      "description": "Settings that govern if and what will be written to `~/.ore/history.jsonl`.",
       "properties": {
         "max_bytes": {
           "default": null,
@@ -5206,7 +5206,7 @@
       "type": "object"
     }
   },
-  "description": "Base config deserialized from ~/.codex/config.toml.",
+  "description": "Base config deserialized from ~/.ore/config.toml.",
   "properties": {
     "agents": {
       "allOf": [
@@ -5833,7 +5833,7 @@
         "max_bytes": null,
         "persistence": "save-all"
       },
-      "description": "Settings that govern if and what will be written to `~/.codex/history.jsonl`."
+      "description": "Settings that govern if and what will be written to `~/.ore/history.jsonl`."
     },
     "hooks": {
       "allOf": [

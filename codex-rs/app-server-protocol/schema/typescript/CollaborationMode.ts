@@ -5,6 +5,6 @@ import type { ModeKind } from "./ModeKind";
 import type { Settings } from "./Settings";
 
 /**
- * Collaboration mode for a Ore session.
+ * Collaboration mode for an Ore session.
  */
 export type CollaborationMode = { mode: ModeKind, settings: Settings, };

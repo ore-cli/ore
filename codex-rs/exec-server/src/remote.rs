@@ -339,7 +339,7 @@ impl HarnessKeyValidator for RegistryHarnessKeyValidator {
     }
 }
 
-/// Noise connection configuration for a Ore harness.
+/// Noise connection configuration for an Ore harness.
 ///
 /// Configuration stays inert until the effective outbound HTTP policy is known.
 /// Its connection provider then holds the authenticated registry client so every

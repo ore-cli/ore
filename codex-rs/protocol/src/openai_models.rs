@@ -218,7 +218,7 @@ pub struct ModelServiceTier {
     pub description: String,
 }
 
-/// Metadata describing a Ore-supported model.
+/// Metadata describing an Ore-supported model.
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq)]
 pub struct ModelPreset {
     /// Stable identifier for the preset.

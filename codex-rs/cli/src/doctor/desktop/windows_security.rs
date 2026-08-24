@@ -202,12 +202,12 @@ fn classify(channels: &[Option<Vec<Evidence>>]) -> DoctorCheck {
         (CheckStatus::Ok, _) => "no locally visible recent Ore security enforcement was found",
         (CheckStatus::Warning, false) => "security event channels could not be inspected",
         (CheckStatus::Warning, true) => "recent Ore security audit or detection requires review",
-        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined a Ore executable",
+        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined an Ore executable",
     };
     let mut check = desktop_check("desktop.security.enforcement", status, summary).details(details);
     if status != CheckStatus::Ok {
         check = check.remediation(
-            "ask your organization's security administrator to review endpoint security events and the approved Codex application policy",
+            "ask your organization's security administrator to review endpoint security events and the approved Ore application policy",
         );
     }
     check

@@ -60,3 +60,10 @@
 - path: codex-rs/Cargo.toml
   anchors: ["members = \\[", "\\[workspace\\.package\\]"]
   series: workspace-members
+
+# ore: ORE_MODEL_PROVIDER / ORE_MODEL patch the provider and model resolution in
+# Config::load. Upstream churns that resolution constantly, and without an anchor
+# here semantic-review.py cannot warn when it moves under the patch.
+- path: codex-rs/core/src/config/mod.rs
+  anchors: [model_provider_id, ORE_MODEL_PROVIDER_ENV_VAR]
+  series: ore-model-provider-env

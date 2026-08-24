@@ -189,7 +189,7 @@ pub enum UriBasedFileOpener {
     None,
 }
 
-/// Settings that govern if and what will be written to `~/.codex/history.jsonl`.
+/// Settings that govern if and what will be written to `~/.ore/history.jsonl`.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[serde(default)]
 #[schemars(deny_unknown_fields)]

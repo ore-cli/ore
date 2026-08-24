@@ -338,7 +338,7 @@ pub struct WebSearchItem {
     ///
     /// These stay as opaque JSON at the Ore transport boundary so new result
     /// fields and result types can pass through without changing model-visible
-    /// context or requiring a Ore release.
+    /// context or requiring an Ore release.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub results: Option<Vec<JsonValue>>,

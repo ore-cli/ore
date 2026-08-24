@@ -56,7 +56,7 @@ pub enum InstallMethod {
     Standalone {
         /// The managed standalone release directory. Legacy installs use paths
         /// such as
-        /// `~/.codex/packages/standalone/releases/0.111.0-x86_64-unknown-linux-musl`.
+        /// `~/.ore/packages/standalone/releases/0.111.0-x86_64-unknown-linux-musl`.
         /// Package-layout installs use the package root that contains `bin/`,
         /// `codex-resources/`, and `codex-path/`.
         release_dir: AbsolutePathBuf,
@@ -65,13 +65,13 @@ pub enum InstallMethod {
         /// The platform of the standalone release, either `Unix` or `Windows`.
         platform: StandalonePlatform,
     },
-    /// A Ore binary launched through the npm-managed `codex.js` shim.
+    /// An Ore binary launched through the npm-managed `codex.js` shim.
     Npm,
-    /// A Ore binary launched through the bun-managed `codex.js` shim.
+    /// An Ore binary launched through the bun-managed `codex.js` shim.
     Bun,
-    /// A Ore binary launched through the pnpm-managed `codex.js` shim.
+    /// An Ore binary launched through the pnpm-managed `codex.js` shim.
     Pnpm,
-    /// A Ore binary that appears to come from a Homebrew install prefix.
+    /// An Ore binary that appears to come from a Homebrew install prefix.
     Brew,
     /// Any other execution environment.
     ///

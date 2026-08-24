@@ -1,6 +1,6 @@
 //! Session- and turn-scoped helpers for talking to model provider APIs.
 //!
-//! `ModelClient` is intended to live for the lifetime of a Ore session and holds the stable
+//! `ModelClient` is intended to live for the lifetime of an Ore session and holds the stable
 //! configuration and state needed to talk to a provider (auth, provider selection, conversation id,
 //! and transport fallback state).
 //!
@@ -242,7 +242,7 @@ impl RequestRouteTelemetry {
 
 /// A session-scoped client for model-provider API calls.
 ///
-/// This holds configuration and state that should be shared across turns within a Ore session
+/// This holds configuration and state that should be shared across turns within an Ore session
 /// (auth, provider selection, thread id, and transport fallback state).
 ///
 /// WebSocket fallback is session-scoped: once a turn activates the HTTP fallback, subsequent turns
@@ -423,7 +423,7 @@ impl ModelClient {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new session-scoped `ModelClient`.
     ///
-    /// All arguments are expected to be stable for the lifetime of a Ore session. Per-turn values
+    /// All arguments are expected to be stable for the lifetime of an Ore session. Per-turn values
     /// are passed to [`ModelClientSession::stream`] (and other turn-scoped methods) explicitly. The
     /// HTTP client factory must come from the effective session configuration so every transport
     /// observes the resolved outbound proxy policy.

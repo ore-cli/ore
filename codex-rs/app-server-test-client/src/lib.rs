@@ -236,7 +236,7 @@ enum CliCommand {
         /// Use the device-code login flow instead of the browser callback flow.
         #[arg(long, default_value_t = false, conflicts_with = "amazon_bedrock")]
         device_code: bool,
-        /// Use a Ore-managed Amazon Bedrock API key.
+        /// Use an Ore-managed Amazon Bedrock API key.
         #[arg(long, default_value_t = false, conflicts_with = "device_code")]
         amazon_bedrock: bool,
         /// Amazon Bedrock API key.

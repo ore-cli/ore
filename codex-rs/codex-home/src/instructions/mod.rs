@@ -9,7 +9,7 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 const DEFAULT_AGENTS_MD_FILENAME: &str = "AGENTS.md";
 const LOCAL_AGENTS_MD_FILENAME: &str = "AGENTS.override.md";
 
-/// Loads user instructions from a Ore home directory.
+/// Loads user instructions from an Ore home directory.
 #[derive(Clone, Debug)]
 pub struct CodexHomeUserInstructionsProvider {
     codex_home: AbsolutePathBuf,

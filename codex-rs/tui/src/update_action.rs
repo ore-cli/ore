@@ -16,7 +16,7 @@ pub enum UpdateAction {
     PnpmGlobalLatest,
     /// Update via `brew upgrade codex`.
     BrewUpgrade,
-    /// Update via `curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | CODEX_NON_INTERACTIVE=1 sh`.
+    /// Update via `curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh -o \"${TMPDIR:-/tmp}/ore-install.sh\" && CODEX_NON_INTERACTIVE=1 sh \"${TMPDIR:-/tmp}/ore-install.sh\"`.
     StandaloneUnix,
     /// Update via `$env:CODEX_NON_INTERACTIVE=1; irm https://github.com/ore-cli/ore/releases/latest/download/install.ps1 | iex`.
     StandaloneWindows,
@@ -49,7 +49,7 @@ impl UpdateAction {
                 "sh",
                 &[
                     "-c",
-                    "curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | CODEX_NON_INTERACTIVE=1 sh",
+                    "curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh -o \"${TMPDIR:-/tmp}/ore-install.sh\" && CODEX_NON_INTERACTIVE=1 sh \"${TMPDIR:-/tmp}/ore-install.sh\"",
                 ],
             ),
             UpdateAction::StandaloneWindows => (
@@ -156,7 +156,7 @@ mod tests {
                 "sh",
                 &[
                     "-c",
-                    "curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | CODEX_NON_INTERACTIVE=1 sh"
+                    "curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh -o \"${TMPDIR:-/tmp}/ore-install.sh\" && CODEX_NON_INTERACTIVE=1 sh \"${TMPDIR:-/tmp}/ore-install.sh\""
                 ][..],
             )
         );

@@ -114,7 +114,7 @@ pub(crate) fn create_tool_for_codex_tool_call_param() -> Tool {
 
     Tool::new(
         "codex",
-        "Run a Ore session. Accepts configuration parameters matching the Ore Config struct.",
+        "Run an Ore session. Accepts configuration parameters matching the Ore Config struct.",
         input_schema,
     )
     .with_title("Ore")
@@ -233,7 +233,7 @@ pub(crate) fn create_tool_for_codex_tool_call_reply_param() -> Tool {
 
     Tool::new(
         "codex-reply",
-        "Continue a Ore conversation by providing the thread id and prompt.",
+        "Continue an Ore conversation by providing the thread id and prompt.",
         input_schema,
     )
     .with_title("Ore Reply")
@@ -292,7 +292,7 @@ mod tests {
         let tool = create_tool_for_codex_tool_call_param();
         let tool_json = serde_json::to_value(&tool).expect("tool serializes");
         let expected_tool_json = serde_json::json!({
-          "description": "Run a Ore session. Accepts configuration parameters matching the Ore Config struct.",
+          "description": "Run an Ore session. Accepts configuration parameters matching the Ore Config struct.",
           "inputSchema": {
             "additionalProperties": false,
             "properties": {
@@ -388,7 +388,7 @@ mod tests {
         let tool = create_tool_for_codex_tool_call_reply_param();
         let tool_json = serde_json::to_value(&tool).expect("tool serializes");
         let expected_tool_json = serde_json::json!({
-          "description": "Continue a Ore conversation by providing the thread id and prompt.",
+          "description": "Continue an Ore conversation by providing the thread id and prompt.",
           "inputSchema": {
             "properties": {
               "conversationId": {

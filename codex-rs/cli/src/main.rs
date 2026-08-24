@@ -184,7 +184,7 @@ enum Subcommand {
     /// Diagnose local Ore installation, config, auth, and runtime health.
     Doctor(DoctorCommand),
 
-    /// Run commands within a Ore-provided sandbox.
+    /// Run commands within an Ore-provided sandbox.
     Sandbox(HostSandboxArgs),
 
     /// Debugging tools.

@@ -7,7 +7,7 @@
 > sensitive.
 
 Rollout tracing is an opt-in diagnostic path for understanding what happened
-during a Ore session. It records raw runtime evidence into a local bundle on
+during an Ore session. It records raw runtime evidence into a local bundle on
 disk, then replays that bundle into a semantic graph that a debugger or UI can
 inspect.
 

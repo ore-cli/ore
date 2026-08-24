@@ -13,7 +13,7 @@ fn only_matching_enforced_apple_security_events_are_failures() {
     for (event, expected) in [
         ("denied io.github.ore-cli.ore", Evidence::Blocked),
         (
-            "denied /Applications/Ore.app/Contents/MacOS/Ore",
+            "denied /Applications/Codex.app/Contents/MacOS/Ore",
             Evidence::Blocked,
         ),
         ("malware detected ChatGPT.app", Evidence::Malware),

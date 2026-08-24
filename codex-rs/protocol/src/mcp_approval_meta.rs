@@ -1,4 +1,4 @@
-/// Identifies privileged Codex approvals. Changing this key or adding another
+/// Identifies privileged Ore approvals. Changing this key or adding another
 /// privileged discriminator requires updating the MCP elicitation router's
 /// form-forwarding safeguards.
 pub const APPROVAL_KIND_KEY: &str = "codex_approval_kind";

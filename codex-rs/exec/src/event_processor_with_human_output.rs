@@ -97,11 +97,7 @@ impl EventProcessorWithHumanOutput {
     fn render_item_completed(&mut self, item: ThreadItem) {
         match item {
             ThreadItem::AgentMessage { text, .. } => {
-                eprintln!(
-                    "{}\n{}",
-                    "codex".style(self.italic).style(self.magenta),
-                    text
-                );
+                eprintln!("{}\n{}", "ore".style(self.italic).style(self.magenta), text);
                 self.final_message = Some(text);
                 self.final_message_rendered = true;
             }
@@ -409,7 +405,7 @@ impl EventProcessor for EventProcessorWithHumanOutput {
         {
             eprintln!(
                 "{}\n{}",
-                "codex".style(self.italic).style(self.magenta),
+                "ore".style(self.italic).style(self.magenta),
                 message
             );
         }

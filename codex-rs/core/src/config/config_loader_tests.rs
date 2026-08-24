@@ -1267,7 +1267,7 @@ async fn managed_preferences_requirements_resolve_paths_against_codex_home() -> 
         base64::prelude::BASE64_STANDARD.encode(
             r#"
 sqlite_home = "state"
-log_dir = "~/.codex/logs"
+log_dir = "~/.ore/logs"
 model_catalog_json = "models.json"
 "#
             .as_bytes(),
@@ -1283,7 +1283,7 @@ model_catalog_json = "models.json"
         &codex_config::NoopThreadConfigLoader,
     )
     .await?;
-    let expected_log_dir = AbsolutePathBuf::resolve_path_against_base("~/.codex/logs", &codex_home);
+    let expected_log_dir = AbsolutePathBuf::resolve_path_against_base("~/.ore/logs", &codex_home);
     let requirements = layers.requirements_toml();
 
     assert_eq!(

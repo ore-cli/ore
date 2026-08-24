@@ -11,13 +11,13 @@ body:
 
         Make sure you are running the [latest](https://npmjs.com/package/@ore-cli/ore) version of Codex CLI. The bug you are experiencing may already have been fixed.
 
-        If your version supports it, please run `codex doctor --json` and paste the output in the "Codex doctor report" field below. This helps us diagnose install, config, auth, terminal, MCP, network, and local state issues.
+        If your version supports it, please run `ore doctor --json` and paste the output in the "Codex doctor report" field below. This helps us diagnose install, config, auth, terminal, MCP, network, and local state issues.
 
   - type: input
     id: version
     attributes:
       label: What version of Codex CLI is running?
-      description: use `codex --version`
+      description: use `ore --version`
     validations:
       required: true
   - type: input
@@ -50,7 +50,7 @@ body:
     attributes:
       label: Codex doctor report
       description: |
-        If available, run `codex doctor --json` and paste the full output here.
+        If available, run `ore doctor --json` and paste the full output here.
 
         The report is designed to redact secrets, but please review it before submitting.
         If your Codex version does not support `doctor`, write `not available`.

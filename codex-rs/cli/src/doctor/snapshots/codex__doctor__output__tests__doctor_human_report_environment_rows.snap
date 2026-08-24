@@ -26,7 +26,7 @@ Environment
   ⚠ security     Microsoft Defender can interfere with Ore. Verify Ore exclusions.
       endpoint products        Microsoft Defender
       exclusion targets        verified Codex app and required helpers
-    ▸ Ore exclusions           not verified (expected Codex application and helper exclusions)
+    ▸ Ore exclusions           not verified (expected Ore application and helper exclusions)
     → Microsoft Defender: Add a certificate or executable-path exclusion for Ore and its helpers. If Attack Surface Reduction blocks Ore, add a rule exclusion. If Controlled Folder Access blocks Ore, allow the app.
   ✓ runtime      running local build on darwin-arm64
   ✓ install      consistent

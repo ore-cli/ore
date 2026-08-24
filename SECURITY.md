@@ -7,7 +7,7 @@ Report privately through GitHub Security Advisories: open the
 choose **Report a vulnerability**. Please don't open a public issue for
 something exploitable.
 
-**If the bug is in code ore inherited from Ore, report it to OpenAI as
+**If the bug is in code ore inherited from Codex, report it to OpenAI as
 well** — [their Bugcrowd program](https://bugcrowd.com/engagements/openai) is
 where it gets fixed for everybody, including us. Most of this codebase is
 theirs, so most vulnerabilities will be. ore's own changes are the telemetry
@@ -42,8 +42,8 @@ shell access.
 ## Sign-in and credentials
 
 The ChatGPT sign-in path — endpoints, client identity, token handling and
-storage — is kept byte-identical to upstream Ore on purpose, and CI enforces
-that fence. Your credentials are requested, stored and sent exactly as Ore
+storage — is kept byte-identical to upstream Codex on purpose, and CI enforces
+that fence. Your credentials are requested, stored and sent exactly as Codex
 does it, to the same places and nowhere new. The one behavioural difference is
 subtractive: ore removes all telemetry, so no analytics, metrics or crash
 reports leave your machine at all.

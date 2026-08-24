@@ -97,7 +97,7 @@ pub enum ExecutionStatus {
 
 /// One activation of the Ore runtime for one thread.
 ///
-/// A Ore turn groups protocol/runtime work for one thread activation.
+/// An Ore turn groups protocol/runtime work for one thread activation.
 /// It is not a user/assistant message pair; conversation belongs in
 /// `ConversationItem`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

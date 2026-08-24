@@ -242,7 +242,7 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
         })
     }
 
-    /// Returns request credentials, optionally scoped to a Ore session task.
+    /// Returns request credentials, optionally scoped to an Ore session task.
     fn api_auth_for_scope(
         &self,
         scope: ProviderAuthScope,

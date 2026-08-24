@@ -113,7 +113,7 @@ pub(super) fn endpoint_check(inspection: EndpointInspection) -> DoctorCheck {
                 format!("{product} can interfere with Ore. Verify Ore exclusions."),
             )
             .measured("not verified")
-            .expected("Codex application and helper exclusions")
+            .expected("Ore application and helper exclusions")
             .remedy(remedy)
             .field("Ore exclusions"),
         );

@@ -66,7 +66,9 @@ engine:
     - codex-rs/http-client/src/chatgpt_cloudflare_cookies.rs
     - codex-rs/core/config.schema.json
     - codex-rs/hooks/schema/*
-    - codex-rs/models-manager/models.json
+    # models.json is NOT skipped -- see models-json-identity-is-ore. Its model
+    # slugs, ids and wire fields are protected by the rules' own patterns,
+    # which match only the identity sentence and the two display strings.
     # prompt.md and model_info.rs are NOT skipped -- see
     # prompt-identity-is-ore below. Decision 11 keeps model-facing text
     # byte-identical because the model was tuned against the behaviour it
@@ -101,6 +103,12 @@ engine:
     # skip_files because that matches by basename and would exempt every upstream
     # README in the tree.
     - README.md
+    # Same reason as README.md, and found the hard way: ui-bare-product-name
+    # rewrote this file's references to UPSTREAM into references to ore itself,
+    # so the security-reporting instruction read "if the bug is in code ore
+    # inherited from Ore, report it to OpenAI", and the credential-handling
+    # assurance claimed byte-identity with itself.
+    - SECURITY.md
     - codex-rs/chatgpt/README.md
     # Test files whose upstream literals are fixtures: the exact bytes are the
     # point, so rewriting them makes the assertions test themselves.
@@ -206,7 +214,7 @@ categories:
   cli-command-in-text:
     - name: cli-command-in-help-text
       note: subcommand list is re-derived from `enum Subcommand` by --audit; this rule is the bulk rewrite.
-      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh"]
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "codex-cli/scripts/**/*.sh", ".github/ISSUE_TEMPLATE/*.yml", ".github/**/*.md"]
       pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|unarchive|update)\b)'
       replace: '${bin}'
 
@@ -223,7 +231,7 @@ categories:
         Same lookbehind as the subcommand rule, so a path, an identifier or a longer word
         ending in "codex" is left alone; the lookahead requires one or two dashes followed
         by a letter, which no path or identifier produces.
-      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/**/*.ps1"]
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/**/*.ps1", "codex-cli/scripts/**/*.sh", ".github/ISSUE_TEMPLATE/*.yml", ".github/**/*.md"]
       pattern: '(?<![\w./-])codex(?= -{1,2}[a-zA-Z])'
       replace: '${bin}'
 
@@ -292,6 +300,161 @@ categories:
       files: [codex-rs/models-manager/src/model_info.rs]
       pattern: 'You are Codex, a coding agent based on GPT-5\.'
       replace: 'You are ${product_name}, a coding agent.'
+
+    - name: ui-app-name-label
+      note: >
+        The other half of ui-bare-lowercase-label. That rule fixed the VALUE the
+        terminal-title "app name" item renders (was the literal `codex`); the LABEL beside
+        it still said "Codex app name", protected by the deliberate `app` exclusion on
+        ui-bare-product-name. Here "Codex app" is this CLI, not OpenAI's desktop app, so
+        the exclusion is wrong for this one string and right everywhere else -- hence a
+        file-scoped rule rather than a change to the general lookahead.
+      files: [codex-rs/tui/src/bottom_pane/title_setup.rs]
+      pattern: 'Codex app name'
+      replace: '${product_name} app name'
+
+    - name: ui-bare-lowercase-label
+      note: >
+        A blind spot between the two existing families: ui-bare-product-name matches the
+        capitalized noun, and the cli-command rules match `codex ` followed by a
+        subcommand or a flag. A standalone lowercase `"codex"` literal used as a LABEL is
+        neither, so it survived both.
+
+        Found by running the binary: `ore exec` printed `codex` above every assistant
+        turn -- directly above a reply that correctly said "Ore" -- from
+        event_processor_with_human_output.rs. The status-surface preview had the same
+        shape: the terminal-title picker offers an "app name" item whose rendered value
+        was the literal `codex`.
+
+        Scoped to the three files rather than applied globally, because a bare `"codex"`
+        elsewhere is usually an executable name, a directory, a pet id or a test fixture,
+        and rewriting those breaks things. Deliberately NOT applied to the originator:
+        `codex_exec` and DEFAULT_ORIGINATOR are wire-visible client identity, and
+        DEFAULT_ORIGINATOR lives in codex-rs/login, inside the ratified auth fence.
+      files:
+        - codex-rs/exec/src/event_processor_with_human_output.rs
+        - codex-rs/tui/src/bottom_pane/status_surface_preview.rs
+      # Raw text, not literal-contents: the quotes are the anchor that keeps this
+      # from matching `codex` inside a longer literal such as a path or a slug.
+      rust_literals_only: false
+      pattern: '"codex"'
+      replace: '"${bin}"'
+
+    - name: git-attribution-is-ore
+      note: >
+        ore instructs the agent to end commit messages with
+        `Co-authored-by: Codex <noreply@openai.com>` and PR bodies with
+        `Generated with [Codex](https://openai.com/codex/).` ui-bare-product-name renamed
+        the display half and left the address and the link, so ore was writing
+        "Co-authored-by: Ore <noreply@openai.com>" into users' git history and OpenAI's
+        marketing URL into their pull requests -- attributing the user's work to a company
+        that had no part in it, in a commit trailer that outlives the session.
+
+        Rewritten as whole literals so the address and URL move with the name. The
+        matching predicate at the bottom of the same file is rewritten by the same rules,
+        so what the agent is told to write and what the checker accepts stay in step.
+      files: [codex-rs/ext/git-attribution/src/world_state.rs]
+      pattern: 'Co-authored-by: Codex <noreply@openai\.com>'
+      replace: 'Co-authored-by: ${product_name} <noreply@ore-cli.github.io>'
+
+    - name: git-attribution-link-is-ore
+      note: >
+        The pull-request half of git-attribution-is-ore.
+      files: [codex-rs/ext/git-attribution/src/world_state.rs]
+      pattern: 'Generated with \[Codex\]\(https://openai\.com/codex/\)'
+      replace: 'Generated with [${product_name}](https://github.com/${repo_slug})'
+
+    - name: models-json-identity-is-ore
+      note: >
+        The other half of prompt-identity-is-ore, and the half that mattered most: an
+        adversarial run of the shipped binary found that every OpenAI-provider model still
+        opened with "You are Codex, a coding agent based on GPT-5." Only the Anthropic
+        catalog had been fixed, because these five templates live in models.json rather
+        than in prompt.md, and models.json was skipped wholesale.
+
+        Same reasoning as decision 11's narrowing: the identity sentence is not the
+        behaviour the model was tuned against, and it is the first thing a user sees when
+        they ask the agent what it is. "based on GPT-5" is dropped rather than kept,
+        because the sentence is shared by models that are not GPT-5 and a substitution
+        cannot branch on the slug.
+
+        The pattern is anchored to the full sentence, so nothing else in this JSON --
+        slugs, ids, wire field names -- is reachable by it.
+      files: [codex-rs/models-manager/models.json]
+      rust_literals_only: false
+      pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
+      replace: 'You are ${product_name}, a coding agent.'
+
+    - name: models-json-remaining-product-name
+      note: >
+        models-json-identity-is-ore rewrote the seven instructions_template openings, and
+        round 2 found ten more "Codex" in the same file that ui-bare-product-name could
+        never reach, because its globs cover *.rs and *.md but not *.json. Three of them
+        are in the SAME templates -- "As Codex, you are an excellent communicator" three
+        paragraphs below a line now reading "You are Ore" -- so the narrow fix created a
+        contradiction in model-facing text that was at least self-consistent before.
+
+        Two more are user-visible: an availability notice with visibility=list, and the
+        upgrade migration_markdown that model_migration.rs renders in the TUI. Lowercase
+        slugs (codex-auto-review) are untouched: the pattern is the capitalized noun.
+      files: [codex-rs/models-manager/models.json]
+      rust_literals_only: false
+      # `\b` cannot match after a literal \n escape: in the file those are the two
+      # characters backslash and `n`, and `n` is a word character, so the boundary
+      # never exists. That is why "...is no longer available\n\nCodex now uses..."
+      # -- migration text the TUI renders -- survived a plain \bCodex\b.
+      pattern: '(?:(?<=\\n)|(?<![A-Za-z0-9_]))Codex\b'
+      replace: '${product_name}'
+
+    - name: update-command-fails-on-a-failed-download
+      note: >
+        `ore update` printed "Update ran successfully!" and exited 0 after the download
+        404'd. The command is a pipeline -- curl into sh -- and a shell pipeline reports
+        the exit status of its LAST stage, so a failed curl writes nothing, the trailing
+        sh reads empty stdin and exits 0, and main.rs's `if !status.success()` check sees
+        success. Upstream's bug, but it bites this fork constantly: releases/latest does
+        not resolve to a prerelease, so the download 404s for the whole prerelease line,
+        and the startup update check makes the path live.
+
+        Fixed where the string is built rather than where the status is read, so no
+        upstream .rs file changes.
+
+        NOT with `set -o pipefail`: an earlier version of this rule used it and broke the
+        command outright on Debian and Ubuntu, where /bin/sh is dash. dash rejects that
+        option, `set` is a POSIX special builtin so the failure aborts the whole `sh -c`
+        string, and curl never ran at all -- exit 2, every time, on the bulk of standalone
+        Unix installs. Downloading to a file and running it with `&&` needs no shell
+        options and gives the exit status of whichever half failed.
+      files: [codex-rs/tui/src/update_action.rs]
+      # The `-o` guard keeps this idempotent: substitute.py --check applies twice
+      # and requires a fixed point.
+      # Naturally idempotent: the replacement contains no `| ... sh` pipeline for
+      # this pattern to match on a second pass.
+      pattern: 'curl -fsSL (?P<url>\S+) \| CODEX_NON_INTERACTIVE=1 sh'
+      replace: 'curl -fsSL \g<url> -o \"${TMPDIR:-/tmp}/ore-install.sh\" && CODEX_NON_INTERACTIVE=1 sh \"${TMPDIR:-/tmp}/ore-install.sh\"'
+
+    - name: config-home-in-help-text
+      note: >
+        Every subcommand's `--help` told users their config lives in
+        `~/.codex/config.toml`. It does not: find_codex_home() resolves ORE_HOME, then
+        CODEX_HOME, then ~/.ore, and the installer and `ore doctor` both say ~/.ore. The
+        old path is still read as a compatibility layer, so this is a wrong default in
+        the docs rather than a broken path -- but it is 26 subcommands' worth of wrong,
+        and it leaks into the generated shell completions too.
+
+        Anchored to `~/.codex` specifically. A bare `.codex/` is left alone on purpose:
+        a project-local .codex/ directory keeps its name, because it is baked into the
+        sandbox policy.
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md"]
+      # These two describe the LEGACY codex home that ore layers underneath its
+      # own; rewriting them makes the compatibility documentation say ore is
+      # layered under ore.
+      exclude:
+        - codex-rs/config/src/loader/mod.rs
+        - codex-rs/fork-invariants/tests/suite/config_layering.rs
+      rust_literals_only: false
+      pattern: '~/\.codex/'
+      replace: '~/.${bin}/'
 
     - name: ui-openai-codex
       globs: ["codex-rs/**/*.rs", "**/*.md", "*.nix", "codex-rs/**/*.nix"]
@@ -409,14 +572,19 @@ categories:
         test that fails for the right reason in the most confusing possible way.
       globs: ["codex-rs/**/*.rs", "codex-rs/**/*.js", "codex-rs/**/*.toml", "codex-rs/**/*.txt", "codex-cli/**/*.js", "codex-cli/**/*.json", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/install/*"]
       exclude: ["codex-rs/tui/src/pets/*"]
-      pattern: '(?<!You are )\bCodex\b(?! (?:backend|app(?!-)|App|extension|Extension|[Cc]loud))'
+      # `(?<!OpenAI\.)` and the artifact suffixes protect names that identify
+      # OpenAI's DESKTOP APP, not this CLI: the MSIX identity OpenAI.Codex, the
+      # Codex.dmg / Codex-latest-x64.dmg download URLs, and the Codex/Logs
+      # directory. Rebranding those does not rename anything -- it produces a
+      # package name, a URL and a path that match no installation that exists.
+      pattern: '(?<!You are )(?<!OpenAI\.)(?<!X-OpenAI-Internal-)(?<!/Volumes/)\bCodex\b(?! (?:backend|app(?![a-z-])|App|extension|Extension|[Cc]loud))(?!\.dmg)(?!\.app)(?!-latest)(?!/Logs)'
       replace: '${product_name}'
 
     - name: article-before-product-name
       globs: ["codex-rs/**/*.rs", "**/*.md"]
-      pattern: '\ba (ore\b)'
-      replace: 'an \1'
-      optional: true
+      # Case-preserving: sentence-initial "A Ore" is the same defect and was missed.
+      pattern: '\b(?P<a>[Aa]) (?P<w>Ore\b)'
+      replace: '\g<a>n \g<w>'
 
     - name: ui-docs-link-probe-range
       note: >
@@ -635,7 +803,7 @@ categories:
 
     - name: installer-ps1-programs-dir
       globs: ["scripts/install/install.ps1"]
-      pattern: 'Programs\\\\OpenAI\\\\Codex'
+      pattern: 'Programs\\OpenAI\\(?:Codex|${product_name})'
       replace: 'Programs\\${product_name}'
       optional: true
 
@@ -643,18 +811,6 @@ categories:
       globs: ["scripts/install/install.sh"]
       pattern: 'brew uninstall --cask codex'
       replace: 'brew uninstall ${brew_tap}/${brew_formula}'
-
-    - name: installer-profile-markers
-      note: >
-        `# >>> Ore installer` is the marker install.sh writes into a shell profile and
-        greps for on the next run, so changing it orphans blocks an earlier build wrote.
-        Capitalized anyway: nothing has been installed by anyone but us, so the entire
-        install base is a few test sandboxes. Matching upstream's proper-noun convention
-        is worth more than compatibility with three prereleases nobody downloaded.
-      globs: ["scripts/install/install.sh"]
-      pattern: '(# [<>]{3} )Codex( installer)'
-      replace: '\1${product_name}\2'
-      optional: true
 
     - name: installer-command-probe
       globs: ["scripts/install/install.sh"]
@@ -718,6 +874,18 @@ allowlist:
     - NOTICE
   literal_prefixes: ["CODEX_", "codex-", "codex_", "codexHome", "codexRateLimits"]
   literals:
+    # Names of OpenAI's DESKTOP APP, deliberately left as Codex by the
+    # (?<!OpenAI\.) and (?!\.dmg|-latest|/Logs) guards on ui-bare-product-name.
+    # These identify a package, a download and a log directory that OpenAI ships;
+    # rebranding them renames nothing and yields identifiers that match no install
+    # which exists. `ore doctor` uses them to detect an installed Codex desktop
+    # app, which is a real thing to detect.
+    - OpenAI.Codex
+    - Codex.app
+    - /Volumes/Codex
+    - Codex.dmg
+    - Codex-latest-x64.dmg
+    - Codex/Logs
     - codex_cli_rs
     - codex_exec
     - codex-tui

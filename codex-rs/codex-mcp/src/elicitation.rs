@@ -2,7 +2,7 @@
 //!
 //! RMCP clients call into this module when a server asks Ore to elicit data
 //! from the user. It decides whether the request can be automatically accepted,
-//! must be declined by policy, or should be surfaced as a Ore protocol event
+//! must be declined by policy, or should be surfaced as an Ore protocol event
 //! and later resolved through the stored responder.
 
 use std::collections::HashMap;

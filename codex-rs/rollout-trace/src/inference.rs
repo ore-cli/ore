@@ -55,7 +55,7 @@ struct EnabledInferenceTraceContext {
 
 /// One concrete upstream request attempt.
 ///
-/// A Ore turn can create multiple attempts when auth recovery retries the
+/// An Ore turn can create multiple attempts when auth recovery retries the
 /// HTTP request or WebSocket setup falls back to HTTP. Completion is often
 /// observed after the client returns the response stream, so the attempt owns
 /// the terminal guard that prevents duplicate lifecycle events.
