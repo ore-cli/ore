@@ -20,16 +20,20 @@ releases. It keeps the agent and drops the telemetry.
 
 Bring your own key: any endpoint that speaks the OpenAI Responses API can be
 configured as a provider, exactly as in Codex — Ollama and LM Studio included.
-A restored Chat Completions wire (`wire_api = "chat"`, which upstream removed)
-and a built-in Anthropic provider are planned, not yet shipped.
+Four wire protocols ship: the OpenAI Responses API, Chat Completions
+(`wire_api = "chat"`, which upstream removed and this fork restored),
+Anthropic's Messages API, and Gemini. Anthropic, Gemini, Ollama and LM Studio
+are built-in providers; anything speaking one of those four wires works from a
+`[model_providers.*]` table, and the picker lists what your gateway actually
+serves rather than a fixed catalog.
 
 ## Install
 
 ore is in prerelease, so install a pinned version:
 
 ```bash
-curl -fsSL https://github.com/ore-cli/ore/releases/download/ore-v1.149.0-alpha.5/install.sh \
-  | sh -s -- --release 1.149.0-alpha.5
+curl -fsSL https://github.com/ore-cli/ore/releases/download/ore-v1.149.0-alpha.6/install.sh \
+  | sh -s -- --release 1.149.0-alpha.6
 ```
 
 macOS and Linux, Apple Silicon and x86_64. It installs `ore` into
