@@ -177,6 +177,59 @@ async fn a_config_model_survives_when_config_also_chose_the_provider() -> std::i
     Ok(())
 }
 
+// --------------------------------------------- oss provider credentials
+
+async fn provider_env_key_for(id: &str) -> std::io::Result<Option<String>> {
+    let codex_home = tempdir()?;
+    let config = Config::load_from_base_config_with_overrides(
+        ConfigToml {
+            model_provider: Some(id.to_string()),
+            ..ConfigToml::default()
+        },
+        ConfigOverrides::default(),
+        codex_home.abs(),
+    )
+    .await?;
+    Ok(config.model_provider.env_key)
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn an_oss_provider_gains_an_env_key_only_when_the_variable_is_set() -> std::io::Result<()> {
+    let _g = EnvGuard::set("LM_API_TOKEN", Some("lm-secret"));
+    assert_eq!(
+        provider_env_key_for("lmstudio").await?.as_deref(),
+        Some("LM_API_TOKEN"),
+        "a token in the environment must reach current LM Studio, which 401s without it"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn an_oss_provider_stays_credential_free_when_the_variable_is_unset() -> std::io::Result<()> {
+    // The regression this guards: a declared env_key is MANDATORY, so attaching
+    // one unconditionally turns every existing no-auth local install into a hard
+    // CodexErr::EnvVar at startup.
+    let _g = EnvGuard::set("LM_API_TOKEN", None);
+    assert_eq!(provider_env_key_for("lmstudio").await?, None);
+    let _o = EnvGuard::set("OLLAMA_API_KEY", None);
+    assert_eq!(provider_env_key_for("ollama").await?, None);
+    Ok(())
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn a_blank_oss_token_is_not_a_credential() -> std::io::Result<()> {
+    let _g = EnvGuard::set("LM_API_TOKEN", Some("   "));
+    assert_eq!(
+        provider_env_key_for("lmstudio").await?,
+        None,
+        "an exported-but-empty token must not make the variable mandatory"
+    );
+    Ok(())
+}
+
 // ------------------------------------------------------------- the helper
 #[test]
 #[serial_test::serial]
