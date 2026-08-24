@@ -86,6 +86,20 @@ def resolve_tag_ref(root: Path, tag: str) -> tuple[str, str, str] | None:
     return None
 
 
+def tag_sort_key(name: str) -> tuple[int, ...]:
+    """Version order for a `rust-vX.Y.Z` tag.
+
+    Compared numerically per component: a string compare puts rust-v0.149.10
+    before rust-v0.149.9, and an unparseable name sorts lowest so it can never
+    be mistaken for a newer base.
+    """
+    match = STABLE_TAG_RE.match(name)
+    if not match:
+        return (-1,)
+    digits = re.findall(r"\d+", match.group(0))
+    return tuple(int(part) for part in digits)
+
+
 def stable_tag_commits(root: Path) -> dict[str, str]:
     """peeled commit sha -> tag name, over both namespaces.  Stable tags only."""
     patterns = [ns + "rust-v*" for ns in TAG_NAMESPACES]
@@ -245,7 +259,19 @@ def main(argv: list[str] | None = None) -> int:
         rep.notes.append("no upstream stable tag refs in this clone — staleness unchecked")
     else:
         proc = git(root, "rev-list", f"{commit}..HEAD")
-        newer = sorted({by_commit[sha] for sha in proc.stdout.split() if sha in by_commit})
+        reachable = {by_commit[sha] for sha in proc.stdout.split() if sha in by_commit}
+        # Reachability alone is not order. Upstream's stable tags are NOT a chain:
+        # rust-v0.149.1 is not a descendant of rust-v0.149.0 -- they fork from a
+        # common ancestor, because the patch release was cut from another branch.
+        # So after syncing onto 0.149.1 the OLD base 0.149.0 is unreachable from
+        # the new one, and this check reported it as "newer stable tag(s)
+        # rust-v0.149.0" than 0.149.1 -- blocking the first real sync with a
+        # message that contradicted itself. Compare versions, and let reachability
+        # only narrow the candidates.
+        newer = sorted(
+            (name for name in reachable if tag_sort_key(name) > tag_sort_key(tag)),
+            key=tag_sort_key,
+        )
         if not newer:
             rep.oks.append(f"no upstream stable tag newer than {tag} is reachable from HEAD")
         elif assembled:
