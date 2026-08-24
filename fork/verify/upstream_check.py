@@ -90,7 +90,7 @@ def tag_sort_key(name: str) -> tuple[int, ...]:
     """Version order for a `rust-vX.Y.Z` tag.
 
     Compared numerically per component: a string compare puts rust-v0.149.10
-    before rust-v0.149.9, and an unparseable name sorts lowest so it can never
+    before rust-v0.149.9, and an unparsable name sorts lowest so it can never
     be mistaken for a newer base.
     """
     match = STABLE_TAG_RE.match(name)
