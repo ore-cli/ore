@@ -918,6 +918,8 @@ jobs:
     name: build (windows)
     needs: tag-check
     uses: ./.github/workflows/ore-release-windows.yml
+    with:
+      tag: ${{ needs.tag-check.outputs.tag }}
 
   release:
     name: publish

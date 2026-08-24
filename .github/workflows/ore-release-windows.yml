@@ -49,6 +49,15 @@ name: ore-release-windows
 
 on:
   workflow_call:
+    inputs:
+      # The tag tag-check actually validated: github.ref_name on a tag push,
+      # the synthesised ore-v<version> on a rehearsal. tag-check's own output
+      # comment says every later consumer must read THAT and not
+      # github.ref_name, which is a branch name on a dispatch -- this workflow
+      # is one of those consumers.
+      tag:
+        required: true
+        type: string
 
 env:
   WINDOWS_BINARIES: "codex codex-code-mode-host codex-responses-api-proxy codex-windows-sandbox-setup codex-command-runner codex-app-server"
@@ -297,11 +306,13 @@ jobs:
       # cannot execute an aarch64 .exe.
       - name: Smoke test the entrypoint (x64)
         if: matrix.target == 'x86_64-pc-windows-msvc'
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
           python "${GITHUB_WORKSPACE}/fork/verify/version_check.py" \
-            --tag "${GITHUB_REF_NAME}" \
+            --tag "${RELEASE_TAG}" \
             --binary "$CARGO_TARGET_DIR/${{ matrix.target }}/release/codex.exe"
 
       # ore ships UNSIGNED Windows binaries. This step keeps upstream's signing
