@@ -905,9 +905,23 @@ jobs:
           # Proves the ticket travelled with the file rather than needing Apple.
           xcrun stapler validate "$dmg"
 
+  # Windows, built on the free hosted runners ore-windows-probe verified: the
+  # probe confirmed a `windows-latest` image carries what upstream's self-hosted
+  # Windows release assumes, and that ARM64 cross-compiles on x64. A called
+  # workflow shares this run, so its `<target>` and `<target>-symbols` artifacts
+  # land in the same artifact store the release job already downloads wholesale
+  # -- no plumbing beyond this call and the needs edge below.
+  #
+  # Binaries ship UNSIGNED; ore-release-windows.yml owns that decision and fails
+  # loudly if ORE_WINDOWS_SIGNING claims otherwise with no backend wired.
+  build-windows:
+    name: build (windows)
+    needs: tag-check
+    uses: ./.github/workflows/ore-release-windows.yml
+
   release:
     name: publish
-    needs: [tag-check, build, sign-macos, verify-macos]
+    needs: [tag-check, build, build-windows, sign-macos, verify-macos]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
