@@ -29,6 +29,42 @@ only API keys are.";
 pub(crate) const ANTHROPIC_VERSION_HEADER: &str = "anthropic-version";
 pub(crate) const ANTHROPIC_VERSION: &str = "2023-06-01";
 
+/// Appends `/v1` to a base URL that names only a host.
+///
+/// ore's `base_url` is a prefix that `messages` is appended to, so it must carry
+/// the version segment. Anthropic's own SDKs, `claude-code`, and every gateway
+/// runbook written for them take a BARE HOST and append `/v1` themselves. Reusing
+/// their variable name with the opposite meaning made
+/// `ANTHROPIC_BASE_URL=https://api.anthropic.com` -- correct everywhere else --
+/// POST to `/messages` and 404.
+///
+/// Accepting both is better than picking a side: a value with a path is left
+/// exactly as written, so a gateway mounted at `/anthropic/v1` still works, and a
+/// bare host gains the segment the SDKs would have added.
+fn with_version_segment(base_url: String) -> String {
+    // Split BEFORE trimming: trimming the whole string is a no-op when a query
+    // follows, so `https://gw/?key=1` kept its slash, `after_scheme` contained
+    // one, and the URL was misread as already having a path -- leaving it with no
+    // version segment at all and every turn 404ing.
+    let (head, suffix) = match base_url.find(['?', '#']) {
+        Some(at) => (&base_url[..at], &base_url[at..]),
+        None => (base_url.as_str(), ""),
+    };
+    let trimmed = head.trim_end_matches('/');
+    // A query string is not a path; strip it before looking, or
+    // `https://gw?key=1` would read as though it had one.
+    let after_scheme = trimmed
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(trimmed);
+
+    if after_scheme.contains('/') {
+        format!("{trimmed}{suffix}")
+    } else {
+        format!("{trimmed}/v1{suffix}")
+    }
+}
+
 /// Provider for `api.anthropic.com`, or for a proxy that fronts it.
 pub fn create_anthropic_provider(base_url: Option<String>) -> ModelProviderInfo {
     create_anthropic_provider_from(base_url, |var| std::env::var(var).ok())
@@ -47,6 +83,7 @@ fn create_anthropic_provider_from(
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
         })
+        .map(with_version_segment)
         .unwrap_or_else(|| ANTHROPIC_DEFAULT_BASE_URL.to_string());
 
     ModelProviderInfo {
@@ -160,6 +197,71 @@ mod tests {
         assert_eq!(
             provider.base_url.as_deref(),
             Some("https://proxy.example.com/v1")
+        );
+    }
+}
+
+#[cfg(test)]
+mod base_url_tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn a_bare_host_gains_the_version_segment_the_sdks_would_add() {
+        for bare in [
+            "https://api.anthropic.com",
+            "https://api.anthropic.com/",
+            "https://gw.internal:8443",
+            "http://127.0.0.1:1234",
+        ] {
+            let provider = create_anthropic_provider_from(None, |_| Some(bare.to_string()));
+            assert!(
+                provider
+                    .base_url
+                    .as_deref()
+                    .is_some_and(|u| u.ends_with("/v1")),
+                "{bare} should gain /v1, got {:?}",
+                provider.base_url
+            );
+        }
+    }
+
+    #[test]
+    fn a_url_that_already_has_a_path_is_left_alone() {
+        for pathed in [
+            "https://api.anthropic.com/v1",
+            "https://gw.internal/anthropic/v1",
+            "https://gw.internal/v2",
+            "https://gw.internal/anthropic/v1/",
+        ] {
+            let provider = create_anthropic_provider_from(None, |_| Some(pathed.to_string()));
+            assert_eq!(
+                provider.base_url.as_deref(),
+                Some(pathed.trim_end_matches('/')),
+                "a configured path must survive verbatim"
+            );
+        }
+    }
+
+    #[test]
+    fn a_query_string_is_not_mistaken_for_a_path() {
+        let provider =
+            create_anthropic_provider_from(None, |_| Some("https://gw.internal?key=1".to_string()));
+        assert_eq!(
+            provider.base_url.as_deref(),
+            Some("https://gw.internal/v1?key=1"),
+            "the version segment belongs in the PATH; appending it after the query \
+             left the HTTP path as `/` and buried /v1 in the query string"
+        );
+    }
+
+    #[test]
+    fn an_explicit_argument_is_normalized_too() {
+        let provider =
+            create_anthropic_provider_from(Some("https://explicit.example".to_string()), |_| None);
+        assert_eq!(
+            provider.base_url.as_deref(),
+            Some("https://explicit.example/v1")
         );
     }
 }
