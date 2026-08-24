@@ -1,5 +1,6 @@
 pub(crate) mod anthropic;
 pub(crate) mod chat;
+pub(crate) mod gemini;
 pub(crate) mod images;
 pub(crate) mod memories;
 pub(crate) mod models;
@@ -13,6 +14,8 @@ mod session;
 pub use anthropic::AnthropicClient;
 pub use anthropic::AnthropicPromptOptions;
 pub use chat::ChatClient;
+pub use gemini::GeminiClient;
+pub use gemini::GeminiPromptOptions;
 pub use images::ImagesClient;
 pub use memories::MemoriesClient;
 pub use models::ModelsClient;

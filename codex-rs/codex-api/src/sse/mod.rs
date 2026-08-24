@@ -2,6 +2,7 @@ pub(crate) mod anthropic;
 pub(crate) mod anthropic_usage;
 pub(crate) mod chat;
 pub(crate) mod chat_usage;
+pub(crate) mod gemini;
 pub(crate) mod responses;
 
 pub(crate) use responses::ResponsesStreamEvent;
