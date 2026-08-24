@@ -301,6 +301,18 @@ categories:
       pattern: 'You are Codex, a coding agent based on GPT-5\.'
       replace: 'You are ${product_name}, a coding agent.'
 
+    - name: ui-app-name-label
+      note: >
+        The other half of ui-bare-lowercase-label. That rule fixed the VALUE the
+        terminal-title "app name" item renders (was the literal `codex`); the LABEL beside
+        it still said "Codex app name", protected by the deliberate `app` exclusion on
+        ui-bare-product-name. Here "Codex app" is this CLI, not OpenAI's desktop app, so
+        the exclusion is wrong for this one string and right everywhere else -- hence a
+        file-scoped rule rather than a change to the general lookahead.
+      files: [codex-rs/tui/src/bottom_pane/title_setup.rs]
+      pattern: 'Codex app name'
+      replace: '${product_name} app name'
+
     - name: ui-bare-lowercase-label
       note: >
         A blind spot between the two existing families: ui-bare-product-name matches the
@@ -373,6 +385,27 @@ categories:
       pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
       replace: 'You are ${product_name}, a coding agent.'
 
+    - name: models-json-remaining-product-name
+      note: >
+        models-json-identity-is-ore rewrote the seven instructions_template openings, and
+        round 2 found ten more "Codex" in the same file that ui-bare-product-name could
+        never reach, because its globs cover *.rs and *.md but not *.json. Three of them
+        are in the SAME templates -- "As Codex, you are an excellent communicator" three
+        paragraphs below a line now reading "You are Ore" -- so the narrow fix created a
+        contradiction in model-facing text that was at least self-consistent before.
+
+        Two more are user-visible: an availability notice with visibility=list, and the
+        upgrade migration_markdown that model_migration.rs renders in the TUI. Lowercase
+        slugs (codex-auto-review) are untouched: the pattern is the capitalized noun.
+      files: [codex-rs/models-manager/models.json]
+      rust_literals_only: false
+      # `\b` cannot match after a literal \n escape: in the file those are the two
+      # characters backslash and `n`, and `n` is a word character, so the boundary
+      # never exists. That is why "...is no longer available\n\nCodex now uses..."
+      # -- migration text the TUI renders -- survived a plain \bCodex\b.
+      pattern: '(?:(?<=\\n)|(?<![A-Za-z0-9_]))Codex\b'
+      replace: '${product_name}'
+
     - name: update-command-fails-on-a-failed-download
       note: >
         `ore update` printed "Update ran successfully!" and exited 0 after the download
@@ -384,13 +417,21 @@ categories:
         and the startup update check makes the path live.
 
         Fixed where the string is built rather than where the status is read, so no
-        upstream .rs file changes. `set -o pipefail` is POSIX-optional but supported by
-        every shell this command can reach (bash, zsh, dash, ash, busybox sh).
+        upstream .rs file changes.
+
+        NOT with `set -o pipefail`: an earlier version of this rule used it and broke the
+        command outright on Debian and Ubuntu, where /bin/sh is dash. dash rejects that
+        option, `set` is a POSIX special builtin so the failure aborts the whole `sh -c`
+        string, and curl never ran at all -- exit 2, every time, on the bulk of standalone
+        Unix installs. Downloading to a file and running it with `&&` needs no shell
+        options and gives the exit status of whichever half failed.
       files: [codex-rs/tui/src/update_action.rs]
-      # Lookbehind so re-applying the manifest does not stack a second prefix;
-      # substitute.py --check applies twice and requires a fixed point.
-      pattern: '(?<!pipefail; )curl -fsSL (?P<url>\S+) \| CODEX_NON_INTERACTIVE=1 sh'
-      replace: 'set -o pipefail; curl -fsSL \g<url> | CODEX_NON_INTERACTIVE=1 sh'
+      # The `-o` guard keeps this idempotent: substitute.py --check applies twice
+      # and requires a fixed point.
+      # Naturally idempotent: the replacement contains no `| ... sh` pipeline for
+      # this pattern to match on a second pass.
+      pattern: 'curl -fsSL (?P<url>\S+) \| CODEX_NON_INTERACTIVE=1 sh'
+      replace: 'curl -fsSL \g<url> -o \"${TMPDIR:-/tmp}/ore-install.sh\" && CODEX_NON_INTERACTIVE=1 sh \"${TMPDIR:-/tmp}/ore-install.sh\"'
 
     - name: config-home-in-help-text
       note: >
@@ -404,7 +445,13 @@ categories:
         Anchored to `~/.codex` specifically. A bare `.codex/` is left alone on purpose:
         a project-local .codex/ directory keeps its name, because it is baked into the
         sandbox policy.
-      globs: ["codex-rs/**/*.rs", "**/*.md"]
+      globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md"]
+      # These two describe the LEGACY codex home that ore layers underneath its
+      # own; rewriting them makes the compatibility documentation say ore is
+      # layered under ore.
+      exclude:
+        - codex-rs/config/src/loader/mod.rs
+        - codex-rs/fork-invariants/tests/suite/config_layering.rs
       rust_literals_only: false
       pattern: '~/\.codex/'
       replace: '~/.${bin}/'
@@ -530,13 +577,14 @@ categories:
       # Codex.dmg / Codex-latest-x64.dmg download URLs, and the Codex/Logs
       # directory. Rebranding those does not rename anything -- it produces a
       # package name, a URL and a path that match no installation that exists.
-      pattern: '(?<!You are )(?<!OpenAI\.)(?<!X-OpenAI-Internal-)\bCodex\b(?! (?:backend|app\b|App\b|extension|Extension|[Cc]loud))(?!\.dmg)(?!-latest)(?!/Logs)'
+      pattern: '(?<!You are )(?<!OpenAI\.)(?<!X-OpenAI-Internal-)(?<!/Volumes/)\bCodex\b(?! (?:backend|app(?![a-z-])|App|extension|Extension|[Cc]loud))(?!\.dmg)(?!\.app)(?!-latest)(?!/Logs)'
       replace: '${product_name}'
 
     - name: article-before-product-name
       globs: ["codex-rs/**/*.rs", "**/*.md"]
-      pattern: '\ba (Ore\b)'
-      replace: 'an \1'
+      # Case-preserving: sentence-initial "A Ore" is the same defect and was missed.
+      pattern: '\b(?P<a>[Aa]) (?P<w>Ore\b)'
+      replace: '\g<a>n \g<w>'
 
     - name: ui-docs-link-probe-range
       note: >
@@ -833,6 +881,8 @@ allowlist:
     # which exists. `ore doctor` uses them to detect an installed Codex desktop
     # app, which is a real thing to detect.
     - OpenAI.Codex
+    - Codex.app
+    - /Volumes/Codex
     - Codex.dmg
     - Codex-latest-x64.dmg
     - Codex/Logs
