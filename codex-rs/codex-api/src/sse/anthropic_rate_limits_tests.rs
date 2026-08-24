@@ -128,3 +128,44 @@ fn an_unparseable_reset_keeps_the_window() {
         "a bad reset must cost the timestamp, not the whole window"
     );
 }
+
+#[test]
+fn non_finite_values_produce_no_window() {
+    // Each of these parses successfully as f64 and would otherwise reach the
+    // status card as `used_percent: NaN`, which renders as "0% used".
+    for (limit, remaining) in [
+        ("NaN", "10"),
+        ("inf", "10"),
+        ("infinity", "10"),
+        ("1e400", "10"),
+        ("-inf", "10"),
+        ("100", "NaN"),
+        ("100", "inf"),
+        ("100", "1e400"),
+    ] {
+        let snapshot = parse_anthropic_rate_limits(&headers(&[
+            ("anthropic-ratelimit-input-tokens-limit", limit),
+            ("anthropic-ratelimit-input-tokens-remaining", remaining),
+        ]));
+        assert_eq!(
+            snapshot, None,
+            "limit={limit:?} remaining={remaining:?} must yield no window, not a NaN percentage"
+        );
+    }
+}
+
+#[test]
+fn a_finite_window_never_yields_a_non_finite_percentage() {
+    for (limit, remaining) in [("100", "25"), ("1", "0"), ("1e308", "1"), ("100", "-50")] {
+        let snapshot = parse_anthropic_rate_limits(&headers(&[
+            ("anthropic-ratelimit-input-tokens-limit", limit),
+            ("anthropic-ratelimit-input-tokens-remaining", remaining),
+        ]))
+        .expect("a snapshot");
+        let used = snapshot.primary.expect("primary").used_percent;
+        assert!(
+            used.is_finite() && (0.0..=100.0).contains(&used),
+            "limit={limit:?} remaining={remaining:?} produced {used}"
+        );
+    }
+}

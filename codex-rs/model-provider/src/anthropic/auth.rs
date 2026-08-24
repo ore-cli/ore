@@ -25,15 +25,37 @@ impl std::fmt::Debug for AnthropicApiKeyAuthProvider {
 }
 
 impl AnthropicApiKeyAuthProvider {
+    /// Trims the key. A credential arriving from a `.env` file, a Docker
+    /// --env-file or a Kubernetes secret mount keeps its trailing newline, and
+    /// an untrimmed newline makes `HeaderValue::from_str` fail -- which used to
+    /// mean the request went out with no credential at all.
     pub(super) fn new(api_key: String) -> Self {
-        Self { api_key }
+        Self {
+            api_key: api_key.trim().to_string(),
+        }
     }
 }
 
 impl AuthProvider for AnthropicApiKeyAuthProvider {
     fn add_auth_headers(&self, headers: &mut HeaderMap) {
-        if let Ok(header) = HeaderValue::from_str(&self.api_key) {
-            let _ = headers.insert(ANTHROPIC_API_KEY_HEADER, header);
+        match HeaderValue::from_str(&self.api_key) {
+            Ok(mut header) => {
+                // Keeps the key out of any `{:?}` of this map. Nothing in the
+                // tree Debug-prints request headers today, so this is depth
+                // rather than a live fix -- the same call the responses-api
+                // proxy already makes on its own auth header.
+                header.set_sensitive(true);
+                let _ = headers.insert(ANTHROPIC_API_KEY_HEADER, header);
+            }
+            Err(_) => {
+                // Silently sending nothing produced an unauthenticated request
+                // and a confusing 401 from the provider, contradicting this
+                // module's own promise that a bad key is an error rather than an
+                // anonymous call. The key itself is never logged.
+                tracing::error!(
+                    "{ANTHROPIC_API_KEY_ENV_VAR} is not a valid HTTP header value (non-ASCII or                      control characters); sending the request without credentials would only                      produce an opaque 401"
+                );
+            }
         }
     }
 }
@@ -76,6 +98,56 @@ fn anthropic_api_key_auth_from(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_key_with_a_trailing_newline_still_authenticates() {
+        // `ANTHROPIC_API_KEY=$(op read ...)` in a .env file, a Docker
+        // --env-file, or a Kubernetes secret mount all keep the newline.
+        use super::*;
+        let auth = AnthropicApiKeyAuthProvider::new("sk-ant-abc\n".to_string());
+        let mut headers = HeaderMap::new();
+        auth.add_auth_headers(&mut headers);
+        assert_eq!(
+            headers
+                .get(ANTHROPIC_API_KEY_HEADER)
+                .map(|v| v.to_str().unwrap_or("")),
+            Some("sk-ant-abc"),
+            "a trailing newline must be trimmed, not drop the credential entirely"
+        );
+    }
+
+    #[test]
+    fn surrounding_whitespace_is_trimmed() {
+        use super::*;
+        let auth = AnthropicApiKeyAuthProvider::new("  sk-ant-abc \t".to_string());
+        let mut headers = HeaderMap::new();
+        auth.add_auth_headers(&mut headers);
+        assert_eq!(
+            headers
+                .get(ANTHROPIC_API_KEY_HEADER)
+                .map(|v| v.to_str().unwrap_or("")),
+            Some("sk-ant-abc")
+        );
+    }
+
+    #[test]
+    fn the_key_header_is_marked_sensitive() {
+        use super::*;
+        let auth = AnthropicApiKeyAuthProvider::new("sk-ant-secret".to_string());
+        let mut headers = HeaderMap::new();
+        auth.add_auth_headers(&mut headers);
+        let value = headers
+            .get(ANTHROPIC_API_KEY_HEADER)
+            .expect("header present");
+        assert!(
+            value.is_sensitive(),
+            "the key must not render in a header-map Debug"
+        );
+        assert!(
+            !format!("{headers:?}").contains("sk-ant-secret"),
+            "Debug of the header map leaked the key"
+        );
+    }
+
     use super::*;
     use codex_protocol::error::CodexErrorDetails;
     use pretty_assertions::assert_eq;
