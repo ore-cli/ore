@@ -380,6 +380,14 @@ jobs:
           echo "## workflow governance" >"$gov"
           disabled=0
           while IFS=$'\t' read -r id state path; do
+            # GitHub synthesises workflows that are not files -- Dependabot's
+            # `dynamic/dependabot/update-graph` and `dependabot-updates`, and the
+            # code-scanning equivalents. The disable endpoint answers 422 for
+            # them, because there is no file to disable, and the loop stripped the
+            # directory so they arrived here looking like ordinary names that were
+            # not allowlisted. Governance is about what upstream's TREE brings in,
+            # so anything outside .github/workflows/ is out of scope.
+            case "$path" in .github/workflows/*) ;; *) continue ;; esac
             base="${path##*/}"
             case "$base" in ore-*) continue ;; esac
             grep -qxF "$base" <<<"$allow" && continue
