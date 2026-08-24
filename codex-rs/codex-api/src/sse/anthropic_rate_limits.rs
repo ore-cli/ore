@@ -34,7 +34,18 @@ fn window(headers: &HeaderMap, family: &str) -> Option<Window> {
     let remaining: f64 = header(headers, &format!("anthropic-ratelimit-{family}-remaining"))?
         .parse()
         .ok()?;
-    if limit <= 0.0 {
+    // `str::parse::<f64>` accepts "NaN", "inf" and any overflowing literal
+    // ("1e400" -> +inf). NaN fails every comparison, so a bare `limit <= 0.0`
+    // lets it through, and `f64::clamp` propagates NaN rather than bounding it.
+    // A NaN percentage then saturates to 0 in the `as i32` cast the status card
+    // does, rendering as "0% used" -- the exact misinformation this parser
+    // exists to prevent -- and serializes into the persisted rollout as `null`,
+    // which no longer parses back into a non-Option f64.
+    //
+    // A gateway is a plausible source: `inf` is what a proxy fronting Anthropic
+    // would report for an unmetered budget, and ANTHROPIC_BASE_URL exists to put
+    // exactly such a proxy in this path.
+    if !limit.is_finite() || !remaining.is_finite() || limit <= 0.0 {
         return None;
     }
 

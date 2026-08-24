@@ -3733,15 +3733,21 @@ impl Config {
         let model_providers = merge_configured_model_providers(built_in, cfg.model_providers)
             .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidData, message))?;
 
-        // ore: CLI, then environment, then config.toml. The env layer is what makes
-        // a provider reachable without writing a file -- exporting ANTHROPIC_BASE_URL
-        // and ANTHROPIC_API_KEY configures the Anthropic provider but never selects
-        // it, so without this the reward for setting both is an OpenAI login screen.
-        // Above config.toml because a shell export is the narrower, more deliberate
-        // scope: it lasts for one terminal, where the file is the standing default.
+        // ore: the environment fills in only when nothing else has chosen. It sits
+        // BELOW `cfg`, which is not "config.toml" but the whole merged layer stack --
+        // Mdm, System, EnterpriseManaged, User, Project, and the `-c` flags. Ranking
+        // env above that stack meant a stale `export` silently beat an explicit
+        // `-c model_provider=...` on the same command line, and beat an
+        // enterprise-managed value with no warning; combined with ANTHROPIC_BASE_URL
+        // that redirected a managed install's prompts and file contents to an
+        // arbitrary host from nothing more than a repo-local .envrc.
+        //
+        // The feature still works, because the case it exists for -- exporting
+        // ANTHROPIC_* and getting the Anthropic provider -- is exactly the case where
+        // no layer has set model_provider at all.
         let model_provider_id = model_provider
-            .or_else(|| env_var_nonempty(ORE_MODEL_PROVIDER_ENV_VAR))
             .or(cfg.model_provider)
+            .or_else(|| env_var_nonempty(ORE_MODEL_PROVIDER_ENV_VAR))
             .unwrap_or_else(|| "openai".to_string());
         let model_provider = model_providers
             .get(&model_provider_id)
@@ -3875,11 +3881,10 @@ impl Config {
 
         let forced_login_method = cfg.forced_login_method;
 
-        // ore: same precedence as the provider above. A provider without a model is
-        // half a switch -- the default model is an OpenAI slug that Anthropic rejects.
+        // ore: same ordering as the provider above, for the same reason.
         let model = model
-            .or_else(|| env_var_nonempty(ORE_MODEL_ENV_VAR))
-            .or(cfg.model);
+            .or(cfg.model)
+            .or_else(|| env_var_nonempty(ORE_MODEL_ENV_VAR));
         let notices = cfg.notice.unwrap_or_default();
         let service_tier = match service_tier_override {
             Some(Some(service_tier)) => Some(service_tier),
@@ -4777,26 +4782,29 @@ fn normalize_guardian_policy_config(value: Option<&str>) -> Option<String> {
 ///   value will be canonicalized and this function will Err otherwise.
 /// - If `CODEX_HOME` is not set, this function does not verify that the
 ///   directory exists.
-/// ore: select the provider without writing a config file. `ORE_` rather than
-/// `CODEX_` because these are the fork's own knobs -- decision 14 keeps the
-/// upstream `CODEX_*` names only for variables upstream already defined.
+pub fn find_codex_home() -> std::io::Result<AbsolutePathBuf> {
+    codex_utils_home_dir::find_codex_home()
+}
+
+// ore: provider selection from the environment. Placed after find_codex_home
+// rather than before it -- a `///` binds to the next item, so sitting above that
+// function handed it upstream's CODEX_HOME documentation and left the function
+// undocumented.
+/// `ORE_` rather than `CODEX_`: decision 14 keeps the upstream `CODEX_*` names
+/// for variables upstream already defined, and these are the fork's own.
 pub const ORE_MODEL_PROVIDER_ENV_VAR: &str = "ORE_MODEL_PROVIDER";
 /// The companion of [`ORE_MODEL_PROVIDER_ENV_VAR`]: switching provider without
 /// switching model leaves an OpenAI slug pointed at a provider that rejects it.
 pub const ORE_MODEL_ENV_VAR: &str = "ORE_MODEL";
 
 /// Reads an environment variable, treating unset, empty and whitespace-only as
-/// absent, so `export ORE_MODEL=` falls through to config rather than selecting
-/// a model named "".
-fn env_var_nonempty(name: &str) -> Option<String> {
+/// absent, so `export ORE_MODEL=` falls through rather than selecting a model
+/// named "".
+pub(crate) fn env_var_nonempty(name: &str) -> Option<String> {
     std::env::var(name)
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-}
-
-pub fn find_codex_home() -> std::io::Result<AbsolutePathBuf> {
-    codex_utils_home_dir::find_codex_home()
 }
 
 /// Returns the path to the folder where Codex logs are stored. Does not verify
@@ -4808,6 +4816,12 @@ pub fn log_dir(cfg: &Config) -> std::io::Result<PathBuf> {
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod tests;
+
+// ore: fork-owned, so eighty lines of fork tests stay out of upstream's
+// 12,000-line config_tests.rs, where upstream appends its own.
+#[cfg(test)]
+#[path = "ore_env_tests.rs"]
+mod ore_env_tests;
 
 #[cfg(test)]
 #[path = "config_loader_tests.rs"]
