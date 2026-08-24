@@ -3745,6 +3745,15 @@ impl Config {
         // The feature still works, because the case it exists for -- exporting
         // ANTHROPIC_* and getting the Anthropic provider -- is exactly the case where
         // no layer has set model_provider at all.
+        // Resolved as a PAIR. Splitting them is a live hazard, not a tidiness point:
+        // `model` is a commonly-set config.toml key and `model_provider` is rarely
+        // set at all, so `model = "gpt-5.4"` in a config plus an exported
+        // ORE_MODEL_PROVIDER=anthropic yielded provider=anthropic with an OpenAI
+        // slug -- a model the Messages API rejects. When the provider comes from
+        // the environment, the model comes from the environment too, or from the
+        // provider's own default; a config model belonging to a different provider
+        // is not carried across.
+        let provider_from_env = model_provider.is_none() && cfg.model_provider.is_none();
         let model_provider_id = model_provider
             .or(cfg.model_provider)
             .or_else(|| env_var_nonempty(ORE_MODEL_PROVIDER_ENV_VAR))
@@ -3881,10 +3890,20 @@ impl Config {
 
         let forced_login_method = cfg.forced_login_method;
 
-        // ore: same ordering as the provider above, for the same reason.
-        let model = model
-            .or(cfg.model)
-            .or_else(|| env_var_nonempty(ORE_MODEL_ENV_VAR));
+        // ore: same ordering as the provider above, and the same pairing. A CLI
+        // model always wins. Otherwise, if the environment chose the provider, the
+        // config's model belongs to a provider that is no longer selected, so the
+        // environment's model is preferred and a stale config model is dropped
+        // rather than aimed at the wrong API.
+        let model = if provider_from_env {
+            model
+                .or_else(|| env_var_nonempty(ORE_MODEL_ENV_VAR))
+                .or(cfg.model)
+        } else {
+            model
+                .or(cfg.model)
+                .or_else(|| env_var_nonempty(ORE_MODEL_ENV_VAR))
+        };
         let notices = cfg.notice.unwrap_or_default();
         let service_tier = match service_tier_override {
             Some(Some(service_tier)) => Some(service_tier),
