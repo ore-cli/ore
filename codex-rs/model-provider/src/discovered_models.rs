@@ -52,6 +52,7 @@ use codex_protocol::error::Result as CoreResult;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelVisibility;
 use codex_protocol::openai_models::ModelsResponse;
+use http::HeaderName;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 use tokio::sync::TryLockError;
@@ -202,6 +203,18 @@ impl ProviderModelListDiscovery {
             create_client_for_route_async(http_client_factory, url.clone(), ClientRouteClass::Api)
                 .await
                 .map_err(|err| DiscoveryError::new(format!("no http client: {err}")))?;
+        // ore: route clients are pooled, and this one can be built before the
+        // app-server has learned who the client is, so its baked-in default
+        // headers may still say `codex_cli_rs` while an editor is driving. Read
+        // the process originator here, after the client await, which is the
+        // latest point before the request goes out. Upstream never needs this:
+        // every request it sends is thread-scoped and re-states the originator
+        // itself, and this probe is the only request the fork adds.
+        headers.insert(
+            HeaderName::from_static("originator"),
+            codex_login::default_client::originator().header_value,
+        );
+
         let response = client
             .get(url)
             .headers(headers)
