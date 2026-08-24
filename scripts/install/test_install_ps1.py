@@ -228,7 +228,10 @@ class InstallPs1Test(unittest.TestCase):
 
     @unittest.skipUnless(RENDERED, NOT_RENDERED)
     def test_visible_install_directory_is_not_vendored_under_openai(self) -> None:
-        self.assertIn(r'"Programs\ore\bin"', SOURCE)
+        # "Ore" is the product as a proper noun, matching upstream's own
+        # Programs\OpenAI\Codex capitalisation; `ore` stays the command and the
+        # binary. The assertion below is the one that matters: not under OpenAI\.
+        self.assertIn(r'"Programs\Ore\bin"', SOURCE)
         self.assertNotIn(r"Programs\OpenAI", SOURCE)
 
     @unittest.skipUnless(RENDERED, NOT_RENDERED)
