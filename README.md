@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".github/ore-splash.gif" width="870"
+<img src="https://raw.githubusercontent.com/ore-cli/ore/main/.github/ore-splash.gif" width="870"
      alt="A crystal cluster on a vein of gold-flecked rock, drawn in ASCII characters, turning slowly." />
 
 <h1>ore</h1>
@@ -130,7 +130,7 @@ you would rather not lean on that, an API key works the same as in Codex.
 ## Tracking upstream
 
 ore follows Codex stable release tags; the current base is recorded in
-[fork/UPSTREAM](./fork/UPSTREAM) and on line 2 of `ore --version`. Two
+[fork/UPSTREAM](https://github.com/ore-cli/ore/blob/main/fork/UPSTREAM) and on line 2 of `ore --version`. Two
 branches:
 
 - **`delta`** — the fork's changes: small, single-purpose, hand-authored
@@ -143,24 +143,24 @@ branches:
 This README is the one file that deliberately replaces upstream's, so each
 sync resolves it "ours" instead of merging. The rest of the machinery — tag
 policy, the invariant suite, why the upstream diff surface is kept minimal —
-is in [fork/README.md](./fork/README.md).
+is in [fork/README.md](https://github.com/ore-cli/ore/blob/main/fork/README.md).
 
 ## Docs
 
 Most of `docs/` is inherited and still describes Codex, linking out to
 OpenAI's documentation for it. Take it as a guide to the agent rather than to
 this fork: the two differ on telemetry, updates, the config home, and what the
-command is called. [docs/contributing.md](./docs/contributing.md) covers
+command is called. [docs/contributing.md](https://github.com/ore-cli/ore/blob/main/docs/contributing.md) covers
 development.
 
-Found a vulnerability? [SECURITY.md](./SECURITY.md) — not a public issue.
+Found a vulnerability? [SECURITY.md](https://github.com/ore-cli/ore/blob/main/SECURITY.md) — not a public issue.
 
 ## License
 
-[Apache 2.0](./LICENSE).
+[Apache 2.0](https://github.com/ore-cli/ore/blob/main/LICENSE).
 
 ore is a fork of [OpenAI Codex](https://github.com/openai/codex), Copyright
 2025 OpenAI. Files throughout have been modified from the originals; see
-[NOTICE](./NOTICE) for the full attribution.
+[NOTICE](https://github.com/ore-cli/ore/blob/main/NOTICE) for the full attribution.
 
 ore is not affiliated with, endorsed by, or sponsored by OpenAI.
