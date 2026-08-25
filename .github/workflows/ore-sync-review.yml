@@ -1,0 +1,99 @@
+# ore-sync-review: Claude reads a sync PR and posts an advisory verdict.
+#
+# It answers the question the machinery already poses and currently leaves to a
+# human. fork/assemble.sh diffs Fork-Patch slugs across the rebase and writes:
+#
+#   ## DROPPED (empty after rebase) — label PR series-retired,
+#      reviewer confirms the Invariant still holds
+#
+# Every series commit carries `Invariant:` and `Verify:` trailers, so "should we
+# keep this commit now that upstream has moved?" has a written criterion rather
+# than being a matter of taste. That is what this reviews against.
+#
+# ADVISORY ONLY, and deliberately so:
+#   * permissions grant no write to contents. It comments; it cannot push, and
+#     it must never be able to -- main is generated and delta is an ordered
+#     series where one well-meant commit breaks the topology.
+#   * it does not decide whether to merge. The sync PR was green-and-wrong twice
+#     on rust-v0.149.1 (the git attribution and personality-override defects) and
+#     red-and-right once, and CI is what caught all three. Judgment here proposes;
+#     fork/verify and ore-ci decide.
+#
+# Its second job is coverage: the deterministic checks can only catch what has a
+# rule, so it is asked what upstream added that NO rule covers, and to propose
+# the fork/egress.yaml or fork/verify/strings.toml entry rather than to wave it
+# through.
+name: ore-sync-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  review:
+    name: review
+    # Same-repo sync branches only. A fork PR would get no secrets anyway, and
+    # nothing else in this repo is shaped like a sync.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'sync/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --max-turns 40
+            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git range-diff:*),Read,Grep,Glob,mcp__github_comment__create_comment"
+          prompt: |
+            You are reviewing an ore sync PR. ore is a telemetry-free fork of
+            openai/codex; read CLAUDE.md at the repo root first, it describes the
+            branch topology and the rules you must not assume away.
+
+            This PR merges an upstream tag into ore's generated `main`. Produce an
+            ADVISORY review and post it as ONE comment on the PR. You have no write
+            access to the repository and must not attempt any.
+
+            Answer exactly these three questions, in this order:
+
+            1. ABSORBED WORK. fork/assemble.sh reports commits that went empty
+               during the rebase as DROPPED (upstream absorbed them). For each
+               Fork-Patch slug that dropped, read that commit's `Invariant:`
+               trailer in the previous series and say whether upstream's own
+               implementation still satisfies it — keep / retire / partial, with
+               the evidence. `partial` is the important verdict: upstream shipping
+               something SIMILAR but incomplete is the case nothing else detects,
+               because the commit does not go empty and no check fires.
+               If nothing dropped, say so in one line.
+
+            2. UNCOVERED SURFACE. The deterministic checks only catch what has a
+               rule. Look at what upstream ADDED in this diff and name anything
+               that no rule covers yet — a new network endpoint that
+               fork/egress.yaml does not classify, a new product string that
+               fork/verify/strings.toml does not protect, a new telemetry or
+               analytics path that the config seams do not reach. Propose the
+               concrete rule to add. Do not propose editing upstream files: in
+               this repo rebranding is a substitution in fork/substitutions.yaml,
+               never an edit.
+
+            3. WHAT YOU COULD NOT CHECK. State plainly what you did not verify and
+               why. Do not pad the review to look thorough — an unverified claim
+               presented as a finding is worse than an omission. If a test failed,
+               quote it; if you did not run the tests, say you did not.
+
+            Keep it short. Cite files and slugs. Do not restate the diff, do not
+            summarise what CI already reports, and do not give a merge verdict —
+            ore-ci and fork/verify decide that, not you.
