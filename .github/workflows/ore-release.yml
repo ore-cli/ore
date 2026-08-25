@@ -1061,7 +1061,17 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ore ${{ needs.tag-check.outputs.version }}
-          files: dist/**
+          # dist/* and dist/npm/*.tgz, never dist/** -- the recursive glob
+          # matched every asset twice once npm staging was armed, because
+          # stage_npm_packages.py uses dist/ as its artifact cache and
+          # re-materialises the package archives underneath it. That made 244
+          # upload attempts for 142 files, each duplicate forcing a delete-and-
+          # replace of an asset already present, until one delete 404'd and took
+          # the whole release job down with it. Collect assets already flattens
+          # everything into dist/, so one level is all that is wanted.
+          files: |
+            dist/*
+            dist/npm/*.tgz
           prerelease: ${{ needs.tag-check.outputs.prerelease }}
           make_latest: ${{ needs.tag-check.outputs.make_latest }}
           generate_release_notes: true
@@ -1077,6 +1087,21 @@ jobs:
   # Windows-complete release, alongside ORE_NPM_STAGE.
   #
   # Found by ore-v1.149.0-alpha.1, after signing had already succeeded.
+  # Called, not triggered. `on: release` would never fire: GitHub suppresses
+  # events raised by the repository's own GITHUB_TOKEN, and the release above is
+  # created with github.token, so a workflow listening for `release: published`
+  # sits registered and unreachable. Stable only -- announcing every alpha
+  # teaches the channel to be ignored.
+  announce:
+    name: announce
+    needs: [tag-check, release]
+    if: needs.tag-check.outputs.prerelease == 'false'
+    uses: ./.github/workflows/ore-release-announce.yml
+    with:
+      tag: ${{ github.ref_name }}
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+    secrets: inherit
+
   publish-dotslash:
     name: dotslash manifests
     needs: [tag-check, release]

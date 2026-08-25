@@ -20,16 +20,26 @@
 # than silently omitted.
 name: ore-release-announce
 
+# workflow_call, NOT `on: release`. GitHub suppresses events triggered by the
+# repository's own GITHUB_TOKEN to stop workflows retriggering themselves, and
+# ore-release.yml creates the release with github.token -- so `release:
+# published` never arrives and a workflow listening for it is registered,
+# active, and unreachable. It has to be called.
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      url:
+        required: true
+        type: string
 
 permissions: {}
 
 jobs:
   announce:
     name: announce
-    if: github.event.release.prerelease == false && startsWith(github.event.release.tag_name, 'ore-v')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -47,7 +57,7 @@ jobs:
         id: bullets
         continue-on-error: true
         env:
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ inputs.tag }}
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -75,8 +85,8 @@ jobs:
       - name: Build and post the announcement
         env:
           WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
-          TAG: ${{ github.event.release.tag_name }}
-          URL: ${{ github.event.release.html_url }}
+          TAG: ${{ inputs.tag }}
+          URL: ${{ inputs.url }}
         run: |
           set -euo pipefail
 
