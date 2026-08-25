@@ -416,6 +416,10 @@ def main() -> int:
     parser.add_argument("--tag", required=True, help="target upstream tag (rust-vX.Y.Z)")
     parser.add_argument("--out", help="write markdown here (default: stdout)")
     parser.add_argument("--repo", default=str(FORK_DIR.parent), help="repository root")
+    parser.add_argument(
+        "--verdict-json",
+        help="also write {section: OK|WARN} here. The eventual auto-merge predicate is\n             arithmetic over this -- every section OK, plus ore-ci green -- so a sync\n             that needs no human is decidable without re-parsing the markdown. Written\n             from the first sync onward so the decision to arm it rests on real runs\n             rather than on one data point.",
+    )
     args = parser.parse_args()
 
     repo = Path(args.repo).resolve()
@@ -435,6 +439,24 @@ def main() -> int:
     toolchain(rep, repo, base_c, tag_c)
 
     warn_count = sum(1 for _, v in rep.verdicts if v == WARN)
+
+    if args.verdict_json:
+        Path(args.verdict_json).write_text(
+            json.dumps(
+                {
+                    "base": args.base,
+                    "tag": args.tag,
+                    "sections": {t: v for t, v in rep.verdicts},
+                    "warn_count": warn_count,
+                    # Not a merge decision: ore-ci is the other half, and nothing
+                    # reads this yet. It records whether the DIFF alone was inert.
+                    "diff_inert": warn_count == 0,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     header = [
         f"# semantic review: {args.base} -> {args.tag}",
         "",
