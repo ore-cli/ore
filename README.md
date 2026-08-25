@@ -13,7 +13,7 @@ which it occurs, after it has been picked over to throw out what is worthless.</
 <p>
 <a href="https://github.com/ore-cli/ore/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ore-cli/ore?label=release&color=c9a227"></a>
 <a href="https://discord.gg/awN2xANFMW"><img alt="Discord" src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"></a>
-<a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+<a href="https://github.com/ore-cli/ore/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
 </p>
 
 </div>
@@ -37,41 +37,42 @@ serves rather than a fixed catalog.
 
 macOS, Linux and Windows, on Apple Silicon/ARM64 and x86_64.
 
-```bash
+Run the following on Mac or Linux to install ore:
+
+```shell
 curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh
 ```
 
-On Windows:
+Run the following on Windows to install ore:
 
 ```shell
 powershell -ExecutionPolicy ByPass -c "irm https://github.com/ore-cli/ore/releases/latest/download/install.ps1 | iex"
 ```
 
-Or with a package manager:
-
-```bash
-# Homebrew
-brew install ore-cli/tap/ore
-
-# npm
+```shell
+# Install using npm
 npm install -g @ore-cli/ore
 ```
 
-It installs `ore` into `~/.local/bin`; set `CODEX_INSTALL_DIR` to put it
-somewhere else. Windows binaries are not code-signed yet, so SmartScreen warns
-the first time you run one.
+```shell
+# Install using Homebrew
+brew install ore-cli/tap/ore
+```
+
+The shell installer puts `ore` in `~/.local/bin`; the PowerShell installer puts
+it in `%LOCALAPPDATA%\Programs\Ore\bin`. Set `CODEX_INSTALL_DIR` to override
+either. Windows binaries are not code-signed yet, so SmartScreen warns the first
+time you run one.
 
 To pin a version instead of taking the latest:
 
-```bash
+```shell
 curl -fsSL https://github.com/ore-cli/ore/releases/download/ore-v1.149.1/install.sh \
   | sh -s -- --release 1.149.1
 ```
 
-Prereleases are excluded from `releases/latest` and from the Homebrew formula:
-the release workflow sets `make_latest=false` for any tag carrying
-`-alpha`/`-beta`, because an alpha should not be what an unpinned install
-silently gives you.
+Prereleases never appear as `releases/latest`, so pinning is the only way to
+install one.
 
 Or build it yourself:
 
@@ -86,6 +87,11 @@ The cargo target is still named `codex` — the rename to `ore` happens at
 packaging time, which is what lets upstream's tests and build graph run
 unmodified.
 
+That gives you the agent alone. The packaged installs also place
+`codex-code-mode-host` and a vendored ripgrep beside it, and ore resolves those
+siblings relative to itself, so features that need them are unavailable in a
+hand-built copy.
+
 ## What changed
 
 | Area         | Codex                                                                                                                                                                                  | ore                                                                                                                                                                                                                                                                                                                                                   |
@@ -94,14 +100,14 @@ unmodified.
 | Config home  | `~/.codex`                                                                                                                                                                             | `~/.ore` (move it with `ORE_HOME`; `CODEX_HOME` still works). An existing `~/.codex/config.toml` is read as a base layer underneath, so a Codex setup carries over without copying; `~/.ore` always wins where they disagree. A project's local `.codex/` directory keeps its name — it is baked into the sandbox policy                              |
 | Versioning   | `rust-v0.149.x`                                                                                                                                                                        | its own release line, `ore-v1.149.x` — `1.<upstream minor>.<ore patch>`, explained below                                                                                                                                                                                                                                                              |
 | Updates      | checks OpenAI's release feeds; a background daemon re-runs OpenAI's installer hourly                                                                                                   | the startup check reads ore's own releases; the hourly self-updater is off, and the desktop-app integration is hidden                                                                                                                                                                                                                                 |
-| Distribution | npm under the `@openai` scope, a Homebrew cask, installers on `chatgpt.com`                                                                                                            | GitHub Releases on [`ore-cli/ore`](https://github.com/ore-cli/ore/releases) with `install.sh` as a release asset, a Homebrew formula in `ore-cli/homebrew-tap`; npm under `@ore-cli` is not published yet. Release tags are `ore-v*`                                                                                                            |
+| Distribution | npm under the `@openai` scope, a Homebrew cask, installers on `chatgpt.com`                                                                                                            | GitHub Releases on [`ore-cli/ore`](https://github.com/ore-cli/ore/releases) with `install.sh` and `install.ps1` as release assets, a Homebrew formula in `ore-cli/homebrew-tap`, and npm under `@ore-cli`. Release tags are `ore-v*`                                                                                                            |
 
 Every remaining runtime fetch — the update check, the announcement feed —
 points at this repository.
 
 ### Why the version looks like that
 
-`ore 1.149.0` is Codex `rust-v0.149.x` plus ore's changes; fixes on the same
+`ore 1.149.1` is Codex `rust-v0.149.x` plus ore's changes; fixes on the same
 base are `1.149.1`, `1.149.2`, and the next upstream base bumps the minor. The
 version number is visible on the wire, and the backend gates model
 availability on a minimum client version — a `0.x` line would present as an
@@ -110,7 +116,7 @@ upstream base. The exact base is never lost:
 
 ```
 $ ore --version
-ore 1.149.0
+ore 1.149.1
 codex-base: rust-v0.149.1 (ff29a44391)
 ```
 
@@ -130,21 +136,13 @@ you would rather not lean on that, an API key works the same as in Codex.
 
 ## Tracking upstream
 
-ore follows Codex stable release tags; the current base is recorded in
-[fork/UPSTREAM](https://github.com/ore-cli/ore/blob/main/fork/UPSTREAM) and on line 2 of `ore --version`. Two
-branches:
+ore follows Codex stable release tags. The current base is recorded in
+[fork/UPSTREAM](https://github.com/ore-cli/ore/blob/main/fork/UPSTREAM) and on
+line 2 of `ore --version`, so you can always tell which Codex a given ore is.
 
-- **`delta`** — the fork's changes: small, single-purpose, hand-authored
-  commits on the pinned upstream tag.
-- **`main`** — generated by CI on every sync: upstream tag, then the `delta`
-  series, then the generated passes (rebrand, lockfiles, snapshots), landing
-  as one merge commit so upstream history stays reachable. Never commit to
-  `main` by hand; changes go to `delta`.
-
-This README is the one file that deliberately replaces upstream's, so each
-sync resolves it "ours" instead of merging. The rest of the machinery — tag
-policy, the invariant suite, why the upstream diff surface is kept minimal —
-is in [fork/README.md](https://github.com/ore-cli/ore/blob/main/fork/README.md).
+How the fork is built — the branch topology, the tag policy, the invariant
+suite, why the upstream diff surface is kept minimal — is in
+[fork/README.md](https://github.com/ore-cli/ore/blob/main/fork/README.md).
 
 ## Docs
 
