@@ -47,6 +47,12 @@ Homebrew:
 brew install ore-cli/tap/ore
 ```
 
+npm:
+
+```bash
+npm i -g @ore-cli/ore
+```
+
 Windows, in PowerShell:
 
 ```powershell
@@ -68,9 +74,6 @@ Prereleases are excluded from `releases/latest` and from the Homebrew formula:
 the release workflow sets `make_latest=false` for any tag carrying
 `-alpha`/`-beta`, because an alpha should not be what an unpinned install
 silently gives you.
-
-npm is not published yet. `@ore-cli/ore` needs a package per platform, and the
-release pipeline does not yet build those with the right identity.
 
 Or build it yourself:
 
