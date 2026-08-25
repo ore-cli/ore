@@ -69,7 +69,7 @@ SCHEMA_FIXTURES='^(codex-rs/core/config\.schema\.json|codex-rs/app-server-protoc
 SLUG_RE='^[a-z0-9]+(-[a-z0-9]+)*$'
 MAX_UPSTREAM_LINES=400
 
-errors=0 warnings=0 count=0 generated=0
+errors=0 warnings=0 count=0
 declare -a seen_slugs=()
 err() { printf '\033[31mFAIL\033[0m %s: %s\n' "$1" "$2"; errors=$((errors + 1)); }
 
@@ -83,16 +83,16 @@ for c in $commits; do
   count=$((count + 1))
   short=$(git log -1 --format='%h %s' "$c")
 
-  # The generated-passes commit is assemble's own output, not a series commit.
-  # It is what bumps fork/UPSTREAM to the new tag, so delta cannot drop it, and
-  # it legitimately writes the paths the forbidden list keeps series commits out
-  # of -- the lock, fork/upstream-workflows/, regenerated schemas -- which is the
-  # arrangement the header above describes. It carries no Fork-Patch because it
-  # is not a patch. Match assemble's own author identity as well as the subject,
-  # so an ordinary commit cannot claim the exemption by wording alone.
+  # assemble's generated passes must never reach the series. They are main's
+  # content -- substitutions, the lock, fork/upstream-workflows/, regenerated
+  # schemas -- and a delta carrying them makes the next assemble apply the
+  # rebrand rules to already-rebranded text, where twelve of them match nothing
+  # and the stale-rule check fails. assemble.sh 3h keeps them off sync-delta, so
+  # one showing up here means that broke: say so precisely instead of emitting
+  # five generic trailer and forbidden-path errors that bury the cause.
   if [[ "$(git log -1 --format='%ae' "$c")" == "ore-sync[bot]@users.noreply.github.com" ]] \
      && [[ "$(git log -1 --format='%s' "$c")" == "assembly: generated passes for "* ]]; then
-    generated=$((generated + 1))
+    err "$short" "assemble's generated-pass commit is on the series — delta must never carry it (fork/assemble.sh 3h). A sync advanced delta to the assembly commit instead of the series."
     continue
   fi
 
@@ -150,8 +150,4 @@ if [[ "$errors" -gt 0 ]]; then
   printf '\033[31mlint-series: %d error(s)\033[0m in %d commit(s)\n' "$errors" "$count" >&2
   exit 1
 fi
-if [[ "$generated" -gt 0 ]]; then
-  info "lint-series: $count commit(s) clean ($warnings warning(s); $generated generated-pass commit(s) exempt)"
-else
-  info "lint-series: $count commit(s) clean ($warnings warning(s))"
-fi
+info "lint-series: $count commit(s) clean ($warnings warning(s))"
