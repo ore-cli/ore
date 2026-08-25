@@ -340,8 +340,14 @@ jobs:
           BASE: ${{ steps.target.outputs.base }}
         run: |
           set -euo pipefail
+          # --verdict-json records the per-section OK/WARN as data. Nothing reads
+          # it yet: the auto-merge predicate is arithmetic over it (every section
+          # OK, plus ore-ci green), and arming that should rest on several real
+          # syncs rather than on the one we have. rust-v0.149.1 would have been
+          # refused by it, correctly -- it was green-and-wrong twice.
           python3 "$CANDIDATE/fork/semantic-review.py" --base "$BASE" --tag "$TAG" \
-            --out "$OUT_DIR/semantic-review.md" --repo "$CANDIDATE"
+            --out "$OUT_DIR/semantic-review.md" --repo "$CANDIDATE" \
+            --verdict-json "$OUT_DIR/semantic-verdict.json"
 
       - name: Push the candidate branches (safe_push only)
         if: steps.target.outputs.tag != '' && steps.assemble.outputs.rc == '0'
