@@ -1,0 +1,102 @@
+# ore-release-announce: post a stable release to Discord in a fixed format.
+#
+# Stable only. Prereleases are how this fork iterates -- seven alphas shipped
+# before the first stable -- and announcing each one would train the channel to
+# be ignored, which is the same failure the watchdog's polarity avoids.
+#
+# The message is DATA, not prose. fork/release-note.py derives the version, the
+# upstream tag range and the list of ore changes from the two release tags'
+# commit messages, which fork/assemble.sh writes with the full
+# `<hash> <Fork-Patch slug> <subject>` series listing. Nothing in that body can
+# claim something the tree does not contain.
+#
+# Claude fills exactly one slot -- upstream highlights -- because upstream ships
+# dozens of commits per tag whose subjects are noisy, and that is the only part
+# where a summary beats a list. Its output is written to a file, validated by
+# release-note.py (bullet count, length, no pings, no links, no control
+# characters), and DROPPED if it fails. The step is continue-on-error so a bad
+# or unavailable summary can never take the announcement down with it: the
+# release still gets announced, with that one section marked unavailable rather
+# than silently omitted.
+name: ore-release-announce
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  announce:
+    name: announce
+    if: github.event.release.prerelease == false && startsWith(github.event.release.tag_name, 'ore-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Tags and full history: the note is built by reading two tags' commit
+          # messages, so a shallow clone would have nothing to read.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Summarise upstream's own changes
+        id: bullets
+        continue-on-error: true
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --max-turns 15
+            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Read,Write"
+          prompt: |
+            Read fork/UPSTREAM to find the upstream tag this release is built on,
+            and the previous stable ore-v* tag's commit message to find the one
+            before it (the line beginning "Upstream:").
+
+            If the two upstream tags are the same, write an empty file and stop:
+            upstream did not move, so there is nothing to summarise.
+
+            Otherwise summarise what UPSTREAM changed between those two tags, for
+            someone who uses the CLI. Ignore ore's own commits entirely.
+
+            Write the result to /tmp/upstream-bullets.txt as AT MOST 4 lines, one
+            per line, each starting with "- " and under 160 characters. Plain
+            prose only: no links, no @ mentions, no code fences, no headings, no
+            blank lines. If you cannot tell what changed, write an empty file
+            rather than guessing — the section is dropped when empty, and an
+            invented summary is worse than a missing one.
+
+      - name: Build and post the announcement
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+        run: |
+          set -euo pipefail
+
+          bullets=""
+          if [ -f /tmp/upstream-bullets.txt ]; then bullets="--upstream-bullets /tmp/upstream-bullets.txt"; fi
+
+          # shellcheck disable=SC2086 # $bullets is an option pair or empty, by construction
+          body="$(python3 fork/release-note.py --tag "$TAG" --repo . --url "$URL" $bullets)"
+
+          printf '%s\n' "$body" >>"$GITHUB_STEP_SUMMARY"
+
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "::notice::DISCORD_RELEASE_WEBHOOK_URL is not set — announcement written to the run summary only."
+            exit 0
+          fi
+
+          # jq builds the JSON so nothing in the body can break out of the string.
+          # allowed_mentions is empty on purpose: a release note must not be able
+          # to ping a channel, whatever ends up in it.
+          jq -n --arg c "$body" \
+            '{content: $c, username: "Ore Release", allowed_mentions: {parse: []}}' \
+            | curl -fsS --max-time 30 -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK" >/dev/null
+          echo "announced $TAG"
