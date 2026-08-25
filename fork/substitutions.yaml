@@ -313,6 +313,61 @@ categories:
       pattern: 'Codex app name'
       replace: '${product_name} app name'
 
+    - name: tooltip-drops-the-disabled-feedback-command
+      note: >
+        `/feedback` is hard-disabled in ore -- Config.feedback_enabled is false
+        for every layer by the telemetry-feedback-off seam -- so the tip told
+        users to run a command that answers "disabled". Emptied rather than
+        reworded: tooltips.rs filters empty lines out of the rotation, so the
+        line disappears without disturbing the file's shape or the surrounding
+        indices.
+      files: [codex-rs/tui/tooltips.txt]
+      rust_literals_only: false
+      pattern: '(?m)^Use /feedback to send logs to the maintainers when something looks off\.$'
+      replace: ''
+
+    - name: tooltip-points-at-ore-community-not-openai-s
+      note: >
+        Upstream points users at OpenAI's Discord and at the Codex category of
+        OpenAI's forum. Rebranded, the forum line became "Visit the Ore community
+        forum" pointing at community.openai.com/c/codex -- claiming OpenAI's
+        forum as ore's, which is both untrue and rude to the people who run it.
+        The Discord line keeps its shape and gets ore's own server; the forum
+        line is emptied because ore has no forum to send anyone to.
+      files: [codex-rs/tui/tooltips.txt]
+      rust_literals_only: false
+      pattern: '(?m)^Join the OpenAI community Discord: http://discord\.gg/openai$'
+      replace: 'Join the ${product_name} community Discord: https://discord.gg/awN2xANFMW'
+
+    - name: tooltip-drops-the-forum-that-is-not-ours
+      note: >
+        See tooltip-points-at-ore-community-not-openai-s. Matches either spelling
+        because ui-bare-product-name may rewrite Codex to Ore before this runs.
+      files: [codex-rs/tui/tooltips.txt]
+      rust_literals_only: false
+      pattern: '(?m)^Visit the (?:Codex|Ore) community forum: https://community\.openai\.com/c/codex/37$'
+      replace: ''
+
+    - name: tooltip-claims-no-plan-that-does-not-exist
+      note: >
+        Upstream shows ChatGPT Free and Go accounts "For a limited time, Codex is
+        included in your plan for free". Rebranded word-for-word that becomes
+        "Ore is included in your plan", which is false: ore is a fork, it is not
+        sold, and nothing about it is included in anyone's subscription. It is
+        also the one claim the rest of the fork is careful never to make -- the
+        README, the sign-in section and the NOTICE all go out of their way to say
+        ore is not affiliated with OpenAI, and then the TUI greeted free-plan
+        users by implying a commercial relationship.
+
+        Replaced with the wording the same file already uses for every other
+        account type, rather than deleted, so the tooltip rotation keeps its
+        shape and the constant stays where a sync can still see it. Matches
+        either spelling because ui-bare-product-name may have rewritten Codex to
+        Ore before this rule runs.
+      files: [codex-rs/tui/src/tooltips.rs]
+      pattern: 'For a limited time, (?:Codex|Ore) is included in your plan for free – let\u2019s build together\.'
+      replace: 'Build faster with ${product_name}.'
+
     - name: ui-bare-lowercase-label
       note: >
         A blind spot between the two existing families: ui-bare-product-name matches the
