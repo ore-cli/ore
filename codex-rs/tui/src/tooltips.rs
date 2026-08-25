@@ -12,8 +12,7 @@ const ANNOUNCEMENT_TIP_URL: &str =
 const FAST_TOOLTIP: &str =
     "*New* Use **/fast** to enable our fastest inference with increased plan usage.";
 const OTHER_TOOLTIP_NON_MAC: &str = "*New* Build faster with Ore.";
-const FREE_GO_TOOLTIP: &str =
-    "*New* For a limited time, Ore is included in your plan for free – let’s build together.";
+const FREE_GO_TOOLTIP: &str = "*New* Build faster with Ore.";
 
 const RAW_TOOLTIPS: &str = include_str!("../tooltips.txt");
 

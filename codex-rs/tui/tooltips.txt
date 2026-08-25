@@ -1,6 +1,6 @@
 Use /compact when the conversation gets long to summarize history and free up context.
 Start a fresh idea with /new; the previous session stays in history.
-Use /feedback to send logs to the maintainers when something looks off.
+
 Switch models or reasoning effort quickly with /model.
 Use /permissions to control when Ore asks for confirmation.
 Run /review to get a code review of your current changes.
@@ -14,8 +14,8 @@ Use /mcp to list configured MCP tools.
 Use /personality to customize how Ore communicates.
 Use /rename to rename your threads for easier thread resuming.
 Use the OpenAI docs MCP for API questions; enable it with `ore mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp`.
-Join the OpenAI community Discord: http://discord.gg/openai
-Visit the Ore community forum: https://community.openai.com/c/codex/37
+Join the Ore community Discord: https://discord.gg/awN2xANFMW
+
 You can run any shell command from Ore using `!` (e.g. `!ls`)
 Type / to open the command popup; Tab autocompletes slash commands.
 When the composer is empty, press Esc to step back and edit your last message; Enter confirms.
