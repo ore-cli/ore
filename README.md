@@ -41,22 +41,20 @@ macOS, Linux and Windows, on Apple Silicon/ARM64 and x86_64.
 curl -fsSL https://github.com/ore-cli/ore/releases/latest/download/install.sh | sh
 ```
 
-Homebrew:
+On Windows:
+
+```shell
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/ore-cli/ore/releases/latest/download/install.ps1 | iex"
+```
+
+Or with a package manager:
 
 ```bash
+# Homebrew
 brew install ore-cli/tap/ore
-```
 
-npm:
-
-```bash
-npm i -g @ore-cli/ore
-```
-
-Windows, in PowerShell:
-
-```powershell
-irm https://github.com/ore-cli/ore/releases/latest/download/install.ps1 | iex
+# npm
+npm install -g @ore-cli/ore
 ```
 
 It installs `ore` into `~/.local/bin`; set `CODEX_INSTALL_DIR` to put it
