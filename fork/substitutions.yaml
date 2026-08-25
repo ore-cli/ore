@@ -274,7 +274,7 @@ categories:
         after this and would rewrite it, turning "forked from Codex" into "forked from
         Ore". The lineage belongs in the README, not in a sentence whose meaning
         depends on rule ordering.
-      globs: ["codex-rs/**/*.md"]
+      files: [codex-rs/models-manager/prompt.md]
       rust_literals_only: false
       pattern: 'You are a coding agent running in the Codex CLI, a terminal-based coding assistant\. Codex CLI is an open source project led by OpenAI\. You are expected to be precise, safe, and helpful\.'
       replace: 'You are a coding agent running in ${product_name}, a terminal-based coding assistant. ${product_name} is an open source coding agent. You are expected to be precise, safe, and helpful.'
@@ -285,7 +285,7 @@ categories:
         OpenAI's retired Codex language model, which is a distinction only OpenAI needs
         to draw; for ore the parenthetical is noise, and rebranding it word-wise yields
         "not the old ore language model built by OpenAI", which is meaningless.
-      globs: ["codex-rs/**/*.md"]
+      files: [codex-rs/models-manager/prompt.md]
       rust_literals_only: false
       pattern: 'Within this context, Codex refers to the open-source agentic coding interface \(not the old Codex language model built by OpenAI\)\.'
       replace: 'Within this context, ${product_name} refers to the open-source agentic coding interface.'
