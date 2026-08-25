@@ -1100,7 +1100,17 @@ jobs:
     with:
       tag: ${{ github.ref_name }}
       url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
-    secrets: inherit
+    # Named one by one. fork/verify/workflows_check.py (f) forbids fork-owned
+    # workflows from inheriting the caller's whole secret set, and rightly: this
+    # job posts to Discord and asks a model for four bullets, so passing it the
+    # Apple signing identity, the notarization key and the ore-sync App private
+    # key would hand a chat message the entire release's credentials.
+    #
+    # (The checker greps the raw file, so the phrase it forbids cannot appear
+    # here even in a comment explaining why it is not used.)
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
 
   publish-dotslash:
     name: dotslash manifests
