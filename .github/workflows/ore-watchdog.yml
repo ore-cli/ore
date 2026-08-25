@@ -1,0 +1,118 @@
+# ore-watchdog: a daily digest of whether the fork's machinery is still running,
+# posted to Discord.
+#
+# This is a dead-man's switch, and the polarity is deliberate. Notifying only on
+# failure makes silence mean two different things -- "nothing to report" and
+# "the job never ran" -- and this repo has already been bitten by exactly that
+# twice: ore-sync reported `SYNC: success` while a preflight guard skipped every
+# step, and a nextest filter that matched nothing printed `running 0 tests` and
+# exited 0. So this posts EVERY day, and a channel that goes quiet is itself the
+# alarm.
+#
+# It reads state and never changes any. The only thing it can do is talk.
+name: ore-watchdog
+
+on:
+  schedule:
+    # 05:23 UTC is ore-sync; this runs after it has had time to finish.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  digest:
+    name: digest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Gather state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Last ore-sync run, whenever it was.
+          sync_json="$(gh api "repos/$REPO/actions/workflows/ore-sync.yml/runs?per_page=1" \
+            --jq '.workflow_runs[0] // {} | {c: (.conclusion // "none"), t: (.updated_at // "")}')"
+          sync_concl="$(printf '%s' "$sync_json" | jq -r '.c')"
+          sync_when="$(printf '%s' "$sync_json" | jq -r '.t')"
+
+          # Staleness is the dead-man's part: ore-sync is daily, so nothing for
+          # two days means the schedule itself stopped.
+          age_h=9999
+          if [ -n "$sync_when" ]; then
+            age_h=$(( ( $(date -u +%s) - $(date -u -d "$sync_when" +%s) ) / 3600 ))
+          fi
+
+          main_concl="$(gh api "repos/$REPO/actions/workflows/ore-ci.yml/runs?branch=main&per_page=1" \
+            --jq '.workflow_runs[0].conclusion // "none"')"
+          blocked="$(gh issue list --repo "$REPO" --state open --label sync-blocked --json number --jq length)"
+          sync_pr="$(gh pr list --repo "$REPO" --state open --label sync --json number --jq length)"
+
+          status=ok
+          notes=""
+          if [ "$age_h" -gt 48 ]; then
+            status=alarm
+            notes="${notes}- ore-sync has not run in ${age_h}h (it is scheduled daily) — the schedule may be disabled; GitHub turns off cron on public repos after 60 days without activity\n"
+          fi
+          if [ "$blocked" -gt 0 ]; then
+            status=alarm
+            notes="${notes}- ${blocked} open sync-blocked issue(s): a rebase stopped on conflicts and no sync can land until it is resolved\n"
+          fi
+          if [ "$main_concl" != "success" ]; then
+            status=alarm
+            notes="${notes}- main's last ore-ci run is '${main_concl}' — releases are cut from main and ore-release runs no tests of its own\n"
+          fi
+          if [ "$sync_pr" -gt 0 ]; then
+            notes="${notes}- ${sync_pr} sync PR open and waiting for review\n"
+          fi
+          if [ -z "$notes" ]; then notes="- nothing outstanding\n"; fi
+
+          {
+            echo "status=$status"
+            echo "sync_concl=$sync_concl"
+            echo "age_h=$age_h"
+            echo "main_concl=$main_concl"
+            printf 'notes<<EOF\n'; printf '%b' "$notes"; printf 'EOF\n'
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Compose and post
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          STATUS: ${{ steps.state.outputs.status }}
+          SYNC_CONCL: ${{ steps.state.outputs.sync_concl }}
+          AGE_H: ${{ steps.state.outputs.age_h }}
+          MAIN_CONCL: ${{ steps.state.outputs.main_concl }}
+          NOTES: ${{ steps.state.outputs.notes }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          icon="🟢"
+          if [ "$STATUS" = "alarm" ]; then icon="🔴"; fi
+          body="$(printf '%s **ore watchdog** — last sync %s (%sh ago), main ore-ci %s\n%s\n<%s>' \
+            "$icon" "$SYNC_CONCL" "$AGE_H" "$MAIN_CONCL" "$NOTES" "$RUN_URL")"
+
+          # Always leave the digest in the run summary, webhook or not, so the
+          # state is recoverable without Discord.
+          printf '%s\n' "$body" >>"$GITHUB_STEP_SUMMARY"
+
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "::notice::DISCORD_WEBHOOK_URL is not set — digest written to the run summary only. The dead-man's switch is INERT until that secret exists."
+            exit 0
+          fi
+
+          # jq builds the JSON so the body cannot break out of the string, and
+          # --data @- keeps the webhook URL out of the process list.
+          jq -n --arg c "$body" '{content: $c}' \
+            | curl -fsS --max-time 30 -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK" >/dev/null
+          echo "digest posted"

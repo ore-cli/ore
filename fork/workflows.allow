@@ -23,6 +23,10 @@ ore-rusty-v8-mirror.yml
 ore-windows-probe.yml
 ore-sync.yml
 ore-sync-finalize.yml
+ore-claude.yml
+ore-watchdog.yml
+ore-sync-review.yml
+ore-release-announce.yml
 
 # --- upstream, kept ONLY because ore-ci.yml `uses:` them ---
 # Reusable workflows must live in .github/workflows/ to be callable (GitHub does not
