@@ -34,6 +34,11 @@ on:
       url:
         required: true
         type: string
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: false
+      DISCORD_RELEASE_WEBHOOK_URL:
+        required: false
 
 permissions: {}
 
