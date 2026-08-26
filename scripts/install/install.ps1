@@ -410,7 +410,7 @@ function Get-VersionFromBinary {
     }
 
     try {
-        $versionOutput = & $CodexPath --version 2>$null
+        $versionOutput = & $CodexPath --version 2>$null | Select-Object -First 1
     } catch {
         return $null
     }
