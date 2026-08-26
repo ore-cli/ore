@@ -148,7 +148,8 @@ suite, why the upstream diff surface is kept minimal — is in
 
 Most of `docs/` is inherited and still describes Codex, linking out to
 OpenAI's documentation for it. Take it as a guide to the agent rather than to
-this fork: the two differ on telemetry, updates, the config home, and what the
+this fork: the two differ on telemetry, updates, the config home, which
+providers are reachable, and what the
 command is called. [docs/contributing.md](https://github.com/ore-cli/ore/blob/main/docs/contributing.md) covers
 development.
 
