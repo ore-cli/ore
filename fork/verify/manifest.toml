@@ -73,6 +73,20 @@ leakage) must not appear at all, keep literals (auth wire ids) must still exist 
 new upstream endpoint arriving with a sync and a substitution over-reach alike."""
 
 [[check]]
+id = "helper-telemetry"
+script = "helper_telemetry.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """Helper binaries shipped beside `ore` (code-mode-host, responses-api-proxy, \
+windows-sandbox-rs) are separate processes that never load codex-core's config, so the \
+`analytics_enabled = false` seam does not reach them. Freezes which of them depend on \
+codex-otel: deps_gate watches the lockfile's crate SET, which does not change when one \
+more crate depends on a workspace member, so this edge is invisible to it."""
+
+[[check]]
 id = "deps"
 script = "deps_gate.py"
 suite = "static"
