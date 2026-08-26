@@ -578,6 +578,33 @@ categories:
       pattern: 'CODEX_HOME_DIR="\$\{CODEX_HOME:-\$HOME/\.codex\}"'
       replace: 'CODEX_HOME_DIR="${ORE_HOME:-${CODEX_HOME:-$HOME/.ore}}"'
 
+    - name: installer-ps1-reads-a-two-line-version
+      note: >
+        ore --version prints two lines -- the ore version, then `codex-base: <tag>
+        (<commit>)` -- where upstream prints one. Get-VersionFromBinary was written
+        for one: `& $CodexPath --version` yields an ARRAY for multi-line output, and
+        `-match` against an array FILTERS it rather than setting $matches, so
+        $matches is never assigned. install.ps1 runs under Set-StrictMode -Version
+        Latest with $ErrorActionPreference = Stop, which turns that into a throw.
+
+        Line 918 calls Get-CurrentInstalledVersion unconditionally, before anything
+        else and outside any try. A fresh install survives because the probe is
+        guarded by Test-Path and there is no binary yet; a re-run or an upgrade has
+        one, so the installer aborts before it does any work. Windows upgrades have
+        been broken this way since the platform first shipped in 1.149.0.
+
+        The function is byte-identical to upstream and correct for upstream. It is
+        the fork that changed the output shape and did not adapt the consumer, which
+        is what makes this a substitution rather than a bug report upstream.
+
+        scripts/install/test_install_ps1.py already asserts the fixed behaviour, in a
+        test named for it -- and never ran, because it needs pwsh, posix and a
+        rendered tree at once and no CI job has all three.
+      files: [scripts/install/install.ps1]
+      rust_literals_only: false
+      pattern: '\$versionOutput = & \$CodexPath --version 2>\$null\n'
+      replace: "$versionOutput = & $CodexPath --version 2>$null | Select-Object -First 1\n"
+
     - name: installer-ps1-home-matches-the-resolver
       note: >
         The install.ps1 counterpart of installer-home-matches-the-resolver, and it
