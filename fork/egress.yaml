@@ -35,9 +35,11 @@ kill:
 # DECIDE — default-on or third-party-visible egress the fork has not (yet)
 # ruled on; each occurrence in a sync diff needs a human verdict.
 decide:
-  - github.com/openai/plugins                          # curated plugins startup git-fetch (feature default TRUE)
+  - github.com/openai/plugins                          # curated-plugins sync. NOT default-on: c27c398e37 dropped the
+                                                       #   hard-coded repo, so nothing syncs unless a user names one in
+                                                       #   ORE_CURATED_PLUGINS_REPO. Kept so upstream re-adding it stops a human.
   - api.github.com/repos/openai/plugins                # its API fallback
-  - chatgpt.com/backend-api/plugins/export/curated     # its last-resort export
+  - chatgpt.com/backend-api/plugins/export/curated     # its last-resort export, deleted by c27c398e37
   - api.chatgpt.com/v1/analytics                       # API-key turn-cost worker (150s loop in app-server)
   - chatgpt.com/oauth/codex                            # CIMD client metadata handed to third-party MCP OAuth servers
   - github.com/openai/                                 # any OTHER new openai coordinate: flag it (specific keeps/kills above win)
