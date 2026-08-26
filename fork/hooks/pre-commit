@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Refuse a commit that CI, or the sync machinery, would reject later.
+#
+# Enable with:  git config core.hooksPath fork/hooks
+#
+# Everything here is cheap and local. The expensive, authoritative checks stay
+# in CI -- this only catches the mistakes that are annoying to discover after a
+# push, and it deliberately mirrors CI's scope rather than inventing its own.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+staged() { git diff --cached --name-only --diff-filter=ACM; }
+
+# --- forbidden paths -------------------------------------------------------
+# One source of truth: the pattern is read out of lint-series.sh rather than
+# copied, so the two can never drift into disagreeing about what is forbidden.
+forbidden=$(sed -n "s/^FORBIDDEN_ALWAYS='\(.*\)'$/\1/p" "$root/fork/lint-series.sh")
+if [ -n "$forbidden" ]; then
+  bad=$(staged | grep -E "$forbidden" || true)
+  if [ -n "$bad" ]; then
+    printf 'pre-commit: these are generated or main-only and must not be committed:\n' >&2
+    printf '  %s\n' $bad >&2
+    printf 'fix: git restore --staged %s\n' $bad >&2
+    exit 1
+  fi
+fi
+
+# --- formatting ------------------------------------------------------------
+# Mirrors package.json's `format` script EXACTLY: *.json *.md docs/*.md
+# .github/workflows/*.yml **/*.js. Casting wider blocks commits CI would accept
+# -- fork/*.yaml is outside that glob deliberately, and prettier cannot even
+# parse fork/substitutions.yaml (it emits an empty file for it).
+files=$(staged | grep -E '^[^/]+\.(json|md)$|^docs/[^/]+\.md$|^\.github/workflows/[^/]+\.yml$|\.js$' || true)
+if [ -n "$files" ] && [ -x "$root/node_modules/.bin/prettier" ]; then
+  if ! (cd "$root" && ./node_modules/.bin/prettier --check $files >/dev/null 2>&1); then
+    printf 'pre-commit: prettier would reformat these, and CI runs the same check:\n' >&2
+    (cd "$root" && ./node_modules/.bin/prettier --list-different $files 2>/dev/null | sed 's/^/  /') >&2
+    printf 'fix: ./node_modules/.bin/prettier --write <files>\n' >&2
+    exit 1
+  fi
+fi
+

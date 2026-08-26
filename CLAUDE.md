@@ -70,6 +70,19 @@ Every push goes through `safe_push()` in `fork/lib.sh`, whose allowlist is
 **Never push an upstream-named tag** (`rust-v*`) — it would publish upstream's
 coordinates under ore's.
 
+## Local hooks
+
+`git config core.hooksPath fork/hooks` turns on two hooks that refuse what CI or
+the sync machinery would reject later: a commit touching `codex-rs/Cargo.lock` or
+`fork/upstream-workflows/`, one whose Markdown fails the `prettier --check` that
+`pnpm run format` runs, and one on `delta` missing its trailers. They are cheap
+and local; the authoritative checks stay in CI.
+
+The pre-commit hook mirrors `package.json`'s `format` glob exactly rather than
+inventing its own. Casting wider blocks commits CI would accept — `fork/*.yaml`
+sits outside that glob deliberately, and prettier cannot parse
+`fork/substitutions.yaml` at all.
+
 ## Before you claim something works
 
 Absence of output is not evidence of absence. A test filter that matches nothing
