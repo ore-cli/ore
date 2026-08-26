@@ -580,11 +580,20 @@ categories:
 
     - name: installer-ps1-home-matches-the-resolver
       note: >
-        The install.ps1 counterpart of installer-home-matches-the-resolver.
+        The install.ps1 counterpart of installer-home-matches-the-resolver, and it
+        has to rewrite the whole resolution rather than only the default path.
+        Rewriting just `.codex` to `.ore` left the script consulting CODEX_HOME
+        alone, so a Windows user who set ORE_HOME -- the variable find_codex_home()
+        prefers, and the one the README tells people to use -- got a standalone
+        install staged under ~/.ore while the CLI looked under $ORE_HOME. That is
+        the silent unrecognised-install failure the install.sh rule above exists to
+        prevent; it survived here because the rule name claimed a parity its pattern
+        did not deliver. Decision 14 keeps the CODEX_* env NAMES, which this
+        preserves: ORE_HOME goes ahead of CODEX_HOME, the order the resolver uses.
       files: [scripts/install/install.ps1]
       rust_literals_only: false
-      pattern: 'Join-Path \$env:USERPROFILE "\.codex"'
-      replace: 'Join-Path $env:USERPROFILE ".ore"'
+      pattern: '\$codexHome = if \(\[string\]::IsNullOrWhiteSpace\(\$env:CODEX_HOME\)\) \{\n    Join-Path \$env:USERPROFILE "\.codex"\n\} else \{\n    \$env:CODEX_HOME\n\}'
+      replace: "$oreHome = if ([string]::IsNullOrWhiteSpace($env:ORE_HOME)) { $env:CODEX_HOME } else { $env:ORE_HOME }\n$codexHome = if ([string]::IsNullOrWhiteSpace($oreHome)) {\n    Join-Path $env:USERPROFILE \".ore\"\n} else {\n    $oreHome\n}"
 
     - name: installer-tells-you-to-run-ore
       note: >
