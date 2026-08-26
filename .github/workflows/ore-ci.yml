@@ -366,6 +366,25 @@ jobs:
       - name: Run the static invariant suite
         run: python3 fork/verify/run.py --suite static
 
+      # test_install_ps1.py only. Its sibling test_install_sh.py asserts upstream's
+      # release coordinates (releases.openai.com) against an installer the rebrand
+      # correctly repointed at ore's GitHub releases, so sixteen of its cases cannot
+      # pass on a rendered tree -- fixing that is a decision about what those tests
+      # should assert, not a chore, and it is not this job's to make.
+      #
+      # Five cases need a tree that has been through substitute.py and skip on delta;
+      # the PowerShell ones need pwsh. A runner without it would skip seven cases and
+      # still report success, which is the silent-green failure this repo has already
+      # shipped twice -- so check for it rather than trusting the image.
+      - name: Test the Windows installer
+        run: |
+          set -euo pipefail
+          if ! command -v pwsh >/dev/null 2>&1; then
+            echo "::error::pwsh is not on this runner; the PowerShell cases would skip silently"
+            exit 1
+          fi
+          python3 -m unittest discover -s scripts/install -p 'test_install_ps1.py' -v
+
       # Trailer lint for the delta series: `Fork-Patch:` slugs are how a rebase
       # notices an upstream-absorbed commit, so a commit without one is a commit
       # the sync machinery cannot track.
