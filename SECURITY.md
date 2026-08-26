@@ -11,9 +11,11 @@ something exploitable.
 well** — [their Bugcrowd program](https://bugcrowd.com/engagements/openai) is
 where it gets fixed for everybody, including us. Most of this codebase is
 theirs, so most vulnerabilities will be. ore's own changes are the telemetry
-removal, the layered `~/.ore` config home, the release and update plumbing,
-and the rename; a bug in those is ours alone, and the Security tab above is
-the place for it.
+removal, the Anthropic, Gemini and Chat Completions providers, the layered
+`~/.ore` config home, the release and update plumbing, and the rename; a bug in
+those is ours alone, and the Security tab above is the place for it. The
+provider adapters are the part of that list which handles credentials and talks
+to the network, so they are the part most likely to matter here.
 
 ore is a small project with no security team and no bounty.
 
