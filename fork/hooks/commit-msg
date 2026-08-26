@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Every commit on the delta series needs its trailers. lint-series.sh enforces
+# this in CI; catching it here means fixing a message instead of rewriting
+# history to add one.
+#
+# Enable with:  git config core.hooksPath fork/hooks
+set -euo pipefail
+
+msg_file=$1
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+# Only the series carries trailers. Generated main is built with commit-tree
+# (no hooks), and a sync branch mid-rebase is replaying commits that already
+# have them.
+case "$branch" in
+  delta) ;;
+  *) exit 0 ;;
+esac
+
+# Ignore the messages git writes for itself.
+head -1 "$msg_file" | grep -qE '^(Merge|Revert|fixup!|squash!) ' && exit 0
+
+# --parse folds continuations and normalises to `Key: value`, which is exactly
+# how lint-series.sh reads them -- so what passes here passes there.
+trailers=$(git interpret-trailers --parse <"$msg_file")
+missing=()
+for key in Fork-Patch Purpose Invariant Verify; do
+  value=$(sed -n "s/^$key:[[:space:]]*//p" <<<"$trailers" | head -1)
+  [ -z "$value" ] && missing+=("$key")
+done
+
+if [ ${#missing[@]} -gt 0 ]; then
+  printf 'commit-msg: missing trailer(s): %s\n' "${missing[*]}" >&2
+  printf '\n' >&2
+  printf 'Every delta commit needs:\n' >&2
+  printf '  Fork-Patch: <stable-kebab-slug>\n  Purpose: <one line>\n  Invariant: <what must hold>\n  Verify: <how to check it>\n' >&2
+  printf '\n' >&2
+  printf 'If they look present, check the block is CONTIGUOUS -- a blank line\n' >&2
+  printf 'before Co-Authored-By: splits it and git stops seeing the trailers.\n' >&2
+  exit 1
+fi
+
+slug=$(sed -n 's/^Fork-Patch:[[:space:]]*//p' <<<"$trailers" | head -1)
+if ! [[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  printf 'commit-msg: Fork-Patch slug %s is not kebab-case\n' "$slug" >&2
+  exit 1
+fi

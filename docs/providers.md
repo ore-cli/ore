@@ -1,26 +1,52 @@
 # Model providers
 
-ore can talk to model providers over three wire protocols. Upstream Ore
-removed everything except the OpenAI Responses API; ore restores the Chat
-Completions adapter and adds a native Anthropic Messages adapter so you can
-bring your own key for the provider you actually use.
-
-A provider is selected with `model_provider` and defined in a
-`[model_providers.<id>]` table in `config.toml`. The `wire_api` field picks the
-protocol.
+Ore speaks four wire APIs. Select a provider with `model_provider` and define it
+in a `[model_providers.<id>]` table in `~/.ore/config.toml`. The `wire_api` field
+picks the protocol, and defaults to `"responses"` when a table leaves it out.
 
 ## `wire_api` values
 
-| `wire_api`    | Protocol                | Endpoint                           | Typical servers                                                                |
-| ------------- | ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
-| `"responses"` | OpenAI Responses API    | `POST <base_url>/responses`        | OpenAI (the default), Azure OpenAI                                             |
-| `"chat"`      | OpenAI Chat Completions | `POST <base_url>/chat/completions` | llama.cpp, vLLM, LM Studio, Ollama, OpenRouter, most OpenAI-compatible proxies |
-| `"anthropic"` | Anthropic Messages API  | `POST <base_url>/messages`         | Anthropic, or a gateway that fronts it                                         |
+| `wire_api`    | Protocol                       | Endpoint                                               | Typical servers                                                                      |
+| ------------- | ------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `"responses"` | OpenAI Responses API           | `POST <base_url>/responses`                            | OpenAI (the default), Azure OpenAI, the built-in `ollama` and `lmstudio`             |
+| `"chat"`      | OpenAI Chat Completions        | `POST <base_url>/chat/completions`                     | llama.cpp, vLLM, LM Studio, older Ollama, OpenRouter, most OpenAI-compatible proxies |
+| `"anthropic"` | Anthropic Messages API         | `POST <base_url>/messages`                             | Anthropic, or a gateway that fronts it                                               |
+| `"gemini"`    | Google generative-language API | `POST <base_url>/models/{model}:streamGenerateContent` | Google Gemini, or a gateway that fronts it                                           |
 
-There is no built-in provider for the restored wires: nothing speaks `chat` or
-`anthropic` unless your config defines a provider that does.
+`anthropic` and `gemini` are built in. `model_provider = "anthropic"` with
+`ANTHROPIC_API_KEY` exported works with no `[model_providers.*]` table at all,
+and so does `gemini` with `GEMINI_API_KEY`. No built-in provider speaks `chat`;
+nothing speaks it unless your config defines a provider that does.
 
-### Chat Completions example
+## Claiming a built-in id
+
+`anthropic` and `gemini` stand aside when your config claims their id, so a table
+under either name replaces the built-in definition. `amazon-bedrock` and
+`amazon-bedrock-runtime` accept overrides of `base_url`, `auth`, `http_headers`
+and the `aws` settings. Under any other built-in id (`openai`, `ollama`,
+`lmstudio`) the built-in definition wins and your table is discarded without an
+error.
+
+The built-in `ollama` and `lmstudio` providers speak `"responses"`. Reaching
+either server over Chat Completions takes a provider under an id of your own,
+such as `[model_providers.ollama-local]`. `ollama-chat` was removed and now
+errors.
+
+## Model discovery
+
+At session start each provider is asked `GET <base_url>/models`. That list
+decides which models the picker offers; the bundled catalog supplies the context
+window, reasoning support and the other facts known about each id. An id absent
+from the bundled catalog is still selectable and inherits the provider's default
+model as its template. When the request fails, times out, or answers with
+something other than a model list, the picker falls back to the bundled catalog
+alone.
+
+Discovery runs on all four wire APIs. It is skipped for the first-party OpenAI
+path, for the Amazon Bedrock providers, and whenever `model_catalog_json` pins a
+catalog in config.
+
+## Chat Completions example
 
 ```toml
 model = "llama3.3-70b"
@@ -34,60 +60,81 @@ wire_api = "chat"
 env_key = "LLAMA_API_KEY"
 ```
 
-Namespaced tool names are flattened onto this wire (joined with `__`) and
-mapped back when the model calls them. For Claude models served through an
-OpenAI-compatible gateway, ore places Anthropic-style `cache_control` prompt
-markers automatically; if the gateway rejects them, the request is retried once
-without markers and the turn proceeds uncached.
+On the `chat`, `anthropic` and `gemini` wire APIs a namespaced tool is advertised
+under a single flattened name joined with `__`, so an MCP tool reads as
+`mcp__server__tool` in transcripts and in provider-side logs.
+
+For Claude models served through an OpenAI-compatible gateway, Ore places
+Anthropic-style `cache_control` prompt markers automatically. If the gateway
+rejects them, the turn is retried once without markers.
 
 ## Anthropic
 
-```toml
-model = "claude-opus-5"
-model_provider = "anthropic"
-
-[model_providers.anthropic]
-name = "Anthropic"
-wire_api = "anthropic"
-# base_url is optional and defaults to https://api.anthropic.com/v1
-```
-
-Export your key before starting ore:
+Create a key in the [Anthropic Console](https://console.anthropic.com) and export
+it:
 
 ```shell
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-The key is created in the [Anthropic Console](https://console.anthropic.com)
-and is sent as the `x-api-key` header, alongside the required
-`anthropic-version: 2023-06-01` header. Setting `env_key` on the provider
-switches which environment variable is read; the value is still sent as
-`x-api-key`, never as a bearer token. A model catalog is bundled, so no
-`/models` endpoint is contacted.
+```toml
+model = "claude-opus-5"
+model_provider = "anthropic"
+```
 
-### API keys only — subscription sign-in is not supported
+Requests go to `https://api.anthropic.com/v1`, carrying the key in an `x-api-key`
+header alongside the `anthropic-version: 2023-06-01` header the Messages API
+requires. Sign-in with an Anthropic subscription (Pro/Max) is not supported; the
+provider authenticates with an API key, and usage bills to your API account.
 
-Anthropic prohibits using Claude subscription (Pro/Max) OAuth credentials in
-third-party tools, and enforces this server-side. This is why ore supports
-**API keys only** for Anthropic, with no OAuth or "sign in with Claude" path: a
-fork that wired one up would be violating Anthropic's terms of service, and the
-server-side enforcement means it would simply stop working. Usage is billed to
-your API account, not to a Claude subscription.
+`ANTHROPIC_BASE_URL` points the provider at a gateway:
 
-## Egress
+```shell
+export ANTHROPIC_BASE_URL="https://gateway.example.com/anthropic/v1"
+```
 
-Each wire API talks to exactly one host per request, and credentials never
-cross providers:
+A value naming only a host gains `/v1`, so `https://gateway.example.com` resolves
+the same way `https://gateway.example.com/v1` does. A value carrying a path is
+used as written.
 
-- `wire_api = "responses"`: only the provider's `base_url` host. For the
-  built-in OpenAI provider that is `chatgpt.com` (ChatGPT sign-in, path
-  `/backend-api/codex`) or `api.openai.com` (API key).
-- `wire_api = "chat"`: only the `base_url` host your provider table names.
-  ore ships no default host for this wire.
-- `wire_api = "anthropic"`: `api.anthropic.com`, unless your provider table
-  sets `base_url` to a gateway of your choosing.
+A `[model_providers.anthropic]` table does the same job and outranks the
+variable, which Ore reads only while no table claims the id:
 
-OpenAI/ChatGPT credentials are attached only to requests on the `responses`
-wire; the Anthropic adapter sends `x-api-key` and never an `Authorization`
-header. This is covered by tests that fail if an ambient ChatGPT credential
-ever appears on a third-party request.
+```toml
+[model_providers.anthropic]
+name = "Anthropic"
+wire_api = "anthropic"
+base_url = "https://gateway.example.com/anthropic/v1"
+env_key = "GATEWAY_TOKEN"
+```
+
+`env_key` names the variable the key is read from. Its value still travels in
+`x-api-key`.
+
+## Gemini
+
+Create a key in [Google AI Studio](https://aistudio.google.com) and export it:
+
+```shell
+export GEMINI_API_KEY="..."
+```
+
+```toml
+model = "gemini-2.5-pro"
+model_provider = "gemini"
+```
+
+Requests go to `https://generativelanguage.googleapis.com/v1beta`, carrying the
+key in an `x-goog-api-key` header, which keeps it out of request URLs and proxy
+access logs. Vertex AI service-account credentials are not supported; the
+provider authenticates with an AI Studio API key.
+
+`GEMINI_BASE_URL` redirects the provider the way `ANTHROPIC_BASE_URL` does, with
+`/v1beta` as the segment a bare host gains:
+
+```shell
+export GEMINI_BASE_URL="https://gateway.example.com/gemini/v1beta"
+```
+
+A `[model_providers.gemini]` table outranks the variable in the same way, and
+must set `wire_api = "gemini"`.

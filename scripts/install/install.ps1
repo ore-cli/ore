@@ -898,10 +898,11 @@ switch ($architecture) {
     }
 }
 
-$codexHome = if ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
+$oreHome = if ([string]::IsNullOrWhiteSpace($env:ORE_HOME)) { $env:CODEX_HOME } else { $env:ORE_HOME }
+$codexHome = if ([string]::IsNullOrWhiteSpace($oreHome)) {
     Join-Path $env:USERPROFILE ".ore"
 } else {
-    $env:CODEX_HOME
+    $oreHome
 }
 $standaloneRoot = Join-Path $codexHome "packages\standalone"
 $releasesDir = Join-Path $standaloneRoot "releases"
