@@ -83,6 +83,54 @@ inventing its own. Casting wider blocks commits CI would accept — `fork/*.yaml
 sits outside that glob deliberately, and prettier cannot parse
 `fork/substitutions.yaml` at all.
 
+## Reproducing CI locally
+
+The workspace needs a prebuilt V8; `cargo build` fails on `v8` without it. CI
+downloads one, and so can you — two env vars, and then everything builds:
+
+```bash
+VER=$(python3 .github/scripts/rusty_v8_bazel.py resolved-v8-crate-version)
+T=aarch64-apple-darwin              # or x86_64-unknown-linux-musl, etc.
+P=ptrcomp_sandbox_release
+BASE=https://github.com/openai/codex/releases/download/rusty-v8-v$VER
+mkdir -p /tmp/v8
+curl -fsSL "$BASE/librusty_v8_${P}_${T}.a.gz"  -o /tmp/v8/lib.a.gz
+curl -fsSL "$BASE/src_binding_${P}_${T}.rs"    -o /tmp/v8/binding.rs
+export RUSTY_V8_ARCHIVE=/tmp/v8/lib.a.gz RUSTY_V8_SRC_BINDING_PATH=/tmp/v8/binding.rs
+```
+
+Worth knowing before you conclude a failure "needs CI": it does not. A sync that
+looked unresolvable stayed that way only until this was set up, after which
+`git bisect run` named the offending commit in one pass.
+
+## Which tree to test on
+
+`delta` is not what ships. A substitution contradiction exists only *after*
+substitution, so a test that passes on the series proves nothing about main — a
+tui test built `home.join(".codex")` and asserted `~/.ore/…`, passed on delta,
+and failed on every assembled tree. Run substitution-sensitive tests on a
+checkout of the candidate.
+
+The two trees also answer different questions for the invariants:
+`version_check --root` on the series and `--tag` on the candidate are separate
+assertions, and passing the second says nothing about the first.
+
+## Before landing a sync
+
+```bash
+fork/preflight.sh <candidate-ref>     # run from a series checkout
+```
+
+It runs both trees' checks together, which is the step whose absence let a green
+sync turn `delta` red one push later.
+
+Triage rules it prints, worth repeating: a CI failure set that *changes* between
+runs is contention, one that *repeats* is real — re-run once before triaging.
+And before adding a `known-failing` entry, demonstrate the cause (pass before
+the seam commit and fail at the tip, or fail on a pristine upstream checkout).
+Resemblance to an existing entry is not evidence; at rust-v0.150.1 it pointed at
+the wrong cause twice.
+
 ## Before you claim something works
 
 Absence of output is not evidence of absence. A test filter that matches nothing
