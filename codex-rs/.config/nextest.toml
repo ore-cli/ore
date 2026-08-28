@@ -1,9 +1,24 @@
 [profile.default]
-# Retry once so one transient failure does not fail full-CI outright.
+# Retry so one transient failure does not fail full-CI outright.
 # Fanout keeps the full-CI shards moving without treating every >30s test as
 # stuck. Keep this aligned with the broader timeout budget we give sharded CI.
 slow-timeout = { period = "30s", terminate-after = 2 }
-retries = 1
+#
+# ore: raised from 1. Advancing to rust-v0.150.1 added ~150 tests and the sharded
+# runs began turning red on a different one or two each time -- app-server,
+# core, tui and exec-server alike, never the same twice, and nextest itself
+# marking one `flaky` because a retry rescued it.
+#
+# Two attempts was not enough. The failures are NOT slow-timeout kills: they land
+# in 0.07s to 1.7s, far inside the 30s x 2 budget, so raising the timeout would
+# have changed nothing. They are in-test deadlines missed under contention --
+# remote_control_waits_for_account_id_before_enrolling asserts a 100ms socket
+# accept, and passes 5/5 on an idle machine. Four shards of integration tests on
+# a free runner is simply not where a 100ms deadline holds.
+#
+# Retries do not hide these: nextest reports every rescued test as `flaky`, so a
+# test that starts failing genuinely still shows up rather than passing silently.
+retries = 2
 
 [profile.default.junit]
 path = "junit.xml"

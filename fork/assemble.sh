@@ -336,6 +336,31 @@ fi
 # Amended when the series tip already is this commit, never stacked, or every
 # sync would leave another one behind.
 BASE_RECORD_SLUG="series-records-its-own-base-tag"
+
+# The amend below only sees the TIP, and after a rebase onto a new tag the old
+# record is not there: it sits wherever the previous run put it, with the
+# series' own commits stacked on top. So the amend misses, the fresh commit is
+# added anyway, and the series carries two commits with this slug -- which
+# lint-series rejects as non-unique, stopping the very sync that produced it.
+# Found by rust-v0.150.0, the first sync to advance the base since this section
+# was written.
+#
+# The record is regenerated from $TAG every run, so an older one carries nothing
+# worth keeping and is dropped rather than reconciled. The replay is
+# conflict-free because no series commit after it touches fork/UPSTREAM.
+_stale=""
+while read -r _c; do
+  [[ -n "$_c" ]] || continue
+  if [[ "$(wt log -1 --format='%(trailers:key=Fork-Patch,valueonly)' "$_c" | tr -d '[:space:]')" == "$BASE_RECORD_SLUG" ]]; then
+    _stale="$_c"
+  fi
+done < <(wt log --format='%H' "$TAG_COMMIT..HEAD")
+if [[ -n "$_stale" && "$_stale" != "$(wt rev-parse HEAD)" ]]; then
+  wt rebase --onto "${_stale}^" "$_stale" >>"$APPLY_LOG" 2>&1 \
+    || fail_pass "could not drop the stale base record $(wt rev-parse --short "$_stale")"
+  info "dropped the stale base record $(wt rev-parse --short "$_stale")"
+fi
+
 _tag_object=$(git rev-parse "$TAG_REF")
 _tag_date=$(git for-each-ref --format='%(taggerdate:iso-strict)' "$TAG_REF")
 cat >"$WORKTREE/fork/UPSTREAM" <<EOF

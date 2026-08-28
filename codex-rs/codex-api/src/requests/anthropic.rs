@@ -241,13 +241,33 @@ impl<'a> AnthropicRequestBuilder<'a> {
                         "input": {"status": status, "action": action},
                     }),
                 ),
-                ResponseItem::FunctionCallOutput {
-                    call_id, output, ..
-                }
-                | ResponseItem::CustomToolCallOutput {
-                    call_id, output, ..
-                } => {
-                    let tool_use_id = local_shell_ids.get(call_id).unwrap_or(call_id);
+                item @ (ResponseItem::FunctionCallOutput { .. }
+                | ResponseItem::CustomToolCallOutput { .. }) => {
+                    // rust-v0.150.0 made FunctionCallOutput's call_id optional --
+                    // a named, unpaired output carries none -- while
+                    // CustomToolCallOutput's stayed required, so the two no longer
+                    // bind the same type in one or-pattern.
+                    let (call_id, output) = match item {
+                        ResponseItem::FunctionCallOutput { call_id, output, .. } => {
+                            (call_id.as_deref(), output)
+                        }
+                        ResponseItem::CustomToolCallOutput { call_id, output, .. } => {
+                            (Some(call_id.as_str()), output)
+                        }
+                        _ => unreachable!("the arm pattern admits only these two variants"),
+                    };
+                    // `tool_result` is keyed by `tool_use_id`. With no call_id there
+                    // is nothing to key it to and nothing to fall back on, so the
+                    // block cannot be built at all. Anthropic has no equivalent of
+                    // Gemini's self-naming path: the id IS the pairing.
+                    let Some(call_id) = call_id else {
+                        dropped.unpaired_tool_results += 1;
+                        continue;
+                    };
+                    let tool_use_id = local_shell_ids
+                        .get(call_id)
+                        .map(String::as_str)
+                        .unwrap_or(call_id);
                     let mut block = json!({
                         "type": "tool_result",
                         "tool_use_id": tool_use_id,
@@ -470,6 +490,7 @@ fn leading_block_rank(block: &Value) -> u8 {
 #[derive(Default)]
 struct Dropped {
     unsigned_thinking: usize,
+    unpaired_tool_results: usize,
     audio: usize,
     unparsable_tool_arguments: usize,
     encrypted_agent_messages: usize,
@@ -478,6 +499,12 @@ struct Dropped {
 
 impl Dropped {
     fn warn(&self) {
+        if self.unpaired_tool_results > 0 {
+            warn!(
+                "anthropic: dropped {} tool result(s) with no call_id to key them to",
+                self.unpaired_tool_results
+            );
+        }
         if self.unsigned_thinking > 0 {
             warn!(
                 "anthropic: dropped {} thinking block(s) with no signature",
@@ -1059,7 +1086,9 @@ mod tests {
     fn function_output(call_id: &str, text: &str) -> ResponseItem {
         ResponseItem::FunctionCallOutput {
             id: None,
-            call_id: call_id.to_string(),
+            call_id: Some(call_id.to_string()),
+            name: None,
+            namespace: None,
             output: FunctionCallOutputPayload::from_text(text.to_string()),
             internal_chat_message_metadata_passthrough: None,
         }
@@ -1403,7 +1432,9 @@ mod tests {
     fn a_failed_tool_result_is_flagged() {
         let failed = ResponseItem::FunctionCallOutput {
             id: None,
-            call_id: "call-a".to_string(),
+            call_id: Some("call-a".to_string()),
+            name: None,
+            namespace: None,
             output: FunctionCallOutputPayload {
                 body: FunctionCallOutputBody::Text("boom".to_string()),
                 success: Some(false),

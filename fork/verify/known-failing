@@ -135,3 +135,63 @@ package(codex-core) & test(production_turn_uses_provider_host_catalog_and_core_s
 # tests/suite/request_plugin_install.rs :840 — the wait lives in the shared
 # helper run_remote_plugin_install_metadata_case, whose only caller is:
 package(codex-core) & test(endpoint_recommendation_hydrates_install_identity_after_selection)
+
+# ---------------------------------------------------------------- rust-v0.150.1
+# Upstream reworked the turn path at rust-v0.150.1, and more of its app-server
+# suite now waits on the analytics POST that cause (1) makes unreachable. Each
+# entry below was demonstrated, not assumed: it passes at the commit BEFORE
+# telemetry-analytics-off (9d82eaf5) and times out at the series tip, and
+# `git bisect run` over the whole series named 3af82650cd -- "core: force
+# analytics off at the config seam" -- as the first bad commit. All of them also
+# pass on a pristine upstream rust-v0.150.1 checkout, so nothing about the tests
+# themselves is broken.
+#
+# Symptom is uniform: `Error: deadline has elapsed` after turn/started and
+# item/started, at ~15s, or ~35s for the two that name analytics outright.
+package(codex-app-server) & test(turn_start_with_empty_input_runs_model_request)
+package(codex-app-server) & test(direct_input_to_multi_agent_v2_subagent_is_rejected)
+package(codex-app-server) & test(turn_start_emits_spawn_agent_item_with_model_metadata_v2)
+package(codex-app-server) & test(thread_archive_requires_materialized_rollout)
+package(codex-app-server) & test(history_notes_and_async_message_emit_control_tool_analytics)
+package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytics)
+
+# (4) NOT ours — red on pristine upstream at the same tag.
+#
+# A fourth cause, and the first entries here that are not about a fork seam, so
+# they are kept separate rather than filed under (1). Both were run against an
+# unmodified rust-v0.150.1 worktree, same machine, same prebuilt v8, and failed
+# identically there. Excluding them keeps ore's CI reporting on ore's tree; it
+# does not paper over a fork regression, because there is no fork involvement to
+# paper over.
+#
+# Re-check these on the next sync: an upstream fix should let them come out.
+package(codex-app-server) & test(guardian_v2_computer_use_only_scopes_classification_and_fast_reviews)
+package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_authorization_changes)
+package(codex-mcp-server) & test(test_exec_command_approval_triggers_elicitation)
+# Overflows the stack in a debug build, on an unmodified rust-v0.150.1 worktree
+# as readily as on ore's. Not an assertion failure -- `fatal runtime error: stack
+# overflow` before any assertion runs.
+package(codex-tui) & test(active_patch_approval_pager_preserves_changes_and_accepts_once)
+# New at rust-v0.150.1, so it has no passing baseline here. Its sandbox mounts the
+# test's temp dir read-only and the shell profile then fails to write into it:
+#   /tmp/.../.bashrc: line 1: /tmp/.../captures: Read-only file system
+# exiting 41 where the test wants 0. That is bubblewrap's filesystem behaviour on
+# the runner, and ore changes nothing about sandboxing -- its series is telemetry,
+# the config home, the providers and the rename. It fails all three attempts, so
+# it is deterministic rather than contended, and it passes on macOS for ore and
+# for a pristine rust-v0.150.1 checkout alike.
+#
+# HONEST LIMIT: unlike the other cause-(4) entries, this one could NOT be checked
+# against pristine upstream on Linux, only on macOS where both pass. If it is
+# still failing at the next sync, run upstream's own exec-server suite on a Linux
+# runner before assuming it is ours.
+# Widened from the single test to the shell_snapshot_v2 family: its siblings fail
+# the same way for the same reason, and naming them one at a time only meant a
+# further CI round to find the next one.
+package(codex-exec-server) & test(shell_snapshot_v2_)
+
+# Fails on a pristine rust-v0.150.1 checkout as readily as here, and also fails
+# BEFORE the analytics seam, so it is neither cause (1) nor ours. Symptom is
+# `timeout waiting for event: Elapsed(())`. A sibling in the same file is already
+# excluded above for cause (1); this one is not that, despite the resemblance.
+package(codex-core) & test(snapshot_rollback_followup_turn_trims_context_updates)
