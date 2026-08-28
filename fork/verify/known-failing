@@ -172,3 +172,17 @@ package(codex-mcp-server) & test(test_exec_command_approval_triggers_elicitation
 # as readily as on ore's. Not an assertion failure -- `fatal runtime error: stack
 # overflow` before any assertion runs.
 package(codex-tui) & test(active_patch_approval_pager_preserves_changes_and_accepts_once)
+# New at rust-v0.150.1, so it has no passing baseline here. Its sandbox mounts the
+# test's temp dir read-only and the shell profile then fails to write into it:
+#   /tmp/.../.bashrc: line 1: /tmp/.../captures: Read-only file system
+# exiting 41 where the test wants 0. That is bubblewrap's filesystem behaviour on
+# the runner, and ore changes nothing about sandboxing -- its series is telemetry,
+# the config home, the providers and the rename. It fails all three attempts, so
+# it is deterministic rather than contended, and it passes on macOS for ore and
+# for a pristine rust-v0.150.1 checkout alike.
+#
+# HONEST LIMIT: unlike the other cause-(4) entries, this one could NOT be checked
+# against pristine upstream on Linux, only on macOS where both pass. If it is
+# still failing at the next sync, run upstream's own exec-server suite on a Linux
+# runner before assuming it is ours.
+package(codex-exec-server) & test(shell_snapshot_v2_filters_profile_exports_and_stays_in_memory)
