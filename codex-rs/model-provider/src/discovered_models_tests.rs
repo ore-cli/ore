@@ -418,7 +418,7 @@ fn gateway_provider_info(base_url: &str) -> ModelProviderInfo {
         base_url: Some(base_url.to_string()),
         wire_api: WireApi::Chat,
         requires_openai_auth: false,
-        experimental_bearer_token: Some("gateway-token".to_string()),
+        experimental_bearer_token: Some("gateway-token".to_string().into()),
         ..ModelProviderInfo::default()
     }
 }
@@ -429,7 +429,7 @@ fn anthropic_gateway_info(base_url: &str) -> ModelProviderInfo {
         base_url: Some(base_url.to_string()),
         wire_api: WireApi::Anthropic,
         requires_openai_auth: false,
-        experimental_bearer_token: Some("gateway-token".to_string()),
+        experimental_bearer_token: Some("gateway-token".to_string().into()),
         ..ModelProviderInfo::default()
     }
 }

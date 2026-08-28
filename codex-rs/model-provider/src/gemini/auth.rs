@@ -114,7 +114,11 @@ fn gemini_api_key_auth_from(
         // Blank-filtered like the other two sources: a token of "   " trims to ""
         // and `HeaderValue::from_str("")` is Ok, which would send an empty
         // `x-goog-api-key` header with no error anywhere.
-        return GeminiApiKeyAuthProvider::try_new("experimental_bearer_token", token, instructions);
+        return GeminiApiKeyAuthProvider::try_new(
+            "experimental_bearer_token",
+            token.to_string(),
+            instructions,
+        );
     }
 
     match env(GEMINI_API_KEY_ENV_VAR) {
@@ -363,7 +367,7 @@ mod tests {
     fn a_configured_token_is_used_when_no_env_key_is_declared() {
         let provider = ModelProviderInfo {
             env_key: None,
-            experimental_bearer_token: Some("AIzaSyConfigured".to_string()),
+            experimental_bearer_token: Some("AIzaSyConfigured".to_string().into()),
             ..create_gemini_provider(/*base_url*/ None)
         };
 

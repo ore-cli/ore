@@ -113,7 +113,7 @@ fn anthropic_api_key_auth_from(
         // `x-api-key` header, sent with no error anywhere.
         return AnthropicApiKeyAuthProvider::try_new(
             "experimental_bearer_token",
-            token,
+            token.to_string(),
             instructions,
         );
     }
@@ -377,7 +377,7 @@ mod tests {
     fn a_configured_token_is_used_when_no_env_key_is_declared() {
         let provider = ModelProviderInfo {
             env_key: None,
-            experimental_bearer_token: Some("sk-ant-configured".to_string()),
+            experimental_bearer_token: Some("sk-ant-configured".to_string().into()),
             ..create_anthropic_provider(/*base_url*/ None)
         };
 
