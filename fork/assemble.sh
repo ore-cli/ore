@@ -402,6 +402,43 @@ EOF
   info "series now records $TAG as its base"
 fi
 
+# fork/VERSION must track the base minor -- scheme C is 1.{upstream_minor}.{ore
+# patch} -- and on a base advance that is DERIVED, not decided: the minor has no
+# freedom, only the patch does. Pass 3d writes it into the assembled tree, which
+# left the series behind: after the rust-v0.150.1 sync, delta said 1.149.1 while
+# its own fork/UPSTREAM said rust-v0.150.1, and both the scheme-C guard and
+# fork_version_is_scheme_c_and_tracks_the_upstream_minor went red on the push
+# that landed it. main was never wrong; the series just had no commit saying so.
+#
+# Writing it here, as a series commit next to the base record it belongs with,
+# means the two move together or not at all. A respin still bumps the PATCH by
+# hand -- that part is a decision and stays one.
+_upstream_minor=$(sed -E 's/^rust-v[0-9]+\.([0-9]+)\.[0-9]+$/\1/' <<<"$TAG")
+_series_version=$(tr -d '[:space:]' <"$WORKTREE/fork/VERSION")
+if [[ "$(cut -d. -f2 <<<"$_series_version")" != "$_upstream_minor" ]]; then
+  _new_version="1.$_upstream_minor.0"
+  printf '%s\n' "$_new_version" >"$WORKTREE/fork/VERSION"
+  wt add fork/VERSION
+  wt -c "user.name=$BOT_NAME" -c "user.email=$BOT_EMAIL" -c commit.gpgsign=false \
+    commit --quiet -F - <<EOF
+release: $_new_version
+
+Written by fork/assemble.sh alongside the base record. Scheme C ties the minor to
+the upstream base, so advancing to $TAG forces $_new_version; only the patch is a
+choice, and a respin bumps that by hand.
+
+The assembled tree gets this from the version pass either way. This commit is
+what stops the SERIES disagreeing with what ships -- the case that turned delta
+red immediately after the rust-v0.150.1 sync landed.
+
+Fork-Patch: release-${_new_version//./-}
+Purpose: Keep fork/VERSION on the series tracking the base it is rebased onto.
+Invariant: minor(fork/VERSION) equals the minor of the base tag in fork/UPSTREAM.
+Verify: fork/verify/version_check.py --root <series checkout> reports scheme C clean.
+EOF
+  info "version: series now records $_new_version"
+fi
+
 SERIES_HEAD=$(wt rev-parse HEAD)
 SLUGS_AFTER=$(slugs_of "$TAG_COMMIT" "$SERIES_HEAD")
 DROPPED=$(comm -23 <(printf '%s\n' "$SLUGS_BEFORE") <(printf '%s\n' "$SLUGS_AFTER") | sed '/^$/d' || true)
