@@ -73,6 +73,20 @@ leakage) must not appear at all, keep literals (auth wire ids) must still exist 
 new upstream endpoint arriving with a sync and a substitution over-reach alike."""
 
 [[check]]
+id = "known-failing-live"
+script = "known_failing_check.py"
+suite = "static"
+severity = "hard"
+needs_v8 = false
+release_required = false
+args = ["--root", "{root}"]
+reason = """Every known-failing entry still names a test that exists in codex-rs. A filterset \
+that matches nothing excludes nothing and reports success either way, so an entry whose test \
+upstream renamed decays into a comment that looks like coverage -- three had already done so \
+by rust-v0.150.1. Cheap half of the check: `nextest list` is the strict version but needs a \
+build and a v8 artifact."""
+
+[[check]]
 id = "helper-telemetry"
 script = "helper_telemetry.py"
 suite = "static"
