@@ -45,7 +45,7 @@ fn anthropic_provider(server: &MockServer) -> ModelProviderInfo {
         env_key_instructions: None,
         // A configured token keeps the test hermetic: no ANTHROPIC_API_KEY env
         // dependency, and the adapter must still spell it `x-api-key`.
-        experimental_bearer_token: Some(TEST_API_KEY.to_string()),
+        experimental_bearer_token: Some(TEST_API_KEY.to_string().into()),
         auth: None,
         aws: None,
         wire_api: WireApi::Anthropic,
@@ -114,6 +114,7 @@ async fn run_anthropic_turn(sse_body: &'static str) -> (Vec<ResponseEvent>, wire
         SessionSource::Exec,
         "test_originator".to_string(),
         config.model_verbosity,
+        /*content_item_kinds_enabled*/ false,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
         /*beta_features_header*/ None,
