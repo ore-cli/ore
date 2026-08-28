@@ -168,3 +168,7 @@ package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytic
 package(codex-app-server) & test(guardian_v2_computer_use_only_scopes_classification_and_fast_reviews)
 package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_authorization_changes)
 package(codex-mcp-server) & test(test_exec_command_approval_triggers_elicitation)
+# Overflows the stack in a debug build, on an unmodified rust-v0.150.1 worktree
+# as readily as on ore's. Not an assertion failure -- `fatal runtime error: stack
+# overflow` before any assertion runs.
+package(codex-tui) & test(active_patch_approval_pager_preserves_changes_and_accepts_once)
