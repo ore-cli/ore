@@ -110,6 +110,7 @@ async fn stream_turn_with(
         SessionSource::Exec,
         "test_originator".to_string(),
         config.model_verbosity,
+        /*content_item_kinds_enabled*/ false,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
         /*beta_features_header*/ None,
