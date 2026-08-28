@@ -243,7 +243,7 @@ fn anthropic_model(
         description: Some(description.to_string()),
         default_reasoning_level,
         supported_reasoning_levels,
-        shell_type: ConfigShellToolType::Default,
+        shell_type: ConfigShellToolType::UnifiedExec,
         visibility: ModelVisibility::List,
         supported_in_api: true,
         priority,
@@ -386,7 +386,7 @@ impl AnthropicModelProvider {
         info.http_headers
             .get_or_insert_default()
             .entry(info::ANTHROPIC_VERSION_HEADER.to_string())
-            .or_insert_with(|| info::ANTHROPIC_VERSION.to_string());
+            .or_insert_with(|| info::ANTHROPIC_VERSION.to_string().into());
         // A first-party credential is never valid against the Messages API, and
         // carrying it makes the catalog path treat this provider as the Codex backend.
         let auth_manager = if info.has_command_auth() {
@@ -578,7 +578,7 @@ mod tests {
                 .http_headers
                 .as_ref()
                 .and_then(|headers| headers.get(info::ANTHROPIC_VERSION_HEADER))
-                .map(String::as_str),
+                .map(|value| value.as_str()),
             Some(info::ANTHROPIC_VERSION),
         );
     }

@@ -101,7 +101,7 @@ fn create_anthropic_provider_from(
         query_params: None,
         http_headers: Some(HashMap::from([(
             ANTHROPIC_VERSION_HEADER.to_string(),
-            ANTHROPIC_VERSION.to_string(),
+            ANTHROPIC_VERSION.to_string().into(),
         )])),
         env_http_headers: None,
         request_max_retries: None,
@@ -138,7 +138,7 @@ mod tests {
                 .http_headers
                 .as_ref()
                 .and_then(|headers| headers.get(ANTHROPIC_VERSION_HEADER))
-                .map(String::as_str),
+                .map(|value| value.as_str()),
             Some(ANTHROPIC_VERSION),
         );
     }
