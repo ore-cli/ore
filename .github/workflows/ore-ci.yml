@@ -366,24 +366,29 @@ jobs:
       - name: Run the static invariant suite
         run: python3 fork/verify/run.py --suite static
 
-      # test_install_ps1.py only. Its sibling test_install_sh.py asserts upstream's
-      # release coordinates (releases.openai.com) against an installer the rebrand
-      # correctly repointed at ore's GitHub releases, so sixteen of its cases cannot
-      # pass on a rendered tree -- fixing that is a decision about what those tests
-      # should assert, not a chore, and it is not this job's to make.
+      # Both installer suites, through fork/verify/installer_tests.py so the
+      # policy about which cases apply lives in ore's code rather than as edits
+      # to upstream's test file.
       #
-      # Five cases need a tree that has been through substitute.py and skip on delta;
-      # the PowerShell ones need pwsh. A runner without it would skip seven cases and
-      # still report success, which is the silent-green failure this repo has already
-      # shipped twice -- so check for it rather than trusting the image.
-      - name: Test the Windows installer
+      # On delta everything runs. On an assembled tree the runner deselects
+      # test_install_sh.py's test_releases_* cases and says so, because the
+      # rebrand empties RELEASES_BASE_URL: install.sh then cannot take the
+      # releases.openai.com path those cases drive, and goes straight to GitHub
+      # Releases, which is the whole point of the substitution.
+      #
+      # The pwsh guard is as load-bearing as the tests. Without an interpreter
+      # seven cases skip and the step still reports success -- silent green, which
+      # this repository has shipped more than once. ubuntu-24.04 ships PowerShell
+      # 7.6.5 and pins it, so this should never fire; if the image drops it, this
+      # fails loudly instead of quietly covering nothing.
+      - name: Test the installers
         run: |
           set -euo pipefail
           if ! command -v pwsh >/dev/null 2>&1; then
             echo "::error::pwsh is not on this runner; the PowerShell cases would skip silently"
             exit 1
           fi
-          python3 -m unittest discover -s scripts/install -p 'test_install_ps1.py' -v
+          python3 fork/verify/installer_tests.py --root .
 
       # Trailer lint for the delta series: `Fork-Patch:` slugs are how a rebase
       # notices an upstream-absorbed commit, so a commit without one is a commit
