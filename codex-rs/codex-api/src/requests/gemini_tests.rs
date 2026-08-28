@@ -80,7 +80,9 @@ fn function_call(call_id: &str, name: &str, arguments: &str) -> ResponseItem {
 fn function_output(call_id: &str, text: &str) -> ResponseItem {
     ResponseItem::FunctionCallOutput {
         id: None,
-        call_id: call_id.to_string(),
+        call_id: Some(call_id.to_string()),
+        name: None,
+        namespace: None,
         output: FunctionCallOutputPayload::from_text(text.to_string()),
         internal_chat_message_metadata_passthrough: None,
     }
@@ -199,11 +201,62 @@ fn a_tool_result_with_no_preceding_call_is_dropped() {
     );
 }
 
+/// rust-v0.150.0 lets a FunctionCallOutput carry its own `name` instead of
+/// pairing to a call. Gemini needs a name for `functionResponse`, so a named
+/// output is still emitted, flattened the way `tools` advertises it.
+#[test]
+fn an_unpaired_output_names_itself() {
+    let output = ResponseItem::FunctionCallOutput {
+        id: None,
+        call_id: None,
+        name: Some("search".to_string()),
+        namespace: Some("docs".to_string()),
+        output: FunctionCallOutputPayload {
+            body: FunctionCallOutputBody::Text("found".to_string()),
+            success: None,
+        },
+        internal_chat_message_metadata_passthrough: None,
+    };
+    // The user turn and the tool result share role "user", so they merge into
+    // one `contents` entry rather than two.
+    let body = body_of(&[user_message("go"), output]);
+
+    assert_eq!(
+        body["contents"][0]["parts"][1]["functionResponse"]["name"],
+        json!(flattened_tool_name("search", Some("docs")))
+    );
+}
+
+/// With neither a pairing nor a name there is nothing to call the response
+/// after, so it is dropped rather than sent as a guaranteed 400.
+#[test]
+fn an_output_with_no_call_id_and_no_name_is_dropped() {
+    let output = ResponseItem::FunctionCallOutput {
+        id: None,
+        call_id: None,
+        name: None,
+        namespace: None,
+        output: FunctionCallOutputPayload {
+            body: FunctionCallOutputBody::Text("orphan".to_string()),
+            success: None,
+        },
+        internal_chat_message_metadata_passthrough: None,
+    };
+    let body = body_of(&[user_message("hi"), output]);
+
+    assert_eq!(
+        body["contents"],
+        json!([{"role": "user", "parts": [{"text": "hi"}]}])
+    );
+}
+
 #[test]
 fn a_failed_tool_result_reports_under_the_error_key() {
     let output = ResponseItem::FunctionCallOutput {
         id: None,
-        call_id: "call-1".to_string(),
+        call_id: Some("call-1".to_string()),
+        name: None,
+        namespace: None,
         output: FunctionCallOutputPayload {
             body: FunctionCallOutputBody::Text("boom".to_string()),
             success: Some(false),
@@ -243,7 +296,9 @@ fn an_empty_tool_result_still_carries_text() {
 fn tool_result_images_ride_beside_the_response_part() {
     let output = ResponseItem::FunctionCallOutput {
         id: None,
-        call_id: "call-1".to_string(),
+        call_id: Some("call-1".to_string()),
+        name: None,
+        namespace: None,
         output: FunctionCallOutputPayload::from_content_items(vec![
             FunctionCallOutputContentItem::InputText {
                 text: "see below".to_string(),
