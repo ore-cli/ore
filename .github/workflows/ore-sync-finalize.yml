@@ -18,6 +18,19 @@ name: ore-sync-finalize
 on:
   pull_request_review:
     types: [submitted]
+  # A maintainer who repairs a blocked sync ends up AUTHORING the PR, and GitHub
+  # refuses to let an author approve their own -- so the review door is shut in
+  # exactly the case that needs it most. This is the same door with the same
+  # locks: write access, ore-ci green, and every ancestry check below. It is not
+  # a bypass, and merging through GitHub's button is still forbidden -- that
+  # makes a fresh merge commit with different parents and breaks main's
+  # append-only spine.
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "sync PR number to finalize"
+        required: true
+        type: string
 
 # Shared with ore-sync.yml: a finalize must never interleave with a sync.
 concurrency:
@@ -29,13 +42,17 @@ permissions: {}
 jobs:
   finalize:
     name: finalize
+    # The dispatch path asserts these same conditions in "Resolve the pull
+    # request" instead, read from the API rather than an event payload it does
+    # not have. Neither door skips any of them.
     if: >-
-      github.event.review.state == 'approved' &&
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.review.state == 'approved' &&
       github.event.pull_request.state == 'open' &&
       github.event.pull_request.base.ref == 'main' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       startsWith(github.event.pull_request.head.ref, 'sync/') &&
-      contains(github.event.pull_request.labels.*.name, 'sync')
+      contains(github.event.pull_request.labels.*.name, 'sync'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -46,6 +63,41 @@ jobs:
           app-id: ${{ secrets.ORE_SYNC_APP_ID }}
           private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
 
+      # One source of PR facts for both doors. The review path has them in its
+      # payload; the dispatch path does not, so they are read from the API and
+      # the same conditions the `if:` asserts are re-asserted here. A dispatch
+      # that names a PR which is closed, not on main, not a sync/* head, from a
+      # fork, or unlabelled fails right here.
+      - name: Resolve the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          NUM: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          set -euo pipefail
+          json="$(gh api "repos/$REPO/pulls/$NUM")"
+          state=$(jq -r .state <<<"$json")
+          base=$(jq -r .base.ref <<<"$json")
+          head_ref=$(jq -r .head.ref <<<"$json")
+          head_repo=$(jq -r '.head.repo.full_name // ""' <<<"$json")
+          head_sha=$(jq -r .head.sha <<<"$json")
+          labels=$(jq -r '[.labels[].name] | join(",")' <<<"$json")
+
+          fail() { echo "::error::PR #$NUM $1"; exit 1; }
+          [ "$state" = "open" ]              || fail "is '$state', not open"
+          [ "$base" = "main" ]               || fail "targets '$base', not main"
+          [ "$head_repo" = "$REPO" ]         || fail "head is on '$head_repo', not $REPO"
+          case "$head_ref" in sync/*) ;; *) fail "head '$head_ref' is not a sync/* branch" ;; esac
+          case ",$labels," in *,sync,*) ;; *) fail "is not labelled 'sync' (has: $labels)" ;; esac
+
+          {
+            echo "number=$NUM"
+            echo "head_ref=$head_ref"
+            echo "sha=$head_sha"
+          } >>"$GITHUB_OUTPUT"
+          echo "PR #$NUM: $head_ref @ $head_sha"
+
       # author_association is computed for the viewer of the payload, so a
       # reviewer whose organization membership is private arrives as NONE even
       # when they administer the repository -- which is what skipped this job on
@@ -54,7 +106,7 @@ jobs:
       - name: Require the reviewer to have write access
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REVIEWER: ${{ github.event.review.user.login }}
+          REVIEWER: ${{ github.event.review.user.login || github.actor }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -69,7 +121,7 @@ jobs:
       - name: Require ore-ci green on the reviewed commit
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          M: ${{ github.event.pull_request.head.sha }}
+          M: ${{ steps.pr.outputs.sha }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -92,8 +144,8 @@ jobs:
 
       - name: Fast-forward main, advance delta, drop the temp branches
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          M: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          M: ${{ steps.pr.outputs.sha }}
           APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
