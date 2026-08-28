@@ -276,15 +276,38 @@ impl<'a> GeminiRequestBuilder<'a> {
                         ),
                     );
                 }
-                ResponseItem::FunctionCallOutput {
-                    call_id, output, ..
-                }
-                | ResponseItem::CustomToolCallOutput {
-                    call_id, output, ..
-                } => {
-                    // A result naming a function the model was never offered is
-                    // a 400, and there is no id to fall back on here.
-                    let Some(name) = call_names.get(call_id) else {
+                item @ (ResponseItem::FunctionCallOutput { .. }
+                | ResponseItem::CustomToolCallOutput { .. }) => {
+                    // rust-v0.150.0 made FunctionCallOutput's call_id optional --
+                    // a named, unpaired output carries none -- while
+                    // CustomToolCallOutput's stayed required, so the two no longer
+                    // bind the same type in one or-pattern.
+                    let (call_id, named, output) = match item {
+                        ResponseItem::FunctionCallOutput {
+                            call_id,
+                            name,
+                            namespace,
+                            output,
+                            ..
+                        } => (
+                            call_id.as_deref(),
+                            // `tools` advertises only the flattened spelling, so a
+                            // self-naming output flattens the same way the call
+                            // side does.
+                            name.as_ref()
+                                .map(|n| flattened_tool_name(n, namespace.as_deref())),
+                            output,
+                        ),
+                        ResponseItem::CustomToolCallOutput {
+                            call_id, output, ..
+                        } => (Some(call_id.as_str()), None, output),
+                        _ => unreachable!("the arm pattern admits only these two variants"),
+                    };
+                    // A result naming a function the model was never offered is a
+                    // 400. Prefer the pairing, fall back to the output's own name,
+                    // and drop it when neither names a function.
+                    let name = call_id.and_then(|id| call_names.get(id).cloned()).or(named);
+                    let Some(name) = name else {
                         dropped.orphaned_tool_results += 1;
                         continue;
                     };
