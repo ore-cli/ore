@@ -537,6 +537,29 @@ categories:
       pattern: '~/\.codex/'
       replace: '~/.${bin}/'
 
+    - name: home-codex-dir-in-the-agents-summary-test
+      note: >
+        rust-v0.150.1 added a tui test that builds `home.join(".codex")` and asserts
+        the summary renders it as `~/.codex/AGENTS.md`. config-home-in-help-text
+        rewrites the ASSERTION, because it is anchored to `~/.codex/`, and leaves the
+        bare `.codex` in the constructor alone -- that exception exists so a
+        project-local `.codex/` keeps its name, which is baked into the sandbox policy.
+
+        Both behaviours are right on their own and contradict each other here: the
+        assembled test feeds a `.codex` path in and expects `~/.ore/` out, which cannot
+        pass. This one is not a project-local directory, it is `home.join`, so it is
+        the user's home and follows the rename.
+
+        Scoped to the one file rather than widened into the anchored rule: every other
+        `join(".codex")` in the tree IS a project-local or legacy-layer path that must
+        keep its name -- config_layering.rs and telemetry.rs assert about the legacy
+        home ore layers underneath, and rewriting those makes them assert that ore is
+        layered under ore.
+      files: [codex-rs/tui/src/status/helpers.rs]
+      rust_literals_only: false
+      pattern: 'home\.join\("\.codex"\)'
+      replace: 'home.join(".${bin}")'
+
     - name: ui-openai-codex
       globs: ["codex-rs/**/*.rs", "**/*.md", "*.nix", "codex-rs/**/*.nix"]
       pattern: 'OpenAI Codex'
