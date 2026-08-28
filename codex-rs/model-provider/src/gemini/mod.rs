@@ -242,7 +242,7 @@ fn gemini_model(
         description: Some(description.to_string()),
         default_reasoning_level,
         supported_reasoning_levels,
-        shell_type: ConfigShellToolType::Default,
+        shell_type: ConfigShellToolType::UnifiedExec,
         visibility: ModelVisibility::List,
         supported_in_api: true,
         priority,
