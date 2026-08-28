@@ -185,4 +185,13 @@ package(codex-tui) & test(active_patch_approval_pager_preserves_changes_and_acce
 # against pristine upstream on Linux, only on macOS where both pass. If it is
 # still failing at the next sync, run upstream's own exec-server suite on a Linux
 # runner before assuming it is ours.
-package(codex-exec-server) & test(shell_snapshot_v2_filters_profile_exports_and_stays_in_memory)
+# Widened from the single test to the shell_snapshot_v2 family: its siblings fail
+# the same way for the same reason, and naming them one at a time only meant a
+# further CI round to find the next one.
+package(codex-exec-server) & test(shell_snapshot_v2_)
+
+# Fails on a pristine rust-v0.150.1 checkout as readily as here, and also fails
+# BEFORE the analytics seam, so it is neither cause (1) nor ours. Symptom is
+# `timeout waiting for event: Elapsed(())`. A sibling in the same file is already
+# excluded above for cause (1); this one is not that, despite the resemblance.
+package(codex-core) & test(snapshot_rollback_followup_turn_trims_context_updates)
