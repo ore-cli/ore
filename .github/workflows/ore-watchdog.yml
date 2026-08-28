@@ -65,7 +65,7 @@ jobs:
           fi
           if [ "$blocked" -gt 0 ]; then
             status=alarm
-            notes="${notes}- ${blocked} open sync-blocked issue(s): a rebase stopped on conflicts and no sync can land until it is resolved\n"
+            notes="${notes}- ${blocked} open sync-blocked issue(s): a sync stopped -- conflicts, or a clean rebase that then failed to build or regenerate -- and none can land until it is resolved\n"
           fi
           if [ "$main_concl" != "success" ]; then
             status=alarm

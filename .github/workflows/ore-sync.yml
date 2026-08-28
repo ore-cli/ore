@@ -264,57 +264,88 @@ jobs:
           RC: ${{ steps.assemble.outputs.rc }}
         run: |
           set -euo pipefail
-          case "$RC" in
-            2) ;;
-            3)
-              echo "::error::generated-pass failure (exit 3): substitutions, fmt, version/lock, schema or snapshots -- see the assembly-reports artifact"
-              exit 3
-              ;;
-            4)
-              echo "::error::precondition failure (exit 4): nothing was touched -- see the assemble log above"
-              exit 4
-              ;;
-            *)
-              echo "::error::assemble.sh exited $RC"
-              exit 1
-              ;;
-          esac
-          # Exit 2: the rebase stopped on conflicts. The runner (and the
-          # conflicted worktree) evaporate after this job, so the issue body
-          # is the durable record of what conflicted and how.
-          conflicted="$(git -C "$ASSEMBLY" diff --name-only --diff-filter=U || true)"
-          git -C "$ASSEMBLY" diff >"$RUNNER_TEMP/conflicts.diff" || true
-          {
-            echo "The sync \`$BASE\` -> \`$TAG\` stopped on rebase conflicts (assemble.sh exit 2)."
-            echo
-            echo "Resolve locally: run \`fork/assemble.sh --tag $TAG\` in a clone, resolve each"
-            echo "stop (rerere records every resolution), push \`refs/heads/rerere-cache\` via"
-            echo "safe_push, and the next scheduled run replays the resolutions and opens the PR."
-            echo
-            echo "## conflicted files"
-            echo '```'
-            echo "$conflicted"
-            echo '```'
-            echo
-            echo "## apply log (tail)"
-            tail -n 120 "$OUT_DIR/apply-log.md"
-            echo
-            echo "## conflict state (truncated diff)"
-            echo '```diff'
-            head -c 20000 "$RUNNER_TEMP/conflicts.diff"
-            echo
-            echo '```'
-          } >"$RUNNER_TEMP/issue.md"
-          gh label create sync-blocked --repo "$GITHUB_REPOSITORY" \
-            --description "a sync stopped on rebase conflicts" --color B60205 2>/dev/null || true
-          if [ "$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label sync-blocked --json number --jq length)" -gt 0 ]; then
-            echo "an open sync-blocked issue already exists; not filing a duplicate"
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --label sync-blocked \
-              --title "sync blocked: $BASE -> $TAG (rebase conflicts)" \
-              --body-file "$RUNNER_TEMP/issue.md"
-          fi
-          exit 2
+            # Every non-zero exit files an issue. A sync that fails leaves no
+            # other durable record: the runner and its worktree evaporate, the run
+            # log expires, and the assembly-reports artifact ages out in 90 days.
+            # An exit-3 sync also has to reach the watchdog, which alarms on an open
+            # sync-blocked issue but NOT on a failed sync run -- so before this, a
+            # generated-pass failure was visible only as text in one daily digest.
+            case "$RC" in
+              2) kind="rebase conflicts" ;;
+              3) kind="a generated pass failed" ;;
+              4) kind="a precondition failed" ;;
+              *) kind="assemble.sh exited $RC" ;;
+            esac
+
+            {
+              echo "The sync \`$BASE\` -> \`$TAG\` stopped: $kind (assemble.sh exit $RC)."
+              echo
+              case "$RC" in
+                2)
+                  conflicted="$(git -C "$ASSEMBLY" diff --name-only --diff-filter=U || true)"
+                  git -C "$ASSEMBLY" diff >"$RUNNER_TEMP/conflicts.diff" || true
+                  echo "Resolve locally: run \`fork/assemble.sh --tag $TAG\` in a clone, resolve each"
+                  echo "stop (rerere records every resolution), push \`refs/heads/rerere-cache\` via"
+                  echo "safe_push, and the next scheduled run replays the resolutions and opens the PR."
+                  echo
+                  echo "## conflicted files"
+                  echo '```'
+                  echo "$conflicted"
+                  echo '```'
+                  echo
+                  echo "## apply log (tail)"
+                  tail -n 120 "$OUT_DIR/apply-log.md"
+                  echo
+                  echo "## conflict state (truncated diff)"
+                  echo '```diff'
+                  head -c 20000 "$RUNNER_TEMP/conflicts.diff"
+                  echo
+                  echo '```'
+                  ;;
+                3)
+                  # The rebase itself succeeded, so this is a SEMANTIC break: the
+                  # series applied without a textual conflict and then failed to
+                  # build, format or regenerate. Nothing in the diff shows it.
+                  echo "The series rebased cleanly and then failed a generated pass --"
+                  echo "substitutions, fmt, version/lock, schema or snapshots. A clean rebase"
+                  echo "that does not build is the case no conflict marker announces."
+                  echo
+                  echo "Reproduce locally: \`fork/assemble.sh --tag $TAG\`"
+                  echo
+                  echo "## failing pass"
+                  echo '```'
+                  grep -aE '^pass failed:' "$OUT_DIR/passes.md" || echo "(see the tail below)"
+                  echo '```'
+                  echo
+                  echo "## passes report (tail)"
+                  echo '```'
+                  tail -c 20000 "$OUT_DIR/passes.md"
+                  echo
+                  echo '```'
+                  ;;
+                *)
+                  echo "Reproduce locally: \`fork/assemble.sh --tag $TAG\`"
+                  echo
+                  echo "## assemble log (tail)"
+                  echo '```'
+                  tail -c 20000 "$RUNNER_TEMP/assemble.log" 2>/dev/null || echo "(no assemble log captured)"
+                  echo
+                  echo '```'
+                  ;;
+              esac
+            } >"$RUNNER_TEMP/issue.md"
+
+            gh label create sync-blocked --repo "$GITHUB_REPOSITORY" \
+              --description "a sync stopped and cannot land until it is resolved" --color B60205 2>/dev/null || true
+            if [ "$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label sync-blocked --json number --jq length)" -gt 0 ]; then
+              echo "an open sync-blocked issue already exists; not filing a duplicate"
+            else
+              gh issue create --repo "$GITHUB_REPOSITORY" --label sync-blocked \
+                --title "sync blocked: $BASE -> $TAG ($kind)" \
+                --body-file "$RUNNER_TEMP/issue.md"
+            fi
+            echo "::error::sync $BASE -> $TAG stopped: $kind (exit $RC)"
+            exit "$RC"
 
       # Verification runs against the merge candidate M itself, detached --
       # the same commit ore-ci will judge on the PR -- not against the
