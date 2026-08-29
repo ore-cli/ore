@@ -73,8 +73,6 @@ package(codex-app-server) & test(guardian_v2_threshold_score_requires_full_revie
 # rust-v0.150.1: upstream had renamed or removed those tests, so the expressions
 # matched nothing and had been excluding nothing. known_failing_check.py exists
 # to catch that from now on.
-package(codex-app-server) & test(resumed_thread_starts_without_guardian_score)
-package(codex-app-server) & test(forked_thread_starts_without_guardian_score)
 
 # --- (1) codex-app-server: tests awaiting an analytics POST -----------------
 # suite/v2/analytics.rs — the five plugin-measurement tests share
