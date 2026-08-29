@@ -174,6 +174,18 @@ package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytic
 # paper over.
 #
 # Re-check these on the next sync: an upstream fix should let them come out.
+#
+# Re-checked at rust-v0.151.0. The mcp-server entry is still upstream-red:
+# test_exec_command_approval_triggers_elicitation fails on a pristine
+# rust-v0.151.0 checkout in 0.09s, with no guardian and no metrics involvement,
+# so that result is clean and the entry stays.
+#
+# The two guardian_v2 entries below were NOT re-checked, deliberately. A pristine
+# rust-v0.151.0 run of the guardian family on macOS dies of
+#   thread 'codex-approval-review' has overflowed its stack
+# which appears nowhere in ore's Linux CI, so a macOS re-check cannot separate an
+# upstream regression from that local fault. They need a Linux runner -- the same
+# limit the rust-v0.151.0 guardian block below records for its own entries.
 package(codex-app-server) & test(guardian_v2_computer_use_only_scopes_classification_and_fast_reviews)
 package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_authorization_changes)
 package(codex-mcp-server) & test(test_exec_command_approval_triggers_elicitation)
