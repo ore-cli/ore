@@ -49,7 +49,19 @@ NON_SHIPPING = ("dev-dependencies", "build-dependencies")
 # is listed so its REMOVAL is noticed too, the way deps_gate refuses silent
 # removals.
 BASELINE: dict[str, bool] = {
-    "code-mode-host": False,
+    # RULED at rust-v0.151.0. Upstream added OTel tracing here (openai/codex
+    # 3ba7b694) and this tripwire stopped the sync for a verdict, which is what
+    # it was written for. The verdict: harmless as shipped. Both entry points are
+    # opt-in CLI flags -- --otel-trace-exporter takes the endpoint as an argument,
+    # --otel-trace-listen binds 127.0.0.1 on an ephemeral port -- and there is no
+    # hard-coded remote endpoint anywhere in the crate. Nothing exports unless a
+    # user asks it to, by name, on the command line.
+    #
+    # It is still outside the analytics seam, because this binary has its own
+    # main and never loads codex-core's config. So the thing to watch on a future
+    # sync is a DEFAULT appearing: an env var that turns it on, or an endpoint
+    # compiled in. Flipping this back to False would then be the fix.
+    "code-mode-host": True,
     "responses-api-proxy": False,
     "windows-sandbox-rs": True,
 }

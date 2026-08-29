@@ -1,0 +1,7 @@
+---
+source: tui/src/bottom_pane/textarea/hyperlinks_tests.rs
+expression: visible
+---
+Fix CI on https://
+github.com/ore-cli/ore/
+pull/20252
