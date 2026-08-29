@@ -49,6 +49,10 @@ fn wire_effort(effort: Option<&ReasoningEffort>) -> Option<&'static str> {
         ReasoningEffort::None
         | ReasoningEffort::Minimal
         | ReasoningEffort::Ultra
+        // Persistent disables reasoning and hands over to the catalog's
+        // persistent instructions; it is a mode, not a level, and the Messages
+        // API has no spelling for it.
+        | ReasoningEffort::Persistent
         | ReasoningEffort::Custom(_) => None,
     }
 }
