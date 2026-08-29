@@ -171,6 +171,10 @@ sync turn `delta` red one push later.
 
 Triage rules it prints, worth repeating: a CI failure set that *changes* between
 runs is contention, one that *repeats* is real — re-run once before triaging.
+Read that set with `fork/ci_failures.py --run <id>` rather than a grep: nextest
+reports a timeout as `TMT`, not `FAIL`, and grepping one status word reported 31
+failures for a run that had 33. The script reconciles against nextest's own
+`Summary` line and refuses to print a total it cannot justify.
 And before adding a `known-failing` entry, demonstrate the cause (pass before
 the seam commit and fail at the tip, or fail on a pristine upstream checkout).
 Resemblance to an existing entry is not evidence; at rust-v0.150.1 it pointed at
