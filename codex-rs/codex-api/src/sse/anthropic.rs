@@ -300,6 +300,7 @@ async fn finish(
         .send(Ok(ResponseEvent::Completed {
             response_id: response_id.to_string(),
             token_usage: usage,
+            usage_metadata: None,
             end_turn: stop.and_then(|stop| match stop.reason.as_str() {
                 "end_turn" | "stop_sequence" | "tool_use" => Some(true),
                 "max_tokens" | "pause_turn" => Some(false),
