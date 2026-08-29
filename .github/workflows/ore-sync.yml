@@ -314,7 +314,11 @@ jobs:
                   echo
                   echo "## failing pass"
                   echo '```'
-                  grep -aE '^pass failed:' "$OUT_DIR/passes.md" || echo "(see the tail below)"
+                  # fail_pass writes to STDERR, so the line lands in the assemble
+                  # log, never in passes.md. Looking in passes.md printed an empty
+                  # section on the first real exit-3 issue this filed.
+                  grep -ahE '^.*pass failed:' "$RUNNER_TEMP/assemble.log" \
+                    | sed 's/\x1b\[[0-9;]*m//g' || echo "(not found; see the tail below)"
                   echo '```'
                   echo
                   echo "## passes report (tail)"
@@ -340,9 +344,21 @@ jobs:
             if [ "$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label sync-blocked --json number --jq length)" -gt 0 ]; then
               echo "an open sync-blocked issue already exists; not filing a duplicate"
             else
-              gh issue create --repo "$GITHUB_REPOSITORY" --label sync-blocked \
+              url="$(gh issue create --repo "$GITHUB_REPOSITORY" --label sync-blocked \
                 --title "sync blocked: $BASE -> $TAG ($kind)" \
-                --body-file "$RUNNER_TEMP/issue.md"
+                --body-file "$RUNNER_TEMP/issue.md")"
+              num="${url##*/}"
+              # The label is what the watchdog alarms on, and --label on create
+              # silently produced an unlabelled issue the first time this ran --
+              # so the issue existed and the alarm still did not. Apply it again
+              # and confirm, because an unlabelled sync-blocked issue is exactly
+              # as invisible as no issue at all.
+              if [ -z "$(gh issue view "$num" --repo "$GITHUB_REPOSITORY" --json labels \
+                   --jq '[.labels[].name] | map(select(. == "sync-blocked")) | .[]')" ]; then
+                gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --add-label sync-blocked
+                echo "::warning::sync-blocked did not stick on create; applied it to #$num afterwards"
+              fi
+              echo "filed #$num"
             fi
             echo "::error::sync $BASE -> $TAG stopped: $kind (exit $RC)"
             exit "$RC"
