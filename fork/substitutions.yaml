@@ -1008,6 +1008,20 @@ allowlist:
     - codex-rs/http-client/src/chatgpt_hosts.rs
     - codex-rs/models-manager/
     - sdk/
+    # Upstream's Bazel build tooling. rust-v0.151.0 added rules whose docstrings
+    # and test messages name Codex -- "pinned Codex release archives", "current
+    # Codex does not exist" -- and none of it is the outward-facing surface this
+    # manifest scopes itself to: no user types it, reads it, or downloads
+    # anything through it. ore relocates upstream's bazel.yml out of .github/
+    # entirely, ore-release.yml never invokes bazel, and the one ore workflow
+    # that does (the rusty-v8 mirror) does not read these strings.
+    #
+    # Rebranding build-rule documentation would add diff surface against upstream
+    # for nothing a user could ever see, which is the trade this fork exists to
+    # refuse. bazel-out/, bazel-bin/ and bazel-testlogs/ are already skipped as
+    # build outputs and MODULE.bazel is already an allowlisted literal; this is
+    # the source tree they belong to.
+    - bazel/
     - fork/
     - .github/workflows/
     - LICENSE
