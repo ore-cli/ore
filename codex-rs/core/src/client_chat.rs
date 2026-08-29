@@ -55,7 +55,10 @@ fn chat_wire_effort(effort: Option<&ReasoningEffortConfig>) -> Option<&'static s
         | ReasoningEffortConfig::XHigh
         | ReasoningEffortConfig::Ultra
         | ReasoningEffortConfig::Max => Some("high"),
-        ReasoningEffortConfig::Custom(_) => None,
+        // Persistent disables reasoning in favour of persistent instructions;
+        // Chat Completions has no spelling for that, so the field is omitted
+        // rather than clamped to a level that would ask for the opposite.
+        ReasoningEffortConfig::Persistent | ReasoningEffortConfig::Custom(_) => None,
     }
 }
 
