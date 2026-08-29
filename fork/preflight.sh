@@ -108,6 +108,10 @@ say "reminders that are not automatable here"
 cat <<'NOTE'
     - Substitution-sensitive tests must run on the CANDIDATE, not the series.
       Local builds need the prebuilt v8; see "Reproducing CI locally" in CLAUDE.md.
+    - Build with --all-targets, never just --lib. A struct field or enum variant
+      added upstream breaks TEST code that destructures it long after the library
+      compiles: rust-v0.151.0 passed --workspace --lib here and failed clippy and
+      all four shards in CI on two match patterns.
     - A CI failure set that changes between runs is contention, not a regression.
       One that repeats is real. Re-run once before triaging.
     - Before adding a known-failing entry, show the cause: pass at the commit
