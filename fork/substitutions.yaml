@@ -251,6 +251,58 @@ categories:
       pattern: '`codex \{subcommand\}`'
       replace: '`${bin} {subcommand}`'
 
+    - name: disconnect-reconnect-command-is-ore
+      note: >
+        The exit summary tells a user how to get back to a task they left running:
+        "Reconnect: codex resume <id>" and "run codex --remote <addr> agents". Both
+        strings are assembled from a command vector the TUI builds by hand, as
+        `vec!["codex".to_string()]` -- a bare literal, followed by a comma rather than
+        by a subcommand or a flag. cli-command-in-help-text and cli-command-before-flag
+        both key off what FOLLOWS the word, so neither one sees it, and the assembled
+        binary printed a reconnect command the user does not have. Same class as
+        cli-command-before-flag's own example, found the same way: by a test.
+
+        The three background-exit `.snap` fixtures render this line and are out of
+        substitution scope by design; the assemble pass regenerates them, so they
+        follow the code rather than needing a rule of their own.
+      files: [codex-rs/tui/src/app/exit_summary.rs]
+      rust_literals_only: false
+      pattern: 'vec!\["codex"\.to_string\(\)'
+      replace: 'vec!["${bin}".to_string()'
+
+    - name: disconnect-reconnect-command-in-the-cli-test
+      note: >
+        main.rs's format_exit_messages test builds its own DisconnectInfo command
+        vector and asserts the rendered line. The assertion contains `codex --remote`,
+        which cli-command-before-flag rewrites; the input vector is the same bare
+        literal the rule above exists for, which nothing rewrites. Substituting one
+        side and not the other is what turned this test red on the assembled tree
+        while it stayed green on the series.
+
+        Anchored to the `--remote` element that follows it, so it names this vector
+        and not any other "codex" literal main.rs may acquire.
+      files: [codex-rs/cli/src/main.rs]
+      rust_literals_only: false
+      pattern: '"codex"\.to_string\(\)(?=,\s+"--remote"\.to_string\(\))'
+      replace: '"${bin}".to_string()'
+
+    - name: app-name-status-item-is-ore
+      note: >
+        The `app-name` status-line and terminal-title item, as a VALUE. Its two
+        labels are already rebranded -- the picker offers "Ore app name" and previews
+        `ore` -- because those are bare words a display rule matches. The value the
+        item actually renders is the same unanchored `"codex".to_string()` the two
+        rules above exist for, so a user who chose an item labelled "Ore app name"
+        got a terminal title that read `codex`. Shipped that way in 1.150.0.
+
+        Scoped to the one file: `"codex".to_string()` elsewhere in the tui is a
+        rate-limit id, a limit name or a wire originator, none of which follow the
+        rename.
+      files: [codex-rs/tui/src/chatwidget/status_surfaces.rs]
+      rust_literals_only: false
+      pattern: '(?<=AppName => )(return )?Some\("codex"\.to_string\(\)\)'
+      replace: '\1Some("${bin}".to_string())'
+
   # ------------------------------------------------------------- display strings
   display-strings:
     - name: prompt-identity-is-ore
