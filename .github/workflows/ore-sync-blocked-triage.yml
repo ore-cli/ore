@@ -1,0 +1,186 @@
+# ore-sync-blocked-triage: Claude triages a sync the machinery could not finish.
+#
+# A failed sync used to be silent. It now files a sync-blocked issue whatever the
+# exit code, and this is what reads it -- so the diagnosis starts itself instead
+# of waiting for someone to notice a red run.
+#
+# ADVISORY ONLY, for the reason ore-sync-review.yml already states: it comments,
+# it cannot push, and it must not be able to. main is generated and delta is an
+# ordered series where one well-meant commit breaks the topology. Judgment here
+# proposes; fork/verify and ore-ci decide.
+#
+# The prompt is the product. Everything in it was paid for by a real sync:
+# rust-v0.150.1 cost a day because the wrong tree was tested, a cause was assumed
+# from resemblance twice, and a blocker was accepted without being tried.
+name: ore-sync-blocked-triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  triage:
+    name: triage
+    # Only the machinery's own issues. A human opening an issue with this label
+    # is welcome to it too; anything else is ignored.
+    if: contains(github.event.issue.labels.*.name, 'sync-blocked')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write # the WORKFLOW pushes the branch; Claude has no write tools
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Full history and tags: triage means comparing the series against the
+          # base tag and often against pristine upstream, which a shallow clone
+          # cannot do.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --max-turns 40
+            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git grep:*),Bash(git merge-base:*),Bash(git for-each-ref:*),Read,Grep,Glob,Write,mcp__github_comment__create_comment"
+          prompt: |
+            A sync failed and filed the issue you are looking at. Read CLAUDE.md at
+            the repo root first — it describes the branch topology and the rules you
+            must not assume away.
+
+            Post ONE comment on the issue. You have no write access to the
+            repository and must not attempt any. Do not write "@claude" anywhere in
+            it; that mention triggers another workflow.
+
+            The issue body names the failing pass and carries a report tail. Work
+            from that, plus the tree you have checked out.
+
+            Answer these, in order:
+
+            1. WHAT FAILED, precisely. Name the pass and quote the error. If the
+               body says a generated pass failed, say WHICH — substitutions, fmt,
+               version/lock, schema or snapshots each fail for unrelated reasons.
+
+            2. WHOSE FAILURE IS IT. There are four answers and they need different
+               work, so do not guess between them:
+                 * ore's own code — a series commit that upstream's change broke;
+                 * a fork SEAM — analytics/feedback forced off, and an upstream test
+                   that now waits on what the seam removes;
+                 * a SUBSTITUTION contradiction — the rules rewrote one side of a
+                   test and not the other. These appear ONLY on an assembled tree,
+                   never on delta, so a green series proves nothing;
+                 * not ours at all — it fails the same way on a pristine upstream
+                   checkout at the same tag.
+               Say which, and say what evidence would settle it. Distinguishing
+               these is most of the work.
+
+            3. THE SMALLEST FIX, as a diff you would apply. Prefer a substitution
+               rule over editing an upstream file — in this repo rebranding is a
+               substitution, never an edit. Prefer an allowlist entry over a rule
+               when the leak is not on the outward-facing surface.
+
+            4. WHAT YOU COULD NOT CHECK. You cannot build here. Say plainly which
+               of your claims rest on reading rather than running, and name the
+               command that would settle each. An unverified claim presented as a
+               finding is worse than an omission.
+
+            Rules learned the expensive way, which apply to you:
+
+            * Resemblance is not evidence. At rust-v0.150.1 a failure that looked
+              exactly like a known analytics-seam failure — and whose sibling was
+              already excluded for that cause — had a different cause entirely.
+              Twice. If you propose a known-failing entry, say what would
+              DEMONSTRATE the cause: passing at the commit before the seam and
+              failing at the tip, or failing on pristine upstream.
+            * "Needs CI" is usually wrong. Local builds work; CLAUDE.md documents
+              the prebuilt-V8 setup. Do not call something unreproducible before
+              checking whether it is.
+            * Absence of output is not evidence of absence. A filter matching
+              nothing prints a pass.
+
+            Be short. Cite files and commits. Do not restate the issue body, do not
+            summarise what CI already reports, and do not give a merge verdict.
+
+            THEN, if and only if you are confident in the smallest fix from (3) and
+            it touches ONLY these paths, write it to /tmp/ore-fix.patch as a unified
+            diff applicable with `git apply` from the repo root:
+
+              fork/substitutions.yaml   — a rule, or an allowlist entry
+              fork/verify/known-failing — an exclusion, with its cause in a comment
+              fork/egress.yaml          — a classification for a new endpoint
+
+            Nothing else. Not codex-rs/**, not scripts/**, not workflows. Those are
+            either upstream's (where the instrument is a substitution, not an edit)
+            or ore's own code, which deserves a human author. A step after you
+            enforces this by path and discards the patch if it strays, so a patch
+            touching anything else simply will not become a PR.
+
+            If you are not confident, write no file. A comment with an honest "I do
+            not know which of these it is" is worth more than a plausible patch: at
+            rust-v0.150.1 the plausible reading was wrong twice.
+
+      # Claude has no write tools beyond Write, so it cannot push, branch, or open
+      # anything. This step does that, and it is where the path rule is ENFORCED
+      # rather than merely requested -- a prompt is not a permission system.
+      - name: Open a PR if the patch is in scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          [ -s /tmp/ore-fix.patch ] || { echo "no patch proposed; comment only"; exit 0; }
+
+          allowed='^(fork/substitutions\.yaml|fork/verify/known-failing|fork/egress\.yaml)$'
+          files="$(git apply --numstat /tmp/ore-fix.patch | awk '{print $3}')"
+          [ -n "$files" ] || { echo "::warning::patch touches no files; discarded"; exit 0; }
+          bad="$(printf '%s\n' "$files" | grep -vE "$allowed" || true)"
+          if [ -n "$bad" ]; then
+            echo "::warning::patch touches paths outside the allowed set; discarded:"
+            # shellcheck disable=SC2086 # deliberate: one path per line
+            printf '  %s\n' $bad
+            exit 0
+          fi
+
+          git apply --index /tmp/ore-fix.patch
+          branch="claude/sync-blocked-$ISSUE"
+
+          cat >/tmp/msg.txt <<MSG
+          fork: proposed fix for #$ISSUE
+
+          Proposed by ore-sync-blocked-triage and UNVERIFIED: that job cannot
+          build, so every claim behind this rests on reading. The reasoning, and
+          what it could not check, are in #$ISSUE.
+
+          Fork-Patch: proposed-fix-for-issue-$ISSUE
+          Purpose: Unblock the sync described in #$ISSUE.
+          Invariant: stated in the issue comment; verify it before merging.
+          Verify: fork/preflight.sh against a candidate built from this branch.
+          MSG
+          sed -i 's/^          //' /tmp/msg.txt
+
+          git -c user.name='ore-sync[bot]' -c user.email='ore-sync[bot]@users.noreply.github.com' \
+              -c commit.gpgsign=false commit -q -F /tmp/msg.txt
+          git push -q origin "HEAD:refs/heads/$branch"
+
+          cat >/tmp/body.md <<'BODY'
+          Proposed by triage. **Unverified** — that job cannot build, so every
+          claim rests on reading rather than running. The reasoning, and what it
+          could not check, are in the issue this came from.
+
+          Merging is a decision, not a formality: at rust-v0.150.1 the plausible
+          cause was wrong twice, and both times it resembled a known one.
+
+          Before merging, run `fork/preflight.sh` against a candidate built from
+          this branch.
+          BODY
+          sed -i 's/^          //' /tmp/body.md
+
+          gh pr create --repo "$GITHUB_REPOSITORY" --base delta --head "$branch" \
+            --title "fork: proposed fix for sync-blocked #$ISSUE" \
+            --body-file /tmp/body.md
+          echo "opened a PR from $branch"
