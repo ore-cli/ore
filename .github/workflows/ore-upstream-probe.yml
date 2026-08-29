@@ -1,0 +1,165 @@
+# ore-upstream-probe: run a test selection against PRISTINE upstream, on Linux.
+#
+# Triage keeps asking one question the fork cannot answer locally: does this test
+# fail because of a fork seam, or does it fail on upstream's own tree too? The
+# answer decides whether a fork/verify/known-failing entry is filed under a seam
+# cause or under "not ours", and CLAUDE.md forbids filing either on resemblance.
+#
+# Locally that question is answerable only on the maintainer's machine, and at
+# rust-v0.151.0 that turned out not to be good enough. A pristine rust-v0.151.0
+# run of the guardian_v2 family on macOS aborts with
+#
+#     thread 'codex-approval-review' has overflowed its stack
+#
+# which appears NOWHERE in ore's Linux CI. Two faults stacked, and the macOS run
+# could no longer separate an upstream regression from a local one, so 16 of 26
+# cases had to be filed from mechanism alone with the limit written down. This
+# workflow is the missing half: the same runner image and target triple ore-ci
+# uses, so a result here is comparable to a result there.
+#
+# It clones upstream and runs upstream's tests. It reads nothing from ore's tree,
+# writes no refs, and holds `contents: read`. Test failures are the ANSWER, not an
+# error, so they do not fail the job -- only infrastructure problems do.
+name: ore-upstream-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "upstream stable tag, e.g. rust-v0.151.0"
+        required: true
+        type: string
+      filter:
+        description: "nextest filterset, e.g. test(guardian_v2_low_scores_require_current_authorization)"
+        required: true
+        type: string
+      packages:
+        description: "optional space-separated crate names, e.g. codex-app-server"
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  probe:
+    name: probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      # Every input reaches the shell through env, never through ${{ }}
+      # interpolation into a script body, and the tag is shape-checked against the
+      # same stable-tag grammar fork/lib.sh uses before it is handed to git.
+      - name: Validate the inputs
+        env:
+          TAG: ${{ inputs.tag }}
+          PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "::error::tag '$TAG' is not an upstream stable tag"; exit 1; }
+          if [[ -n "${PACKAGES:-}" ]]; then
+            [[ "$PACKAGES" =~ ^[a-z0-9_-]+([[:space:]]+[a-z0-9_-]+)*$ ]] \
+              || { echo "::error::packages must be bare crate names"; exit 1; }
+          fi
+
+      - name: Clone upstream at the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$TAG" \
+            https://github.com/openai/codex.git upstream
+          echo "probing $(git -C upstream rev-parse HEAD)"
+
+      - name: Install the pinned Rust toolchain
+        working-directory: upstream
+        run: rustup show active-toolchain || rustup toolchain install
+
+      # Inlined rather than reusing .github/actions/setup-rusty-v8: that action
+      # reads the version from GITHUB_WORKSPACE, and the tree under test here is
+      # upstream's, whose pinned V8 may differ from ore's base.
+      - name: Configure the rusty_v8 artifacts upstream pins
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          target=x86_64-unknown-linux-gnu
+          profile=ptrcomp_sandbox_release
+          version="$(python3 .github/scripts/rusty_v8_bazel.py resolved-v8-crate-version)"
+          base="https://github.com/openai/codex/releases/download/rusty-v8-v${version}"
+          dir="${RUNNER_TEMP}/rusty_v8"
+          mkdir -p "$dir"
+          curl -fsSL "${base}/librusty_v8_${profile}_${target}.a.gz" -o "${dir}/lib.a.gz"
+          curl -fsSL "${base}/src_binding_${profile}_${target}.rs"   -o "${dir}/binding.rs"
+          curl -fsSL "${base}/rusty_v8_${profile}_${target}.sha256"  -o "${dir}/sums"
+          # Verify against upstream's own manifest, renaming to the local basenames.
+          ( cd "$dir" \
+            && tr -d '\r' < sums \
+             | sed -e "s| librusty_v8_${profile}_${target}.a.gz| lib.a.gz|" \
+                   -e "s| src_binding_${profile}_${target}.rs| binding.rs|" \
+             | sha256sum -c - )
+          echo "RUSTY_V8_ARCHIVE=${dir}/lib.a.gz" >>"$GITHUB_ENV"
+          echo "RUSTY_V8_SRC_BINDING_PATH=${dir}/binding.rs" >>"$GITHUB_ENV"
+
+      - uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532 # v2.62.49
+        with:
+          tool: nextest
+          version: 0.9.103
+
+      # No known-failing filter: the point is upstream's unfiltered behaviour.
+      # `|| true` because a red test IS the result being asked for; a build
+      # failure is caught separately, since nextest exits 100 only for test
+      # failures and something else for a broken build.
+      - name: Run the selection
+        id: run
+        working-directory: upstream/codex-rs
+        env:
+          FILTER: ${{ inputs.filter }}
+          PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -uo pipefail
+          args=(--no-fail-fast -E "$FILTER")
+          for pkg in ${PACKAGES:-}; do args+=(-p "$pkg"); done
+          rc=0
+          cargo nextest run "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/probe.log" || rc=${PIPESTATUS[0]}
+          echo "rc=$rc" >>"$GITHUB_OUTPUT"
+          if [[ "$rc" -ne 0 && "$rc" -ne 100 ]]; then
+            echo "::error::nextest exited $rc -- the suite did not build, so nothing was probed"
+            exit 1
+          fi
+
+      # A selection that matched nothing exits 0 and proves nothing, which is the
+      # failure mode this repository keeps re-learning. Say so explicitly.
+      - name: Report
+        if: always()
+        env:
+          TAG: ${{ inputs.tag }}
+          FILTER: ${{ inputs.filter }}
+          RC: ${{ steps.run.outputs.rc }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/probe.log"
+          {
+            echo "## pristine \`$TAG\` on ubuntu-24.04"
+            echo
+            echo "Filter: \`$FILTER\`"
+            echo
+            summary="$(grep -E '^ +Summary ' "$log" | tail -1 || true)"
+            if [[ -z "$summary" ]]; then
+              echo "**No nextest summary line.** The selection matched no tests, or the"
+              echo "run never started. This result establishes nothing."
+            else
+              echo '```'
+              grep -E '^ +(Summary|PASS|FAIL|TMT|TRY [0-9]+ (FAIL|TMT)) ' "$log" | tail -60
+              echo '```'
+              echo
+              if [[ "$RC" == "0" ]]; then
+                echo "Everything selected PASSES on pristine upstream, so anything red on"
+                echo "ore is ore's -- file it under a seam cause, not under \"not ours\"."
+              else
+                echo "Some of the selection is red on pristine upstream at this tag, on the"
+                echo "same runner image ore-ci uses. Those are not ore's."
+              fi
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
