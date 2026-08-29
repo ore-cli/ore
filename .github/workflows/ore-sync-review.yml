@@ -56,7 +56,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --max-turns 40
+            --max-turns 120
             --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git range-diff:*),Read,Grep,Glob,mcp__github_comment__create_comment"
           prompt: |
             You are reviewing an ore sync PR. ore is a telemetry-free fork of
