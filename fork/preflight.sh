@@ -114,6 +114,11 @@ cat <<'NOTE'
       all four shards in CI on two match patterns.
     - A CI failure set that changes between runs is contention, not a regression.
       One that repeats is real. Re-run once before triaging.
+    - Read that failure set with fork/ci_failures.py --run <id>, not a grep.
+      nextest reports a timeout as TMT, not FAIL; grepping one status word
+      reported 31 failures for a run that had 33 at rust-v0.151.0. The script
+      reconciles its own total against nextest's Summary line and refuses to
+      print a number it cannot justify.
     - Before adding a known-failing entry, show the cause: pass at the commit
       before the seam and fail at the tip, or fail on a pristine upstream
       checkout. Resemblance to an existing entry is not evidence -- twice at
