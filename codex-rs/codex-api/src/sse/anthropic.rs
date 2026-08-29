@@ -611,7 +611,12 @@ mod tests {
                 ResponseEvent::OutputTextDelta(first),
                 ResponseEvent::OutputTextDelta(second),
                 ResponseEvent::OutputItemDone(ResponseItem::Message { role, content, .. }),
-                ResponseEvent::Completed { response_id, end_turn: Some(true), token_usage: Some(usage) },
+                ResponseEvent::Completed {
+                response_id,
+                end_turn: Some(true),
+                token_usage: Some(usage),
+                ..
+            },
             ] if first == "Hi "
                 && second == "there"
                 && role == "assistant"
