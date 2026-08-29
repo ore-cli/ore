@@ -46,6 +46,39 @@ CAND="${1:-}"
 git rev-parse --verify -q "$CAND^{commit}" >/dev/null \
   || { echo "preflight: $CAND is not a commit" >&2; exit 2; }
 
+# A shallow boundary is the failure that looks like someone else's. Fetching an
+# upstream ref to compare against -- which this fork does constantly -- can write
+# .git/shallow, and every fetch after it inherits truncated history. Objects then
+# READ fine, fsck stays clean, and rev-list --objects succeeds, because none of
+# those need ancestry. Only SERVING a pack walks parents, so the first symptom is
+# a push rejected by the remote for an object you have never had:
+#
+#   remote: fatal: did not receive expected object <sha>
+#   error: remote unpack failed: index-pack failed
+#
+# That cost a full debugging session. `git fetch --unshallow <remote>` fixes it.
+say "repository shape"
+if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+  bad "the repository is SHALLOW — run: git fetch --unshallow upstream"
+  printf '    a shallow boundary truncates history for everything fetched after it,\n' >&2
+  printf '    and the push it breaks reports an object you never had.\n' >&2
+else
+  ok "not a shallow clone"
+fi
+
+# Cheap corroboration: the base tag should reach a plausible amount of history.
+# When this bit, the base tag reached 81 commits and its neighbour 9784 -- the
+# difference was unmistakable the moment anything actually counted.
+_base_tag="$(sed -n 's/^tag = "\(.*\)"/\1/p' fork/UPSTREAM 2>/dev/null | head -1)"
+if [ -n "$_base_tag" ] && git rev-parse --verify -q "$_base_tag^{commit}" >/dev/null 2>&1; then
+  _n="$(git rev-list --count "$_base_tag" 2>/dev/null || echo 0)"
+  if [ "$_n" -lt 1000 ]; then
+    bad "$_base_tag reaches only $_n commit(s) — history looks truncated"
+  else
+    ok "$_base_tag reaches $_n commits"
+  fi
+fi
+
 say "series (this checkout) — what delta becomes"
 run python3 fork/verify/version_check.py --root .
 run bash fork/lint-series.sh

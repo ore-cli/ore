@@ -103,6 +103,24 @@ Worth knowing before you conclude a failure "needs CI": it does not. A sync that
 looked unresolvable stayed that way only until this was set up, after which
 `git bisect run` named the offending commit in one pass.
 
+### Never fetch shallow
+
+Comparing against an upstream ref is routine here, and `git fetch --depth=…` (or
+cloning shallow) writes `.git/shallow`, which truncates history for everything
+fetched afterwards. The damage is invisible where you would look for it: objects
+read fine, `git fsck` is clean, and `rev-list --objects` succeeds, because none
+of those need ancestry. Only SERVING a pack walks parents, so the first symptom
+is a push the remote rejects for an object you have never had:
+
+```
+remote: fatal: did not receive expected object <sha>
+error: remote unpack failed: index-pack failed
+```
+
+`git rev-list --count <base tag>` is the tell — 81 where the neighbouring tag
+reaches 9784. `git fetch --unshallow upstream` is the fix, and
+`fork/preflight.sh` now refuses to pass on a shallow repository.
+
 ## Which tree to test on
 
 `delta` is not what ships. A substitution contradiction exists only *after*
