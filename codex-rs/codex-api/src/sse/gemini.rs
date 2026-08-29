@@ -505,6 +505,7 @@ async fn finish(
         .send(Ok(ResponseEvent::Completed {
             response_id: response_id.to_string(),
             token_usage: usage,
+            usage_metadata: None,
             end_turn: match reason {
                 "STOP" => Some(true),
                 // The output cap, not the context window: an oversized request
