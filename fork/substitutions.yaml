@@ -303,6 +303,49 @@ categories:
       pattern: '(?<=AppName => )(return )?Some\("codex"\.to_string\(\)\)'
       replace: '\1Some("${bin}".to_string())'
 
+    - name: approval-prose-names-ore
+      note: >
+        The approval and permission UI -- the text a user reads while deciding
+        whether to grant access -- said "codex". "You approved codex to run <cmd>",
+        "codex could call MCP tool ...", "the request for codex network access to
+        ...". Fourteen strings in history_cell/approvals.rs, eight in
+        chatwidget/tool_requests.rs, plus the tests asserting on them.
+
+        Invisible to cli-command-in-help-text (no subcommand follows) and to
+        cli-command-before-flag (no flag follows), and lowercase so ui-bare-product-name
+        never saw it either. Anchored on the three words that DO follow it in prose --
+        to, could, network -- which is what separates this from the bare `codex`
+        fixtures the same crates are full of.
+
+        Expect ten tui `.snap` fixtures to change on the first assembly that
+        includes this rule: the guardian and exec-approval history snapshots
+        render these very lines. They are out of substitution scope by design and
+        the snapshot-regen pass rewrites them from the code, so a large snap diff
+        on the next sync is this rule landing, not a regression.
+      globs: ["codex-rs/tui/**/*.rs", "codex-rs/cli/**/*.rs"]
+      pattern: '(?<![\w./-])codex(?= (?:to|could|network)\b)'
+      replace: '${bin}'
+
+    - name: config-home-in-prose
+      note: >
+        "Error finding codex home" on the startup path, and the same two words in a
+        dozen test panic messages. config-home-in-help-text is anchored to the
+        `~/.codex/` PATH and cannot see the prose form. Literals only, so the
+        `codex_home` identifiers on the same lines are untouched.
+      globs: ["codex-rs/tui/**/*.rs", "codex-rs/cli/**/*.rs"]
+      pattern: '(?<![\w./-])codex home'
+      replace: '${bin} home'
+
+    - name: cli-command-before-placeholder-in-the-tui
+      note: >
+        The same `codex {subcommand}` shape cli-command-before-subcommand-placeholder
+        handles, in the copy the TUI owns: the fatal "No saved session found ... Run
+        `codex {action}`". That rule is scoped to cli/src/main.rs, so this one leaked.
+      files: [codex-rs/tui/src/lib.rs]
+      rust_literals_only: false
+      pattern: '`codex \{action\}`'
+      replace: '`${bin} {action}`'
+
   # ------------------------------------------------------------- display strings
   display-strings:
     - name: prompt-identity-is-ore
@@ -1121,6 +1164,38 @@ allowlist:
 
 audit:
   cli_subcommands_from: codex-rs/cli/src/main.rs
+  # Crates whose string literals a user actually reads. The bare-command scan is
+  # restricted to these: elsewhere a bare `codex` is overwhelmingly a wire value
+  # (limit_id, originator, product SKU) that must not follow the rename.
+  bare_command_paths:
+    - codex-rs/tui/
+    - codex-rs/cli/
+  bare_command_allow:
+    # Matched against error text the SERVER produces, with `err.contains(..)`.
+    # Rebranding the needle makes the match fail and the friendlier message never
+    # render -- the string is upstream's wire text, not ours to rename.
+    - codex plugins are disabled
+    - update codex
+    # doctor's own diagnostic key, written by doctor.rs and parsed back by
+    # output/detail.rs. It is a contract between two files rather than prose;
+    # renaming it means renaming both halves in lockstep for no user-visible gain.
+    - PATH codex
+    # Sample terminal-title output in doctor's rendering fixtures, where `codex`
+    # is the PROJECT directory name in the example, not the product.
+    - terminal title project value
+    - project codex
+    # `codex://` is the URL scheme OpenAI's DESKTOP APP registers, and this block
+    # queries Windows for the app that owns it. Renaming the scheme makes the query
+    # match nothing; ore does not register a scheme of its own.
+    - Protocol.Name -eq
+    # Test and bench harness messages about a locally built binary, and the crate
+    # `codex-cli` they tell you to build -- crate names stay upstream's.
+    - codex binary
+    - codex {} failed with status
+    # Internal channel and rate-limit-bucket names in test assertions: both are the
+    # wire value `codex`, which does not follow the rename.
+    - codex channel
+    - codex snapshot
   allow_paths:
     - codex-rs/app-server-protocol/
     - codex-rs/login/
