@@ -29,6 +29,15 @@ from pathlib import Path
 TEST_ARG = re.compile(r"test\(\s*([=~]?)([^)]+?)\s*\)")
 
 
+def grep(root: Path, needle: str) -> bool:
+    """True if `needle` appears anywhere in codex-rs as source text."""
+    hit = subprocess.run(
+        ["git", "-C", str(root), "grep", "-l", "-F", needle, "--", "codex-rs"],
+        capture_output=True, text=True,
+    )
+    return hit.returncode == 0 and bool(hit.stdout.strip())
+
+
 def entries(path: Path) -> list[tuple[int, str]]:
     out = []
     for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -61,11 +70,17 @@ def main() -> int:
             # source must contain; the last path segment is the function name.
             needle = name.split("::")[-1]
             checked += 1
-            hit = subprocess.run(
-                ["git", "-C", str(root), "grep", "-l", "-F", needle, "--", "codex-rs"],
-                capture_output=True, text=True,
-            )
-            if hit.returncode != 0 or not hit.stdout.strip():
+            # A `#[test_case(...; "some description")]` case is written with
+            # spaces in the source and reported by nextest with underscores, so
+            # the strict form legitimately misses it. Fall back to the spaced
+            # form rather than calling a live test dead -- a false "dead" here
+            # blocks CI on an entry that is doing its job, which is worse than
+            # the slightly looser match this costs. Only reached when the exact
+            # literal already missed.
+            candidates = [needle]
+            if "_" in needle:
+                candidates.append(needle.replace("_", " "))
+            if not any(grep(root, c) for c in candidates):
                 dead.append(f"line {lineno}: no test named {needle!r} exists — {expr}")
 
     if dead:

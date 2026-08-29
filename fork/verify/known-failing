@@ -73,6 +73,16 @@ package(codex-app-server) & test(guardian_v2_threshold_score_requires_full_revie
 # rust-v0.150.1: upstream had renamed or removed those tests, so the expressions
 # matched nothing and had been excluding nothing. known_failing_check.py exists
 # to catch that from now on.
+#
+# Two of the three came back at rust-v0.151.0 under new names -- upstream had
+# renamed, not removed them:
+#   {resumed,forked}_thread_starts_without_guardian_score
+#     -> {resumed,forked}_thread_ignores_persisted_guardian_score
+# Same file, same helper, same /metrics timeout, so the cause is unchanged and
+# they belong here rather than in a new group. The plugin-measurement entry is
+# still gone.
+package(codex-app-server) & test(resumed_thread_ignores_persisted_guardian_score)
+package(codex-app-server) & test(forked_thread_ignores_persisted_guardian_score)
 
 # --- (1) codex-app-server: tests awaiting an analytics POST -----------------
 # suite/v2/analytics.rs — the five plugin-measurement tests share
@@ -194,3 +204,105 @@ package(codex-exec-server) & test(shell_snapshot_v2_)
 # `timeout waiting for event: Elapsed(())`. A sibling in the same file is already
 # excluded above for cause (1); this one is not that, despite the resemblance.
 package(codex-core) & test(snapshot_rollback_followup_turn_trims_context_updates)
+
+# ---------------------------------------------------------------- rust-v0.151.0
+
+# --- (1) analytics force-off, one test that used to pass --------------------
+# The only entry here that regressed rather than arrived: this test existed at
+# rust-v0.150.1 and passed on ore, because it did not touch analytics. At
+# rust-v0.151.0 upstream added an imagegen analytics event and made the test
+# await it:
+#     +use super::analytics::wait_for_analytics_event;
+#     +let event = wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT,
+#     +    "codex_image_generation_event").await?;
+# so it joined cause (1) the moment the base advanced. Demonstrated rather than
+# inferred from resemblance: the diff above is what introduced the wait, the test
+# passes on a pristine rust-v0.151.0 checkout (1 passed, 1100 skipped), and it
+# fails all three attempts on the candidate.
+package(codex-app-server) & test(standalone_image_generation_returns_saved_path_hint_to_model)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# New at rust-v0.151.0. Both write `[analytics] enabled = true` AND their own
+# `[otel.metrics_exporter.otlp-http] endpoint = <local MockServer>` into
+# config.toml, then await an export on that endpoint -- the http one on
+# /v1/metrics, the grpc one on the OTLP MetricsService/Export path. Caveat A
+# exactly: the seam nulls the metrics exporter whenever analytics is off, so the
+# `enabled = true` in their own fixture cannot reach it. The tests say so
+# themselves -- they fail with
+#     Error: collector never received a SQLite log-write metric
+# which is Caveat A stated in the test's own words. All three cases pass on a
+# pristine rust-v0.151.0 checkout (3 passed, 1098 skipped), so the seam is the
+# whole difference. Their config block, that message and that run are what put
+# them here, not the resemblance to the entries above.
+package(codex-app-server) & test(sqlite_log_metrics_exports_do_not_create_log_cycles)
+package(codex-app-server) & test(sqlite_log_metrics_grpc_exports_do_not_create_log_cycles)
+
+# --- (2) guardian_v2, the rest of the family that arrived at rust-v0.151.0 ---
+# Upstream added six guardian_v2 tests at this tag, 26 parameterised cases in
+# all, and every one of them lands on the mechanism the three cause (2) entries
+# above already name -- now literally in the same function:
+# guardian_v2_routes_tool_approvals is a thin wrapper over
+# guardian_v2_routes_scoped_tool_approvals, whose body holds
+#
+#     if classifier_in_scope {
+#         ...
+#         timeout(TIMEOUT, responses_state.classification_completed.notified()).await?;
+#
+# and classification_completed is notified from the test's OWN /metrics route,
+# only when the exported body contains `codex.guardian_v2.classification`. The
+# seam nulls the metrics exporter, so that notify never fires and the timeout is
+# reached. Symptom on ore's CI matches exactly: `Error: deadline has elapsed`,
+# every case, all three attempts.
+#
+# The `not test(other_tools_retain_full_review)` below is the evidence, not a
+# convenience. That case is the ONE variant of its test where
+# classifier_in_scope is false -- it passes TEST_SERVER_NAME rather than a
+# node_repl-backed server -- so it never reaches the await, and it is the ONE
+# case of the 27 that ore's CI passes. The mechanism predicts which cases fail
+# and which do not, and it is right about all of them. Keeping it out of this
+# expression keeps it in the required-green set, where it belongs.
+#
+# HONEST LIMIT: this is filed from the mechanism and from ore's own CI, not from
+# a same-platform upstream comparison. A pristine rust-v0.151.0 run on macOS
+# passes 10 of the 26 and fails 16 -- but those 16 die there with
+#   thread 'codex-approval-review' has overflowed its stack
+#   fatal runtime error: stack overflow, aborting
+# which appears nowhere in ore's Linux CI logs (0 occurrences). That is a second,
+# platform-local fault sitting on top of the first, so the macOS run cannot rule
+# on whether those 16 would also be red on upstream Linux. It does establish the
+# other 10: they pass on pristine upstream and fail on ore, so at least those are
+# the seam and nothing else. If a Linux runner is available at the next sync,
+# check the 16 there and split off any that are upstream-red.
+package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_user_input_answer)
+package(codex-app-server) & test(guardian_v2_inherits_root_user_skills_for_delegated_workers)
+package(codex-app-server) & test(guardian_v2_low_scores_require_current_authorization)
+package(codex-app-server) & test(guardian_v2_propagates_root_user_input_to_worker_reviews)
+package(codex-app-server) & test(guardian_v2_validates_user_input_before_history_truncation)
+package(codex-app-server) & test(guardian_v2_required_model_computer_use_preserves_strict_approval) & not test(other_tools_retain_full_review)
+
+# --- (1) two that time out rather than assert ------------------------------
+# Found late, and worth saying how: the first triage of this sync extracted
+# `TRY 3 FAIL` from the CI log and reported 31 failures. nextest also reports
+# `TRY 3 TMT` for a test killed at the slow-timeout ceiling, and these two were
+# in that category all along -- 33, not 31. A grep that silently drops a whole
+# outcome class is the same silent-green shape this file exists to prevent, one
+# level up.
+#
+# Both await an analytics POST that cause (1) makes unreachable, and both spin
+# to nextest's 60s ceiling instead of failing an assertion, because the wait is
+# the last thing they do:
+#   client_metadata.rs -- wait_for_analytics_event(&server, .., "codex_turn_event")
+#   analytics.rs       -- wait_for_matching_analytics_event(&server, .., |event|
+#                           event["event_type"] == "codex_turn_event" && ..)
+#
+# turn_start_sends_nested_subagent_lineage_after_cold_thread_resume_v2 is
+# demonstrated: it passes on a pristine rust-v0.151.0 checkout in 0.194s and
+# times out here on all three attempts.
+#
+# guardian_review_turns_and_tools_reach_analytics is filed from the source and
+# from ore's own CI. Its pristine-upstream run on macOS is not usable evidence:
+# it dies there of the same `codex-approval-review` stack overflow described in
+# the guardian block above, which appears nowhere in ore's Linux CI. Same honest
+# limit, same re-check owed on a Linux runner.
+package(codex-app-server) & test(turn_start_sends_nested_subagent_lineage_after_cold_thread_resume_v2)
+package(codex-app-server) & test(guardian_review_turns_and_tools_reach_analytics)
