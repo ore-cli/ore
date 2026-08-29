@@ -133,6 +133,33 @@ The two trees also answer different questions for the invariants:
 `version_check --root` on the series and `--tag` on the candidate are separate
 assertions, and passing the second says nothing about the first.
 
+## Repairing a blocked sync
+
+When a sync fails, the repair does **not** go on `delta`. It goes on a staging
+branch — `delta-staging`, cut from `delta` — and `assemble.sh --delta
+delta-staging` rebases that onto the new tag.
+
+The reason is not stylistic. A `known-failing` entry for the new base names a
+test that does not exist yet at the old one, so `known_failing_check.py` reports
+it dead and `delta`'s own CI goes red the moment you push. The entry is correct;
+it is just early. After the rebase it resolves, which is why it has to travel
+with the rebase rather than ahead of it.
+
+```bash
+git branch delta-staging delta          # repair work goes here
+fork/assemble.sh --tag <new> --base <old> --delta delta-staging --worktree /tmp/asm
+fork/preflight.sh <candidate>           # run from a checkout of sync-delta/<new>
+```
+
+`preflight.sh` runs the series half against `--root .`, so run it from a
+checkout of the **rebased** series (`sync-delta/<tag>`), not from
+`delta-staging` — on the pre-rebase tree the new entries look dead for the same
+reason.
+
+Landing force-pushes `sync-delta/<tag>` onto `delta`, so the staging branch is
+consumed by the sync and should be deleted afterwards. `assemble.sh` refuses to
+run if `sync-delta/<tag>` already exists; delete the local branch to re-run.
+
 ## Before landing a sync
 
 ```bash
