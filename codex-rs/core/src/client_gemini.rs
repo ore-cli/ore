@@ -72,7 +72,12 @@ fn budget_tokens(range: GeminiThinkingBudget, effort: &ReasoningEffort) -> i64 {
         ReasoningEffort::XHigh | ReasoningEffort::Max | ReasoningEffort::Ultra => max,
         // Handled by the caller, which has a config to return rather than a
         // number.
-        ReasoningEffort::None | ReasoningEffort::Custom(_) => share(1, 2),
+        // Persistent belongs here and NOT with the tiers above High, despite
+        // sitting past Ultra in the enum: it maps to wire effort "disabled",
+        // so it asks for less thinking, not more.
+        ReasoningEffort::None | ReasoningEffort::Persistent | ReasoningEffort::Custom(_) => {
+            share(1, 2)
+        }
     };
     tokens.clamp(min, max)
 }
