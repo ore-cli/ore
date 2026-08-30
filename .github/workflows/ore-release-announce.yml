@@ -47,9 +47,11 @@ jobs:
     name: announce
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # No id-token: write. It was here only because claude-code-action used OIDC
+    # for its default GitHub App auth; the CLI that replaced it authenticates
+    # with CLAUDE_CODE_OAUTH_TOKEN and needs no federated identity.
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -58,36 +60,67 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The CLI, not anthropics/claude-code-action. The action refuses to run on
+      # a `push` event, and a workflow_call INHERITS its caller's event -- so
+      # calling this from ore-release.yml, which fires on an `ore-v*` tag push,
+      # meant the action failed every single release with
+      #
+      #     Error: Action failed with error: Unsupported event type: push
+      #
+      # continue-on-error kept that from taking the announcement down, which is
+      # exactly what it is for, and is also why nobody noticed: every release
+      # since this workflow landed went out with the upstream section missing.
+      #
+      # The action's value is its GitHub plumbing -- posting comments, reading PR
+      # context -- and this job wants none of it. It wants text. `claude -p`
+      # prints a response and exits, which is the whole requirement, and it has
+      # no opinion about the event that started the workflow.
       - name: Summarise upstream's own changes
         id: bullets
         continue-on-error: true
         env:
+          # Documented as the CI credential; authentication precedence rank 5.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           TAG: ${{ inputs.tag }}
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: |
-            --model claude-fable-5
-            --effort max
-            --max-turns 500
-            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Read,Write"
-          prompt: |
+          PROMPT: |
             Read fork/UPSTREAM to find the upstream tag this release is built on,
             and the previous stable ore-v* tag's commit message to find the one
             before it (the line beginning "Upstream:").
 
-            If the two upstream tags are the same, write an empty file and stop:
+            If the two upstream tags are the same, print nothing at all and stop:
             upstream did not move, so there is nothing to summarise.
 
             Otherwise summarise what UPSTREAM changed between those two tags, for
             someone who uses the CLI. Ignore ore's own commits entirely.
 
-            Write the result to /tmp/upstream-bullets.txt as AT MOST 4 lines, one
-            per line, each starting with "- " and under 160 characters. Plain
+            Print AT MOST 4 lines and nothing else -- no preamble, no closing
+            remark. Each line starts with "- " and is under 160 characters. Plain
             prose only: no links, no @ mentions, no code fences, no headings, no
-            blank lines. If you cannot tell what changed, write an empty file
-            rather than guessing — the section is dropped when empty, and an
-            invented summary is worse than a missing one.
+            blank lines. If you cannot tell what changed, print nothing rather
+            than guessing — the section is dropped when empty, and an invented
+            summary is worse than a missing one.
+        run: |
+          set -euo pipefail
+          if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN is not set — upstream highlights unavailable."
+            exit 1
+          fi
+          # Unpinned on purpose, against this repository's habit of pinning
+          # everything: --model names a specific model, and a CLI pinned old
+          # enough to drift would stop recognising it. The output is validated
+          # downstream either way.
+          npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+          raw="$(claude -p "$PROMPT" \
+            --model claude-fable-5 \
+            --effort max \
+            --max-turns 500 \
+            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Read")"
+          # release-note.py's clean_bullets is all-or-nothing: one stray line and
+          # the whole section is dropped. Keep only bullet lines, so a preamble
+          # costs the summary nothing.
+          printf '%s\n' "$raw" | grep -E '^[[:space:]]*- ' | head -4 \
+            >/tmp/upstream-bullets.txt || true
+          echo "bullet lines: $(wc -l </tmp/upstream-bullets.txt)"
 
       - name: Build and post the announcement
         env:
