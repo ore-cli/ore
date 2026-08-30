@@ -20,6 +20,17 @@
 # It clones upstream and runs upstream's tests. It reads nothing from ore's tree,
 # writes no refs, and holds `contents: read`. Test failures are the ANSWER, not an
 # error, so they do not fail the job -- only infrastructure problems do.
+#
+# NOT DISPATCHABLE UNTIL IT REACHES main. GitHub runs workflow_dispatch only for
+# files on the default branch, so `gh workflow run ore-upstream-probe.yml --ref
+# delta` answers
+#
+#     HTTP 404: workflow ore-upstream-probe.yml not found on the default branch
+#
+# no matter what --ref says. On this fork main is GENERATED, so a new workflow
+# becomes usable only after the next sync lands it. The first thing to ask it,
+# once it can be asked: whether the 16 guardian_v2 cases the rust-v0.151.0 block
+# could only file from mechanism are upstream-red on Linux.
 name: ore-upstream-probe
 
 on:
