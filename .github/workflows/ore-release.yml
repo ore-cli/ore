@@ -1097,14 +1097,18 @@ jobs:
     needs: [tag-check, release]
     if: needs.tag-check.outputs.prerelease == 'false'
     # A called workflow cannot request more than its caller holds, and this file
-    # grants only `contents: read` at the top. The announce workflow's job asks
-    # for id-token: write -- claude-code-action uses OIDC for its default GitHub
-    # App auth -- so without this the whole run is rejected before any job starts,
-    # as a startup_failure with no logs and no annotation to read. build-windows
-    # never hit it because it only ever asks for contents: read.
+    # grants only `contents: read` at the top. That rule cost a release once: the
+    # announce workflow asked for id-token: write, this job did not grant it, and
+    # the WHOLE run was rejected before any job started -- a startup_failure with
+    # no logs and no annotation to read. build-windows never hit it because it
+    # only ever asks for contents: read.
+    #
+    # The grant is gone now, not because the rule changed but because the need
+    # did: id-token was for claude-code-action's OIDC, and announce no longer
+    # uses that action. Keep the note -- the failure it describes is invisible,
+    # and the next callee that asks for a permission will reproduce it exactly.
     permissions:
       contents: read
-      id-token: write
     uses: ./.github/workflows/ore-release-announce.yml
     with:
       tag: ${{ github.ref_name }}
