@@ -36,7 +36,9 @@ from pathlib import Path
 # retries are configured, so it is optional; the status word is what matters.
 OUTCOME = re.compile(
     r"(?:TRY (?P<try>\d+) )?"
-    r"(?P<status>PASS|FAIL|TMT|LEAK|LEAK-FAIL|SIGSEGV|SIGABRT|SIGILL|SIGBUS|ABORT)"
+    # LEAK-FAIL before LEAK: alternation is first-match, and the longer one must
+    # win or `LEAK-FAIL` parses as a plain LEAK.
+    r"(?P<status>PASS|FAIL|TMT|LEAK-FAIL|LEAK|SIGSEGV|SIGABRT|SIGILL|SIGBUS|ABORT)"
     r"\s+\[\s*[^\]]*\]\s*\([^)]*\)\s+(?P<binary>\S+)\s+(?P<test>\S+)"
 )
 # `Summary [  549.048s] 4132 tests run: 4129 passed (3 slow, 1 flaky), 1 failed,
@@ -45,7 +47,12 @@ SUMMARY = re.compile(r"Summary \[[^\]]*\]\s+(?P<run>\d+) tests? run:")
 SUM_FAILED = re.compile(r"(\d+) failed")
 SUM_TIMEOUT = re.compile(r"(\d+) timed out")
 
-PASSING = {"PASS"}
+# LEAK is a PASS that leaked a handle: nextest counts it inside `N passed
+# (... 3 leaky)`, not in `N failed`. Treating it as a failure is what made the
+# first real run of this script over-count 12 as 15 -- caught by the
+# reconciliation below, which is the entire reason that check exists. LEAK-FAIL
+# is the opposite: a leak the profile promotes to a failure.
+PASSING = {"PASS", "LEAK"}
 
 
 def strip_ansi(text: str) -> str:
