@@ -14,7 +14,7 @@ const FAST_TOOLTIP: &str =
 const OTHER_TOOLTIP_NON_MAC: &str = "*New* Build faster with Ore.";
 const FREE_GO_TOOLTIP: &str = "*New* Build faster with Ore.";
 
-const RAW_TOOLTIPS: &str = include_str!("../tooltips.txt");
+const RAW_TOOLTIPS: &str = include_str!("../assets/tooltips.txt");
 
 lazy_static! {
     static ref TOOLTIPS: Vec<&'static str> = RAW_TOOLTIPS

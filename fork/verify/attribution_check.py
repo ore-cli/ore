@@ -77,7 +77,15 @@ PROMPT_EXEMPT_PREFIXES = (
     "codex-rs/protocol/src/prompts/",
     "codex-rs/models-manager/",
 )
-PROMPT_EXEMPT_RE = __import__("re").compile(r"^codex-rs/core/[^/]*prompt[^/]*\.md$")
+# Nested as well as top-level: rust-v0.152.0 added
+# core/tests/fixtures/prompt_with_apply_patch_instructions.md, a captured copy of
+# the apply-patch prompt. The old `[^/]*` matched direct children of core/ only,
+# so the fixture was policed while the prompt it copies was exempt -- and the
+# same flat-glob gap existed in the substitution skip_paths this is meant to
+# track. Both widened together.
+PROMPT_EXEMPT_RE = __import__("re").compile(
+    r"^codex-rs/core/(?:[^/]+/)*[^/]*prompt[^/]*\.md$"
+)
 
 
 def tree_is_assembled(root: Path) -> bool:

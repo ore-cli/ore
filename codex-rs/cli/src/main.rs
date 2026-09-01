@@ -3429,7 +3429,7 @@ mod tests {
     }
 
     fn default_app_server_socket_path() -> AbsolutePathBuf {
-        let codex_home = find_codex_home().expect("codex home");
+        let codex_home = find_codex_home().expect("ore home");
         codex_app_server::app_server_control_socket_path(&codex_home)
             .expect("default app-server socket path")
     }

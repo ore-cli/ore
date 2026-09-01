@@ -1302,7 +1302,7 @@ mod tests {
 
     impl Fixture {
         async fn new() -> Self {
-            let codex_home = TempDir::new().expect("codex home");
+            let codex_home = TempDir::new().expect("ore home");
             let sqlite_home = TempDir::new().expect("sqlite home");
             let _runtime = codex_state::StateRuntime::init(
                 codex_state::SqliteConfig::new_for_testing(sqlite_home.path().abs()),

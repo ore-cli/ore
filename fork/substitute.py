@@ -457,6 +457,21 @@ def audit(root: Path, manifest: Manifest) -> int:
     allow_prefixes = [str(p) for p in (manifest.allowlist.get("literal_prefixes") or [])]
     allow_globs = [str(p) for p in (manifest.allowlist.get("paths") or [])]
     subcommands = declared_subcommands(root, str(cfg.get("cli_subcommands_from", "codex-rs/cli/src/main.rs")))
+    # `bare-command` exists because the other three share the substitution rules'
+    # blind spot. cli-command keys off the subcommand that FOLLOWS the word, and
+    # product-name needs the capital -- so a bare lowercase `codex` sitting in a
+    # sentence is invisible to the rules AND to the check meant to catch what the
+    # rules miss. That hole shipped "You approved codex to run ..." in the
+    # approval UI from the fork's first release to 1.151.0.
+    #
+    # Restricted to bare_command_paths (the crates whose literals a user reads)
+    # and to PROSE: the word must have a space on at least one side, which is what
+    # separates "codex could access {target}" from the argv[0] fixtures, wire
+    # `limit_id` values and `cargo_bin("codex")` calls that make up most bare
+    # occurrences and are all correct as they stand.
+    bare_paths = [str(p) for p in (cfg.get("bare_command_paths") or [])]
+    bare_allow = [str(p) for p in (cfg.get("bare_command_allow") or [])]
+    bare_re = re.compile(r"(?<![\w./-])codex(?![\w./-])")
     leak_res = [
         ("cli-command", re.compile(r"(?<![\w./-])codex(?= (?:%s)\b)" % "|".join(map(re.escape, subcommands)))),
         ("npm-package", re.compile(r"@openai/codex")),
@@ -490,6 +505,22 @@ def audit(root: Path, manifest: Manifest) -> int:
                 if any(pfx in frag for pfx in allow_prefixes):
                     continue
                 findings.append(f"{rel}:{lineno}: [{kind}] {frag[:140]}")
+        if spans is not None and any(rel.startswith(b) for b in bare_paths):
+            for s_off, e_off, span_kind in spans:
+                if span_kind != "lit":
+                    continue
+                lit = text[s_off:e_off]
+                for m in bare_re.finditer(lit):
+                    # prose, not a fixture: the word sits inside a phrase.
+                    if lit[max(0, m.start() - 1):m.start()] != " " and lit[m.end():m.end() + 1] != " ":
+                        continue
+                    lineno = bisect.bisect_right(line_starts, s_off)
+                    line = text[line_starts[lineno - 1] : (line_starts[lineno] if lineno < len(line_starts) else len(text))]
+                    frag = line.strip()
+                    if any(a in lit for a in bare_allow):
+                        break
+                    findings.append(f"{rel}:{lineno}: [bare-command] {frag[:140]}")
+                    break
     if findings:
         print(f"substitute --audit: {len(findings)} brand leak(s) outside the allowlist", file=sys.stderr)
         for line in findings[:200]:

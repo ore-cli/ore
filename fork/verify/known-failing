@@ -174,6 +174,18 @@ package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytic
 # paper over.
 #
 # Re-check these on the next sync: an upstream fix should let them come out.
+#
+# Re-checked at rust-v0.151.0. The mcp-server entry is still upstream-red:
+# test_exec_command_approval_triggers_elicitation fails on a pristine
+# rust-v0.151.0 checkout in 0.09s, with no guardian and no metrics involvement,
+# so that result is clean and the entry stays.
+#
+# The two guardian_v2 entries below were NOT re-checked, deliberately. A pristine
+# rust-v0.151.0 run of the guardian family on macOS dies of
+#   thread 'codex-approval-review' has overflowed its stack
+# which appears nowhere in ore's Linux CI, so a macOS re-check cannot separate an
+# upstream regression from that local fault. They need a Linux runner -- the same
+# limit the rust-v0.151.0 guardian block below records for its own entries.
 package(codex-app-server) & test(guardian_v2_computer_use_only_scopes_classification_and_fast_reviews)
 package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_authorization_changes)
 package(codex-mcp-server) & test(test_exec_command_approval_triggers_elicitation)
@@ -306,3 +318,27 @@ package(codex-app-server) & test(guardian_v2_required_model_computer_use_preserv
 # limit, same re-check owed on a Linux runner.
 package(codex-app-server) & test(turn_start_sends_nested_subagent_lineage_after_cold_thread_resume_v2)
 package(codex-app-server) & test(guardian_review_turns_and_tools_reach_analytics)
+
+# ---------------------------------------------------------------- rust-v0.152.0
+# Both new at this tag, and both found by `fork/preflight.sh --tests` before CI
+# ran -- which is what that pass was added for after rust-v0.151.0 spent three CI
+# rounds discovering entries one batch at a time.
+
+# --- (1) analytics force-off ------------------------------------------------
+# suite/v2/sleep.rs ends on
+#   wait_for_matching_analytics_event(&server, DEFAULT_READ_TIMEOUT, |event| ..)
+# so it waits for a POST the seam makes unreachable. Same shape as
+# guardian_review_turns_and_tools_reach_analytics above, and it fails the same
+# way: the wait is the last thing the test does, so it reaches the ceiling rather
+# than failing an assertion.
+package(codex-app-server) & test(clock_tools_emit_control_tool_analytics)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# Routes through guardian_v2_routes_tool_approvals with
+# ModelReviewRequirement::Optional, and that wrapper passes
+# GuardianToolScope::AllTools -- for which classifier_in_scope is
+# `matches!(requirement, Optional)`, so it is true and the test reaches the
+# `classification_completed` await on its own /metrics endpoint. That is the same
+# predicate recorded in the rust-v0.151.0 guardian block, which correctly
+# predicted both which cases fail and which single case does not.
+package(codex-app-server) & test(guardian_v2_required_model_cannot_reuse_a_cached_score_for_skipped_exec)

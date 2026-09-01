@@ -133,6 +133,38 @@ The two trees also answer different questions for the invariants:
 `version_check --root` on the series and `--tag` on the candidate are separate
 assertions, and passing the second says nothing about the first.
 
+## Repairing a blocked sync
+
+Which branch the repair goes on depends on whether it is valid at the OLD base.
+
+A fix that holds at both bases goes straight on `delta`, and should: the nightly
+sync reads `origin/delta`, so a fix that lands there makes the next run heal
+itself with no further intervention. A stale substitution rule re-pointed at a
+file upstream moved is this kind — the rule is correct at either tag.
+
+A fix that is only valid at the NEW base goes on a staging branch —
+`delta-staging`, cut from `delta` — and `assemble.sh --delta delta-staging`
+rebases that onto the new tag. A `known-failing` entry is the usual case: it
+names a test that does not exist yet at the old base, so
+`known_failing_check.py` reports it dead and `delta`'s own CI goes red the moment
+you push. The entry is correct; it is just early. After the rebase it resolves,
+which is why it has to travel with the rebase rather than ahead of it.
+
+```bash
+git branch delta-staging delta          # repair work goes here
+fork/assemble.sh --tag <new> --base <old> --delta delta-staging --worktree /tmp/asm
+fork/preflight.sh <candidate>           # run from a checkout of sync-delta/<new>
+```
+
+`preflight.sh` runs the series half against `--root .`, so run it from a
+checkout of the **rebased** series (`sync-delta/<tag>`), not from
+`delta-staging` — on the pre-rebase tree the new entries look dead for the same
+reason.
+
+Landing force-pushes `sync-delta/<tag>` onto `delta`, so the staging branch is
+consumed by the sync and should be deleted afterwards. `assemble.sh` refuses to
+run if `sync-delta/<tag>` already exists; delete the local branch to re-run.
+
 ## Before landing a sync
 
 ```bash
@@ -144,6 +176,10 @@ sync turn `delta` red one push later.
 
 Triage rules it prints, worth repeating: a CI failure set that *changes* between
 runs is contention, one that *repeats* is real — re-run once before triaging.
+Read that set with `fork/ci_failures.py --run <id>` rather than a grep: nextest
+reports a timeout as `TMT`, not `FAIL`, and grepping one status word reported 31
+failures for a run that had 33. The script reconciles against nextest's own
+`Summary` line and refuses to print a total it cannot justify.
 And before adding a `known-failing` entry, demonstrate the cause (pass before
 the seam commit and fail at the tip, or fail on a pristine upstream checkout).
 Resemblance to an existing entry is not evidence; at rust-v0.150.1 it pointed at

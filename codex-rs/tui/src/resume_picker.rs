@@ -4965,7 +4965,7 @@ session_picker_view = "dense"
     async fn ctrl_o_keeps_toggled_density_when_persistence_fails() {
         let tmp = tempdir().expect("tmpdir");
         let codex_home_file = tmp.path().join("codex-home-file");
-        std::fs::write(&codex_home_file, "not a directory").expect("write codex home file");
+        std::fs::write(&codex_home_file, "not a directory").expect("write ore home file");
         let loader = page_only_loader(|_| {});
         let mut state = PickerState::new(
             FrameRequester::test_dummy(),

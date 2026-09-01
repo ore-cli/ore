@@ -4,7 +4,13 @@
 # Run from a checkout of the SERIES (delta, or a sync-delta/* branch), naming the
 # candidate commit assemble produced:
 #
-#   fork/preflight.sh <candidate-ref>
+#   fork/preflight.sh [--tests] <candidate-ref>
+#
+# --tests additionally runs the CANDIDATE's full nextest suite with the same
+# known-failing filter ore-ci uses. It is slow and it needs the prebuilt v8 (see
+# "Reproducing CI locally" in CLAUDE.md), and it is worth it: the rust-v0.151.0
+# sync took three CI rounds at ~75 minutes each because each round found the next
+# batch of known-failing entries. All of them were findable here first.
 #
 # It exists because the rust-v0.150.1 sync landed green and turned delta red one
 # push later. Every check below was available at the time; the reason it was
@@ -41,8 +47,16 @@ run()  {
   esac
 }
 
-CAND="${1:-}"
-[[ -n "$CAND" ]] || { echo "usage: fork/preflight.sh <candidate-ref>" >&2; exit 2; }
+RUN_TESTS=0
+CAND=""
+for arg in "$@"; do
+  case "$arg" in
+    --tests) RUN_TESTS=1 ;;
+    -*) echo "preflight: unknown flag '$arg'" >&2; exit 2 ;;
+    *)  CAND="$arg" ;;
+  esac
+done
+[[ -n "$CAND" ]] || { echo "usage: fork/preflight.sh [--tests] <candidate-ref>" >&2; exit 2; }
 git rev-parse --verify -q "$CAND^{commit}" >/dev/null \
   || { echo "preflight: $CAND is not a commit" >&2; exit 2; }
 
@@ -104,6 +118,57 @@ else
   bad "origin/main is NOT an ancestor of the candidate — rebuild against current main"
 fi
 
+# The candidate's own suite, filtered exactly as ore-ci filters it. This is the
+# check whose absence made rust-v0.151.0 cost three CI rounds: round one found 31
+# entries, round two found two more plus one contended test, round three was
+# green. Rounds two and three were both reachable from here.
+if [[ "$RUN_TESTS" -eq 1 ]]; then
+  say "candidate test suite — the round trip this saves is ~75 minutes"
+  if [[ -z "${RUSTY_V8_ARCHIVE:-}" || -z "${RUSTY_V8_SRC_BINDING_PATH:-}" ]]; then
+    printf '    \033[33mskip\033[0m tests (RUSTY_V8_ARCHIVE / RUSTY_V8_SRC_BINDING_PATH unset)\n'
+    printf '    the workspace cannot link v8 without them; see "Reproducing CI locally".\n'
+  elif ! command -v cargo-nextest >/dev/null 2>&1; then
+    printf '    \033[33mskip\033[0m tests (cargo-nextest is not installed)\n'
+  else
+    _merged="$(mktemp)"
+    : >"$_merged"
+    for _f in "$WT/fork/verify/known-failing-upstream" "$WT/fork/verify/known-failing"; do
+      [[ -f "$_f" ]] && cat "$_f" >>"$_merged"
+    done
+    _args=(--workspace --no-fail-fast)
+    _filter="$(grep -v '^[[:space:]]*#' "$_merged" | grep -v '^[[:space:]]*$' \
+               | paste -sd'|' - | sed 's/|/ or /g')"
+    # An empty file must not become `not ()`, which nextest rejects.
+    [[ -n "$_filter" ]] && _args+=(-E "not ($_filter)")
+    _log="$(mktemp)"
+    ( cd "$WT/codex-rs" && RUST_MIN_STACK=8388608 cargo nextest run "${_args[@]}" ) \
+      >"$_log" 2>&1
+    _rc=$?
+    if [[ "$_rc" -eq 0 ]]; then
+      ok "candidate suite green (known-failing excluded)"
+    elif [[ "$_rc" -ne 100 ]]; then
+      bad "candidate suite did not build (nextest exit $_rc) — nothing was tested"
+      tail -20 "$_log" >&2
+    else
+      # NOT `bad`. This runs on the maintainer's machine, and ore-ci runs Linux:
+      # the first real run of this pass reported 12 failures on a candidate whose
+      # four CI shards were green, and every one was platform-local -- seatbelt
+      # sandbox tests, brew_is_detected_on_macos_prefixes, and exec approval tests
+      # that pass on Linux. Failing preflight on those would make it red on every
+      # clean sync, and the header of this script already says why that is worse
+      # than no preflight. The value here is spotting the entries CI would find
+      # hours later, not gating on a list only Linux can judge.
+      printf '    \033[33mnote\033[0m candidate suite has failures — compare against ore-ci\n'
+      printf '    a test red here and green there is platform-local, not a sync problem.\n'
+      # Reuse the extractor rather than grepping: it knows TMT is an outcome and
+      # LEAK is a pass, and it reconciles its total against nextest's own summary.
+      python3 fork/ci_failures.py --log "$_log" 2>&1 | sed 's/^/    /' >&2
+    fi
+    printf '    full log: %s\n' "$_log"
+    rm -f "$_merged"
+  fi
+fi
+
 say "reminders that are not automatable here"
 cat <<'NOTE'
     - Substitution-sensitive tests must run on the CANDIDATE, not the series.
@@ -114,6 +179,11 @@ cat <<'NOTE'
       all four shards in CI on two match patterns.
     - A CI failure set that changes between runs is contention, not a regression.
       One that repeats is real. Re-run once before triaging.
+    - Read that failure set with fork/ci_failures.py --run <id>, not a grep.
+      nextest reports a timeout as TMT, not FAIL; grepping one status word
+      reported 31 failures for a run that had 33 at rust-v0.151.0. The script
+      reconciles its own total against nextest's Summary line and refuses to
+      print a number it cannot justify.
     - Before adding a known-failing entry, show the cause: pass at the commit
       before the seam and fail at the tip, or fail on a pristine upstream
       checkout. Resemblance to an existing entry is not evidence -- twice at

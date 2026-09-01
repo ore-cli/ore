@@ -14,9 +14,15 @@
 # from resemblance twice, and a blocker was accepted without being tried.
 name: ore-sync-blocked-triage
 
+# `labeled` as well as `opened`: the label has to be in the payload for the gate
+# below to pass, and the ore-sync App cannot apply it -- it holds no issues
+# permission, so it creates the issue unlabelled and every triage skipped. Until
+# that permission is granted, labelling by hand is what starts this, and a hand
+# applied label does fire `labeled`. Harmless once it is granted: the issue then
+# arrives labelled and `opened` matches first.
 on:
   issues:
-    types: [opened]
+    types: [opened, labeled]
 
 permissions: {}
 
@@ -25,7 +31,11 @@ jobs:
     name: triage
     # Only the machinery's own issues. A human opening an issue with this label
     # is welcome to it too; anything else is ignored.
-    if: contains(github.event.issue.labels.*.name, 'sync-blocked')
+    # On `labeled`, require that THIS label is the one that arrived, so unrelated
+    # label churn on an already-blocked issue does not re-run the triage.
+    if: >-
+      contains(github.event.issue.labels.*.name, 'sync-blocked') &&
+      (github.event.action == 'opened' || github.event.label.name == 'sync-blocked')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -46,7 +56,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --max-turns 40
+            --model claude-fable-5
+            --effort max
+            --max-turns 500
             --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git grep:*),Bash(git merge-base:*),Bash(git for-each-ref:*),Read,Grep,Glob,Write,mcp__github_comment__create_comment"
           prompt: |
             A sync failed and filed the issue you are looking at. Read CLAUDE.md at

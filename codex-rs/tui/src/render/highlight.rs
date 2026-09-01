@@ -77,7 +77,7 @@ fn syntax_set() -> &'static SyntaxSet {
 // time — long before it reaches users.  A runtime warning would be
 // unactionable noise since users can't fix upstream themes.
 
-/// Set the user-configured syntax theme override and codex home path.
+/// Set the user-configured syntax theme override and ore home path.
 ///
 /// Call this with the **final resolved config** (after onboarding, resume, and
 /// fork reloads complete). The first call persists `name` and `codex_home` in
