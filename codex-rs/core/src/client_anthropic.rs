@@ -190,6 +190,12 @@ impl ModelClientSession {
                             &mut provider_auth_recovery_attempted,
                             session_telemetry,
                             &self.client.state.provider,
+                            self.client.event_sender.as_ref(),
+                            // No turn id on these wires: the parameter carries
+                            // the Responses turn metadata, which the Anthropic,
+                            // Chat and Gemini paths do not have. The recovery
+                            // event still reaches the UI, untagged.
+                            /*turn_id*/ None,
                         )
                         .await?,
                     );
