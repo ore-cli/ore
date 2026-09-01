@@ -355,8 +355,18 @@ jobs:
               # as invisible as no issue at all.
               if [ -z "$(gh issue view "$num" --repo "$GITHUB_REPOSITORY" --json labels \
                    --jq '[.labels[].name] | map(select(. == "sync-blocked")) | .[]')" ]; then
-                gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --add-label sync-blocked
-                echo "::warning::sync-blocked did not stick on create; applied it to #$num afterwards"
+                # The retry is allowed to fail, and says what to do when it does.
+                # The ore-sync App holds actions/contents/pull_requests but NO
+                # issues permission, which is enough to CREATE an issue and not
+                # enough to label one:
+                #   GraphQL: Resource not accessible by integration (addLabelsToLabelable)
+                # `set -e` would abort this handler mid-way and lose the ::error::
+                # below, so the whole point of the step, so guard it.
+                if gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --add-label sync-blocked 2>&1; then
+                  echo "::warning::sync-blocked did not stick on create; applied it to #$num afterwards"
+                else
+                  echo "::error::could not label #$num sync-blocked. The ore-sync App needs Issues: Read and write (App settings -> Permissions, then approve the update on the installation). Until then the watchdog cannot see this issue and ore-sync-blocked-triage will not start; label it by hand to start triage."
+                fi
               fi
               echo "filed #$num"
             fi
