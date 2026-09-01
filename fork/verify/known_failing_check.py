@@ -38,6 +38,20 @@ def grep(root: Path, needle: str) -> bool:
     return hit.returncode == 0 and bool(hit.stdout.strip())
 
 
+def parameterised(root: Path, needle: str) -> bool:
+    """True if `needle` names a test carrying #[test_case] attributes.
+
+    nextest reports such a test as `path::fn::case`, which an exact `test(=fn)`
+    filter never matches. Read as source text, deliberately: this check is the
+    cheap half and must not need a build.
+    """
+    hit = subprocess.run(
+        ["git", "-C", str(root), "grep", "-n", "-B8", "-F", f"fn {needle}", "--", "codex-rs"],
+        capture_output=True, text=True,
+    )
+    return "test_case" in hit.stdout
+
+
 def entries(path: Path) -> list[tuple[int, str]]:
     out = []
     for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -52,15 +66,27 @@ def main() -> int:
     ap.add_argument("--root", default=".", help="repository root")
     args = ap.parse_args()
     root = Path(args.root).resolve()
-    listing = root / "fork" / "verify" / "known-failing"
+    # BOTH filesets, not just one. CI ORs them together into a single exclusion,
+    # so an entry decaying in either hides the same tests -- but this check read
+    # only `known-failing` from the day it was written, leaving
+    # `known-failing-upstream` unvalidated. rust-v0.152.0 found the gap: an
+    # exact-match entry there stopped covering a test upstream parameterised, and
+    # nothing noticed until the shard went red.
     src = root / "codex-rs"
-    if not listing.is_file() or not src.is_dir():
-        print(f"skip: {listing} or {src} is missing", file=sys.stderr)
+    listings = [
+        p for p in (root / "fork" / "verify" / "known-failing",
+                    root / "fork" / "verify" / "known-failing-upstream")
+        if p.is_file()
+    ]
+    if not listings or not src.is_dir():
+        print(f"skip: no known-failing listing, or {src} is missing", file=sys.stderr)
         return 2
 
     dead: list[str] = []
     checked = 0
-    for lineno, expr in entries(listing):
+    for listing, lineno, expr in (
+        (l, n, e) for l in listings for n, e in entries(l)
+    ):
         names = TEST_ARG.findall(expr)
         if not names:
             # A package()-only entry excludes a whole crate; nothing to resolve.
@@ -81,7 +107,20 @@ def main() -> int:
             if "_" in needle:
                 candidates.append(needle.replace("_", " "))
             if not any(grep(root, c) for c in candidates):
-                dead.append(f"line {lineno}: no test named {needle!r} exists — {expr}")
+                dead.append(f"{listing.name}:{lineno}: no test named {needle!r} exists — {expr}")
+            elif _prefix == "=" and parameterised(root, needle):
+                # An exact filter cannot match a parameterised test: nextest
+                # reports those as `path::to::fn::case_name`, and `test(=fn)`
+                # matches the bare name only. The function is still in the
+                # source, so the liveness grep above is satisfied and the entry
+                # looks healthy while covering nothing. rust-v0.152.0 reached
+                # exactly this by adding #[test_case] to a test that had been
+                # excluded by `=` since rust-v0.149.0.
+                dead.append(
+                    f"{listing.name}:{lineno}: {needle!r} is parameterised, so the exact "
+                    f"filter `test(=...)` matches none of its cases — drop the "
+                    f"`=` to match them all — {expr}"
+                )
 
     if dead:
         print(f"\n{len(dead)} known-failing entr(ies) name a test that no longer exists:", file=sys.stderr)
