@@ -262,6 +262,7 @@ fn anthropic_model(
             permissions: None,
             multi_agent: None,
             persistent_instructions: None,
+            tools: None,
             confirmation_policies: None,
             token_budget: None,
             guardian_v2: None,
