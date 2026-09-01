@@ -82,7 +82,14 @@ engine:
     # and the core template trees exist to render text for models.
     - codex-rs/prompts/*
     - codex-rs/core/templates/*
-    - codex-rs/core/*prompt*.md
+    # `**` since rust-v0.152.0: upstream added
+    # core/tests/fixtures/prompt_with_apply_patch_instructions.md, a captured
+    # copy of this very prompt, which the flat glob did not reach. The rebrand
+    # rewrote it into the two false claims this list exists to prevent -- "Ore
+    # CLI is an open source project led by OpenAI" and "not the old Ore language
+    # model built by OpenAI" -- and attribution_check caught them. Both guards
+    # worked; the glob was the one that had to widen.
+    - codex-rs/core/**/*prompt*.md
     - codex-rs/core/src/realtime_prompt.rs
     - codex-rs/core/src/guardian/prompt.rs
     # guardian/tests.rs asserts on guardian/prompt.rs's rendered text, and that
