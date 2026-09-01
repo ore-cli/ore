@@ -416,7 +416,14 @@ categories:
         reworded: tooltips.rs filters empty lines out of the rotation, so the
         line disappears without disturbing the file's shape or the surrounding
         indices.
-      files: [codex-rs/tui/tooltips.txt]
+
+        Matched by glob rather than by exact path: rust-v0.152.0 moved this file
+        from codex-rs/tui/tooltips.txt to codex-rs/tui/assets/tooltips.txt with
+        its contents byte-identical, and three rules anchored to the old path
+        went stale and stopped the sync. A relocation is mechanical and needs no
+        review; a WORDING change is what these rules must keep failing on, and
+        the pattern still enforces that.
+      globs: ["codex-rs/tui/**/tooltips.txt"]
       rust_literals_only: false
       pattern: '(?m)^Use /feedback to send logs to the maintainers when something looks off\.$'
       replace: ''
@@ -429,7 +436,7 @@ categories:
         forum as ore's, which is both untrue and rude to the people who run it.
         The Discord line keeps its shape and gets ore's own server; the forum
         line is emptied because ore has no forum to send anyone to.
-      files: [codex-rs/tui/tooltips.txt]
+      globs: ["codex-rs/tui/**/tooltips.txt"]
       rust_literals_only: false
       pattern: '(?m)^Join the OpenAI community Discord: http://discord\.gg/openai$'
       replace: 'Join the ${product_name} community Discord: https://discord.gg/awN2xANFMW'
@@ -438,7 +445,7 @@ categories:
       note: >
         See tooltip-points-at-ore-community-not-openai-s. Matches either spelling
         because ui-bare-product-name may rewrite Codex to Ore before this runs.
-      files: [codex-rs/tui/tooltips.txt]
+      globs: ["codex-rs/tui/**/tooltips.txt"]
       rust_literals_only: false
       pattern: '(?m)^Visit the (?:Codex|Ore) community forum: https://community\.openai\.com/c/codex/37$'
       replace: ''
