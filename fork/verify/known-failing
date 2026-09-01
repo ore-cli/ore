@@ -318,3 +318,27 @@ package(codex-app-server) & test(guardian_v2_required_model_computer_use_preserv
 # limit, same re-check owed on a Linux runner.
 package(codex-app-server) & test(turn_start_sends_nested_subagent_lineage_after_cold_thread_resume_v2)
 package(codex-app-server) & test(guardian_review_turns_and_tools_reach_analytics)
+
+# ---------------------------------------------------------------- rust-v0.152.0
+# Both new at this tag, and both found by `fork/preflight.sh --tests` before CI
+# ran -- which is what that pass was added for after rust-v0.151.0 spent three CI
+# rounds discovering entries one batch at a time.
+
+# --- (1) analytics force-off ------------------------------------------------
+# suite/v2/sleep.rs ends on
+#   wait_for_matching_analytics_event(&server, DEFAULT_READ_TIMEOUT, |event| ..)
+# so it waits for a POST the seam makes unreachable. Same shape as
+# guardian_review_turns_and_tools_reach_analytics above, and it fails the same
+# way: the wait is the last thing the test does, so it reaches the ceiling rather
+# than failing an assertion.
+package(codex-app-server) & test(clock_tools_emit_control_tool_analytics)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# Routes through guardian_v2_routes_tool_approvals with
+# ModelReviewRequirement::Optional, and that wrapper passes
+# GuardianToolScope::AllTools -- for which classifier_in_scope is
+# `matches!(requirement, Optional)`, so it is true and the test reaches the
+# `classification_completed` await on its own /metrics endpoint. That is the same
+# predicate recorded in the rust-v0.151.0 guardian block, which correctly
+# predicted both which cases fail and which single case does not.
+package(codex-app-server) & test(guardian_v2_required_model_cannot_reuse_a_cached_score_for_skipped_exec)
