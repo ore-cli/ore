@@ -54,6 +54,13 @@ pub const CODEX_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME: &str = "codex-app-direc
 /// Filename used for the Windows sandbox log feedback attachment.
 pub const WINDOWS_SANDBOX_LOG_ATTACHMENT_FILENAME: &str = "windows-sandbox.log";
 const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024; // 4 MiB
+// ore: telemetry-feedback-off deletes upstream's Sentry DSN, and the invariant
+// is "no destination", not "no constant". Upstream code may import this name --
+// rust-v0.152.0's report_upload.rs does -- so the name stays and the destination
+// does not. An empty string cannot parse as a Dsn, so every transport built from
+// it fails to construct and nothing here can reach the network.
+#[allow(dead_code)]
+const SENTRY_DSN: &str = "";
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 300);
 // Raw collection budgets used by the report API, not the interactive upload.
 pub const MAX_ATTACHMENT_BYTES: usize = 64 * 1024 * 1024;
