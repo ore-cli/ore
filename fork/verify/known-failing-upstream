@@ -23,7 +23,12 @@
 
 # --- codex-core --------------------------------------------------------
 package(codex-core) & test(=suite::compact_resume_fork::snapshot_rollback_past_compaction_replays_append_only_history)
-package(codex-core) & test(=suite::hooks::async_hook_finishing_while_idle_waits_for_the_next_turn)
+# Substring, not `=`: rust-v0.152.0 parameterised this into `user_turn` and
+# `automatic_continuation`, and an exact-match filter matches neither. The entry
+# looked alive to known_failing_check -- the function name is still in the source
+# -- while covering nothing, which is the silent-green shape this file guards
+# against, reached by a route the check could not see. It can now.
+package(codex-core) & test(suite::hooks::async_hook_finishing_while_idle_waits_for_the_next_turn)
 package(codex-core) & test(=suite::unified_exec::unified_exec_formats_large_output_summary)
 
 # --- codex-git-attribution ---------------------------------------------
@@ -41,7 +46,10 @@ package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::
 package(codex-mcp-server) & test(=suite::codex_tool::test_codex_tool_forwards_skills_extension_warnings)
 package(codex-mcp-server) & test(=suite::codex_tool::test_codex_tool_passes_base_instructions)
 package(codex-mcp-server) & test(=suite::codex_tool::test_patch_approval_triggers_elicitation)
-package(codex-mcp-server) & test(=suite::codex_tool::test_shell_command_approval_triggers_elicitation)
+# test_shell_command_approval_triggers_elicitation was dropped here: upstream has
+# no test by that name at rust-v0.151.0 or rust-v0.152.0, so the entry had been
+# excluding nothing for at least two tags. Found the moment known_failing_check
+# started reading this file at all -- it had only ever read `known-failing`.
 
 # --- codex-skills-extension --------------------------------------------
 package(codex-skills-extension) & test(=host_roots::tests::repo_ancestry_without_project_marker_does_not_walk_parents)
