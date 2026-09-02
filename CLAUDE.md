@@ -78,10 +78,17 @@ the sync machinery would reject later: a commit touching `codex-rs/Cargo.lock` o
 `pnpm run format` runs, and one on `delta` missing its trailers. They are cheap
 and local; the authoritative checks stay in CI.
 
-The pre-commit hook mirrors `package.json`'s `format` glob exactly rather than
+For prettier the hook mirrors `package.json`'s `format` glob exactly rather than
 inventing its own. Casting wider blocks commits CI would accept — `fork/*.yaml`
 sits outside that glob deliberately, and prettier cannot parse
 `fork/substitutions.yaml` at all.
+
+It also runs `rustfmt --check` on staged `.rs`, which is *not* in that glob and is
+there for a specific reason: `assemble` runs `cargo fmt` over the **assembled**
+tree, so a series commit's formatting error never reaches main. The candidate is
+clean, preflight is clean, and the only thing that tests the unformatted series is
+`delta`'s own CI — which runs after a sync has already landed. Three provider
+files reached delta that way at rust-v0.152.0.
 
 ## Reproducing CI locally
 
@@ -184,6 +191,41 @@ And before adding a `known-failing` entry, demonstrate the cause (pass before
 the seam commit and fail at the tip, or fail on a pristine upstream checkout).
 Resemblance to an existing entry is not evidence; at rust-v0.150.1 it pointed at
 the wrong cause twice.
+
+## After a sync lands
+
+Two steps that are not automated, and both have bitten.
+
+**Reset your local `delta`.** Landing force-pushes `sync-delta/<tag>` onto
+`delta`, so a local branch left at the pre-sync tip is not behind, it has
+*diverged* — every commit on it exists on origin as a rebased copy. Committing
+there produces work that cannot be pushed and has to be replayed:
+
+```bash
+git checkout delta && git fetch origin && git reset --hard origin/delta
+```
+
+**Check whether the version actually moved.** Scheme C is
+`1.{upstream_minor}.{ore_patch}` and encodes upstream's *minor* only, so a base
+advance that moves only upstream's PATCH — `rust-v0.152.0` → `rust-v0.152.1` —
+leaves the derived version unchanged. `assemble` is right to leave it; it has no
+signal that anything user-visible changed.
+
+The result is a version collision: `ore-v1.152.0` was published from upstream
+0.152.0, and `main` then built 0.152.1 under that same number. One version, two
+trees. Nothing catches it — `version_check` asserts
+`minor(fork/VERSION) == minor(UPSTREAM.tag)`, which still holds.
+
+So before releasing, compare the candidate's `fork/UPSTREAM` tag against the base
+of the tag already published under that version. If they differ, the ore patch
+needs a deliberate bump:
+
+```bash
+echo 1.152.1 > fork/VERSION      # a `release:` series commit, then reassemble
+```
+
+A minor advance (`0.151.x` → `0.152.0`) needs none of this — `assemble` derives
+the new minor itself.
 
 ## Before you claim something works
 
