@@ -40,3 +40,22 @@ if [ -n "$files" ] && [ -x "$root/node_modules/.bin/prettier" ]; then
   fi
 fi
 
+# rustfmt, on staged Rust only. ore-ci's `fmt` job runs `just fmt-check`, which
+# covers Rust -- but assemble runs `cargo fmt` over the ASSEMBLED tree, so a
+# series commit's formatting error is invisible on main and shows up only when
+# delta's own CI runs. That is how three provider files reached delta unformatted
+# at rust-v0.152.0: preflight was clean, the candidate was clean, and delta went
+# red after the sync landed.
+#
+# --check on named files, so it is fast and does not touch the working tree.
+rs=$(staged | grep -E '\.rs$' || true)
+if [ -n "$rs" ] && command -v rustfmt >/dev/null 2>&1; then
+  if ! (cd "$root" && rustfmt --edition 2024 --check $rs >/dev/null 2>&1); then
+    printf 'pre-commit: rustfmt would reformat these, and ore-ci runs the same check:\n' >&2
+    (cd "$root" && rustfmt --edition 2024 --check $rs 2>/dev/null \
+      | grep '^Diff in' | sed 's/^/  /') >&2
+    printf 'fix: cargo fmt --all\n' >&2
+    exit 1
+  fi
+fi
+
