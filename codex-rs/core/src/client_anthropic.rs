@@ -183,6 +183,9 @@ impl ModelClientSession {
                         response_debug_context.request_id.as_deref(),
                         /*output_items*/ &[],
                     );
+                    // handle_unauthorized's turn id carries the Responses turn
+                    // metadata, which this wire does not have, so the recovery
+                    // event reaches the UI untagged.
                     pending_retry = PendingUnauthorizedRetry::from_recovery(
                         handle_unauthorized(
                             unauthorized_transport,
@@ -191,12 +194,7 @@ impl ModelClientSession {
                             session_telemetry,
                             &self.client.state.provider,
                             self.client.event_sender.as_ref(),
-                            // No turn id on these wires: the parameter carries
-                            // the Responses turn metadata, which the Anthropic,
-                            // Chat and Gemini paths do not have. The recovery
-                            // event still reaches the UI, untagged.
-                            /*turn_id*/
-                            None,
+                            /*turn_id*/ None,
                         )
                         .await?,
                     );
