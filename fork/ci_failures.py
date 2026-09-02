@@ -38,7 +38,12 @@ OUTCOME = re.compile(
     r"(?:TRY (?P<try>\d+) )?"
     # LEAK-FAIL before LEAK: alternation is first-match, and the longer one must
     # win or `LEAK-FAIL` parses as a plain LEAK.
-    r"(?P<status>PASS|FAIL|TMT|LEAK-FAIL|LEAK|SIGSEGV|SIGABRT|SIGILL|SIGBUS|ABORT)"
+    r"(?P<status>PASS|FAIL|TMT|LEAK-FAIL|LEAK|SIGSEGV|SIGABRT|SIGILL|SIGBUS"
+    # ABRT is nextest's own spelling for a signal-terminated test, and it is
+    # what a stack overflow produces. Missing it cost a second reconciliation
+    # failure -- 1 extracted against 5 declared -- on the first probe run that
+    # hit one. ABORT is kept for older output.
+    r"|ABRT|ABORT)"
     r"\s+\[\s*[^\]]*\]\s*\([^)]*\)\s+(?P<binary>\S+)\s+(?P<test>\S+)"
 )
 # `Summary [  549.048s] 4132 tests run: 4129 passed (3 slow, 1 flaky), 1 failed,
