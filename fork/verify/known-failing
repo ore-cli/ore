@@ -83,6 +83,13 @@ package(codex-app-server) & test(guardian_v2_threshold_score_requires_full_revie
 # still gone.
 package(codex-app-server) & test(resumed_thread_ignores_persisted_guardian_score)
 package(codex-app-server) & test(forked_thread_ignores_persisted_guardian_score)
+# Moved here from cause (4) after ore-upstream-probe ran them on a pristine
+# rust-v0.152.0 on ubuntu-24.04: all seven cases passed, so upstream is not the
+# reason. They route through the same helper as everything else in this group and
+# reach the same classification_completed await, which is what the mechanism said
+# from the start -- the macOS stack overflow is what mis-filed them.
+package(codex-app-server) & test(guardian_v2_computer_use_only_scopes_classification_and_fast_reviews)
+package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_authorization_changes)
 
 # --- (1) codex-app-server: tests awaiting an analytics POST -----------------
 # suite/v2/analytics.rs — the five plugin-measurement tests share
@@ -186,12 +193,21 @@ package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytic
 # which appears nowhere in ore's Linux CI, so a macOS re-check cannot separate an
 # upstream regression from that local fault. They need a Linux runner -- the same
 # limit the rust-v0.151.0 guardian block below records for its own entries.
-package(codex-app-server) & test(guardian_v2_computer_use_only_scopes_classification_and_fast_reviews)
-package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_authorization_changes)
+# RE-FILED, and the two guardian entries that were here are gone from cause (4):
+# ore-upstream-probe ran them against a pristine rust-v0.152.0 on ubuntu-24.04 and
+# all seven cases PASSED. They were never upstream-red. The macOS evidence that
+# put them here was the approval-review stack overflow, which does not happen on
+# Linux -- the same false signal that made the rust-v0.151.0 block file 16 cases
+# from mechanism alone. They now sit under cause (2) below, where the mechanism
+# always said they belonged.
+#
+# test_exec_command_approval_triggers_elicitation stays: it FAILS on pristine
+# rust-v0.152.0 on Linux, in 0.13s, an assertion rather than a signal.
 package(codex-mcp-server) & test(test_exec_command_approval_triggers_elicitation)
 # Overflows the stack in a debug build, on an unmodified rust-v0.150.1 worktree
 # as readily as on ore's. Not an assertion failure -- `fatal runtime error: stack
-# overflow` before any assertion runs.
+# overflow` before any assertion runs. Confirmed on LINUX at rust-v0.152.0 by
+# ore-upstream-probe, which reports it as ABRT: this one really is upstream's.
 package(codex-tui) & test(active_patch_approval_pager_preserves_changes_and_accepts_once)
 # New at rust-v0.150.1, so it has no passing baseline here. Its sandbox mounts the
 # test's temp dir read-only and the shell profile then fails to write into it:
@@ -202,13 +218,20 @@ package(codex-tui) & test(active_patch_approval_pager_preserves_changes_and_acce
 # it is deterministic rather than contended, and it passes on macOS for ore and
 # for a pristine rust-v0.150.1 checkout alike.
 #
-# HONEST LIMIT: unlike the other cause-(4) entries, this one could NOT be checked
-# against pristine upstream on Linux, only on macOS where both pass. If it is
-# still failing at the next sync, run upstream's own exec-server suite on a Linux
-# runner before assuming it is ours.
 # Widened from the single test to the shell_snapshot_v2 family: its siblings fail
 # the same way for the same reason, and naming them one at a time only meant a
 # further CI round to find the next one.
+#
+# The HONEST LIMIT this entry carried -- "could NOT be checked against pristine
+# upstream on Linux" -- is discharged, and the answer inverts the entry. Every
+# codex-exec-server shell_snapshot_v2 case PASSES on a pristine rust-v0.152.0 on
+# ubuntu-24.04. So it is not upstream-red, and if it is red on ore it is ore's.
+#
+# Kept excluded rather than deleted, because what makes it fail on ore has not
+# been established -- only that upstream is not the reason. The bubblewrap
+# read-only-mount theory above was inferred from ore's own runner and never
+# tested against upstream's. NEXT STEP: run it on ore's Linux CI unexcluded and
+# read the actual failure; do not carry the old explanation forward.
 package(codex-exec-server) & test(shell_snapshot_v2_)
 
 # Fails on a pristine rust-v0.150.1 checkout as readily as here, and also fails
@@ -274,17 +297,23 @@ package(codex-app-server) & test(sqlite_log_metrics_grpc_exports_do_not_create_l
 # and which do not, and it is right about all of them. Keeping it out of this
 # expression keeps it in the required-green set, where it belongs.
 #
-# HONEST LIMIT: this is filed from the mechanism and from ore's own CI, not from
-# a same-platform upstream comparison. A pristine rust-v0.151.0 run on macOS
-# passes 10 of the 26 and fails 16 -- but those 16 die there with
+# SETTLED. This was filed from the mechanism because a pristine rust-v0.151.0 run
+# on macOS passed 10 of the 26 and failed 16, and those 16 died there of
 #   thread 'codex-approval-review' has overflowed its stack
-#   fatal runtime error: stack overflow, aborting
-# which appears nowhere in ore's Linux CI logs (0 occurrences). That is a second,
-# platform-local fault sitting on top of the first, so the macOS run cannot rule
-# on whether those 16 would also be red on upstream Linux. It does establish the
-# other 10: they pass on pristine upstream and fail on ore, so at least those are
-# the seam and nothing else. If a Linux runner is available at the next sync,
-# check the 16 there and split off any that are upstream-red.
+# which appears nowhere in ore's Linux CI -- a second, platform-local fault that
+# made the comparison unusable. ore-upstream-probe answered it on the platform it
+# had to be answered on:
+#
+#   Summary [157.949s] 16 tests run: 16 passed, 1400 skipped
+#
+# pristine rust-v0.152.0, ubuntu-24.04. None of the 16 is upstream-red; all of
+# them are the seam, exactly as classifier_in_scope predicted. The mechanism was
+# right and the macOS run was noise.
+#
+# The wider lesson is recorded here because it cost three mis-filed entries: a
+# macOS verdict about upstream is not evidence about ore's Linux CI. Every
+# cause (4) claim should be re-derived with ore-upstream-probe before it is
+# trusted, and the ones above have been.
 package(codex-app-server) & test(guardian_v2_discards_sync_reviews_after_user_input_answer)
 package(codex-app-server) & test(guardian_v2_inherits_root_user_skills_for_delegated_workers)
 package(codex-app-server) & test(guardian_v2_low_scores_require_current_authorization)
