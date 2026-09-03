@@ -64,7 +64,15 @@ URL_RE = re.compile(r"https?://[A-Za-z0-9._~:/%#@!$&'()*+,;=?{}-]+")
 # with format! placeholders are classified by their path fragments (the
 # substring lists), not by host.
 _FIXTURE_TLDS = {"example", "invalid", "test", "localhost"}
-_FIXTURE_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "example.com", "example.org", "example.net"}
+_FIXTURE_HOSTS = {
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "::1",
+    "example.com",
+    "example.org",
+    "example.net",
+}
 
 
 def run_git(repo: Path, *args: str) -> str:
@@ -126,7 +134,9 @@ def headline(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     files = run_git(repo, "diff", "--name-only", base_c, tag_c).splitlines()
     rep.section("headline", OK)
     rep.add(f"- {commits} commits, {len(files)} files changed, {len(authors)} authors")
-    rep.add(f"- top authors: {', '.join(a.strip().split(chr(9))[-1] for a in authors[:8])}")
+    rep.add(
+        f"- top authors: {', '.join(a.strip().split(chr(9))[-1] for a in authors[:8])}"
+    )
     rep.add("- dirstat (lines, >=3%):")
     rep.code("\n".join(dirstat[:20]))
 
@@ -144,9 +154,13 @@ def workspace_members(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
         rep.add(f"- unchanged ({len(new)} members)")
         return
     for m in added:
-        rep.add(f"- ADDED `{m}` — new crate: check for default-on egress and telemetry deps")
+        rep.add(
+            f"- ADDED `{m}` — new crate: check for default-on egress and telemetry deps"
+        )
     for m in removed:
-        rep.add(f"- REMOVED `{m}` — if a series commit patches it, that commit now applies to nothing")
+        rep.add(
+            f"- REMOVED `{m}` — if a series commit patches it, that commit now applies to nothing"
+        )
 
 
 def lock_packages(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
@@ -162,9 +176,9 @@ def lock_packages(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     # name or every multi-version crate reports a phantom cross-product bump.
     old_v: dict[str, set[str]] = {}
     new_v: dict[str, set[str]] = {}
-    for (n, v) in old:
+    for n, v in old:
         old_v.setdefault(n, set()).add(v)
-    for (n, v) in new:
+    for n, v in new:
         new_v.setdefault(n, set()).add(v)
     added = sorted(set(new_v) - set(old_v))
     removed = sorted(set(old_v) - set(new_v))
@@ -175,7 +189,9 @@ def lock_packages(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     ]
     verdict = WARN if added else OK
     rep.section("Cargo.lock package set (upstream's own dep changes)", verdict)
-    rep.add(f"- {len(old)} -> {len(new)} `[[package]]` entries; {len(bumped)} crates changed version")
+    rep.add(
+        f"- {len(old)} -> {len(new)} `[[package]]` entries; {len(bumped)} crates changed version"
+    )
     for n in added:
         srcs = {new[(nn, v)] for (nn, v) in new if nn == n}
         git_flag = " **git source**" if any("git+" in s for s in srcs) else ""
@@ -183,6 +199,7 @@ def lock_packages(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     for n in removed:
         rep.add(f"- removed crate `{n}`")
     if bumped:
+
         def fmt(n: str, ov: set[str], nv: set[str]) -> str:
             # Only the version-set delta: a crate locked at several versions
             # would otherwise re-list its unchanged ones.
@@ -198,7 +215,9 @@ def lock_packages(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
 
 def load_egress(path: Path) -> dict[str, list[str]]:
     data = _yamlmin.safe_load(path.read_text(encoding="utf-8"))
-    return {k: [str(v).lower() for v in data.get(k, [])] for k in ("kill", "decide", "keep")}
+    return {
+        k: [str(v).lower() for v in data.get(k, [])] for k in ("kill", "decide", "keep")
+    }
 
 
 def classify(url: str, egress: dict[str, list[str]]) -> str:
@@ -209,7 +228,9 @@ def classify(url: str, egress: dict[str, list[str]]) -> str:
     best: tuple[int, int, str] | None = None
     for prio, bucket in enumerate(("kill", "decide", "keep")):
         for pat in egress[bucket]:
-            if pat in bare and (best is None or (len(pat), -prio) > (best[0], -best[1])):
+            if pat in bare and (
+                best is None or (len(pat), -prio) > (best[0], -best[1])
+            ):
                 best = (len(pat), prio, bucket)
     if best:
         return best[2]
@@ -231,31 +252,50 @@ def rs_urls(repo: Path, commit: str) -> set[str]:
     for line in (out or "").splitlines():
         urls.add(line.strip().rstrip("\"'`.,);@{"))
     if not urls:
-        raise SystemExit(f"egress scan found ZERO url literals at {commit[:10]} — url regex is broken")
+        raise SystemExit(
+            f"egress scan found ZERO url literals at {commit[:10]} — url regex is broken"
+        )
     return urls
 
 
 def egress_literals(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     egress = load_egress(FORK_DIR / "egress.yaml")
     added = sorted(rs_urls(repo, tag_c) - rs_urls(repo, base_c))
-    buckets: dict[str, list[str]] = {"kill": [], "decide": [], "keep": [], "fixture": [], "unclassified": []}
+    buckets: dict[str, list[str]] = {
+        "kill": [],
+        "decide": [],
+        "keep": [],
+        "fixture": [],
+        "unclassified": [],
+    }
     for url in added:
         buckets[classify(url, egress)].append(url)
-    verdict = WARN if buckets["kill"] or buckets["decide"] or buckets["unclassified"] else OK
+    verdict = (
+        WARN if buckets["kill"] or buckets["decide"] or buckets["unclassified"] else OK
+    )
     rep.section("new egress literals in .rs (vs fork/egress.yaml)", verdict)
     rep.add(f"- {len(added)} URL literal(s) are new at {tag_c[:10]}")
     for url in buckets["unclassified"]:
-        rep.add(f"- {WARN} UNCLASSIFIED `{url}` — needs-decision: add to fork/egress.yaml in this sync PR")
+        rep.add(
+            f"- {WARN} UNCLASSIFIED `{url}` — needs-decision: add to fork/egress.yaml in this sync PR"
+        )
     for url in buckets["kill"]:
-        rep.add(f"- {WARN} KILL-class `{url}` — upstream grew a phone-home; confirm the owning series neutralizes it")
+        rep.add(
+            f"- {WARN} KILL-class `{url}` — upstream grew a phone-home; confirm the owning series neutralizes it"
+        )
     for url in buckets["decide"]:
         rep.add(f"- {WARN} DECIDE-class `{url}` — standing open decision, re-triage")
     if buckets["keep"]:
-        rep.add(f"- keep-class ({len(buckets['keep'])}): " + ", ".join(f"`{u}`" for u in buckets["keep"][:15]))
+        rep.add(
+            f"- keep-class ({len(buckets['keep'])}): "
+            + ", ".join(f"`{u}`" for u in buckets["keep"][:15])
+        )
     if buckets["fixture"]:
-        rep.add(f"- test fixtures (reserved hosts / placeholders, {len(buckets['fixture'])}): "
-                + ", ".join(f"`{u}`" for u in buckets["fixture"][:15])
-                + (" ..." if len(buckets["fixture"]) > 15 else ""))
+        rep.add(
+            f"- test fixtures (reserved hosts / placeholders, {len(buckets['fixture'])}): "
+            + ", ".join(f"`{u}`" for u in buckets["fixture"][:15])
+            + (" ..." if len(buckets["fixture"]) > 15 else "")
+        )
 
 
 def auth_fence(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
@@ -307,12 +347,18 @@ def seam_proximity(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
             header = hunk.splitlines()[0]
             matched = [a for a in anchors if re.search(a, hunk)]
             if matched:
-                hit_lines.append(f"    - `{header[:80]}` matched {', '.join(f'`{m}`' for m in matched)}")
+                hit_lines.append(
+                    f"    - `{header[:80]}` matched {', '.join(f'`{m}`' for m in matched)}"
+                )
         if hit_lines:
-            findings.append(f"- {WARN} `{path}` (series **{series}**): changed hunks touch its anchors")
+            findings.append(
+                f"- {WARN} `{path}` (series **{series}**): changed hunks touch its anchors"
+            )
             findings.extend(hit_lines)
         else:
-            quiet.append(f"- `{path}` changed, but no anchor sits in a changed hunk ({series})")
+            quiet.append(
+                f"- `{path}` changed, but no anchor sits in a changed hunk ({series})"
+            )
     verdict = WARN if findings else OK
     rep.section("seam proximity (fork/seams.yaml)", verdict)
     if not findings and not quiet:
@@ -322,8 +368,15 @@ def seam_proximity(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
 
 
 def ci_surface(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
-    paths = [".github/workflows", ".github/actions", ".github/scripts", ".github/dependabot.yaml"]
-    ns = run_git(repo, "diff", "--name-status", base_c, tag_c, "--", *paths).splitlines()
+    paths = [
+        ".github/workflows",
+        ".github/actions",
+        ".github/scripts",
+        ".github/dependabot.yaml",
+    ]
+    ns = run_git(
+        repo, "diff", "--name-status", base_c, tag_c, "--", *paths
+    ).splitlines()
     new_workflows = [
         line.split("\t")[1]
         for line in ns
@@ -346,7 +399,9 @@ def ci_surface(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
             "API before merge (the sync workflow's enabled-workflows == allowlist check enforces this)"
         )
     for line in release_touched:
-        rep.add(f"- {WARN} `{line.split(chr(9))[-1]}` changed — read the diff: port to ore-release*?")
+        rep.add(
+            f"- {WARN} `{line.split(chr(9))[-1]}` changed — read the diff: port to ore-release*?"
+        )
     rep.add(f"- full change list ({len(ns)} entries):")
     rep.code("\n".join(ns[:60]) + ("\n..." if len(ns) > 60 else ""))
 
@@ -366,11 +421,15 @@ def config_schema(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     verdict = WARN if added_p or removed_p else OK
     rep.section("config.toml schema surface", verdict)
     for k in added_p:
-        rep.add(f"- {WARN} NEW top-level config key `{k}` — new behavior to triage (default-on egress?)")
+        rep.add(
+            f"- {WARN} NEW top-level config key `{k}` — new behavior to triage (default-on egress?)"
+        )
     for k in removed_p:
         rep.add(f"- removed top-level config key `{k}`")
     if added_d or removed_d:
-        rep.add(f"- definitions: +{len(added_d)} ({', '.join(added_d[:10])}) -{len(removed_d)}")
+        rep.add(
+            f"- definitions: +{len(added_d)} ({', '.join(added_d[:10])}) -{len(removed_d)}"
+        )
     if not (added_p or removed_p or added_d or removed_d):
         rep.add("- schema property set unchanged")
 
@@ -382,7 +441,9 @@ def packaging(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     if not stat.strip():
         rep.add("- untouched")
         return
-    rep.add("- changes here usually need a mirrored change in ore's release workflow or install docs:")
+    rep.add(
+        "- changes here usually need a mirrored change in ore's release workflow or install docs:"
+    )
     rep.code(stat)
 
 
@@ -397,7 +458,17 @@ def toolchain(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
             findings.append("```")
 
     def gates(commit: str) -> set[str]:
-        out = try_git(repo, "grep", "-h", "-o", r"\"minimal_client_version\": \"[0-9.]*\"", commit) or ""
+        out = (
+            try_git(
+                repo,
+                "grep",
+                "-h",
+                "-o",
+                r"\"minimal_client_version\": \"[0-9.]*\"",
+                commit,
+            )
+            or ""
+        )
         return set(out.splitlines())
 
     old_g, new_g = gates(base_c), gates(tag_c)
@@ -407,13 +478,19 @@ def toolchain(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
             "(wire-visible: ore's scheme-C version must clear every published gate)"
         )
     rep.section("toolchain / version prerequisites", WARN if findings else OK)
-    rep.lines.extend(findings or ["- toolchain, nextest config and client-version gates unchanged"])
+    rep.lines.extend(
+        findings or ["- toolchain, nextest config and client-version gates unchanged"]
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    parser.add_argument("--base", required=True, help="previous upstream tag (rust-vA.B.C)")
-    parser.add_argument("--tag", required=True, help="target upstream tag (rust-vX.Y.Z)")
+    parser.add_argument(
+        "--base", required=True, help="previous upstream tag (rust-vA.B.C)"
+    )
+    parser.add_argument(
+        "--tag", required=True, help="target upstream tag (rust-vX.Y.Z)"
+    )
     parser.add_argument("--out", help="write markdown here (default: stdout)")
     parser.add_argument("--repo", default=str(FORK_DIR.parent), help="repository root")
     parser.add_argument(

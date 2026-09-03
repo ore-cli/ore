@@ -37,22 +37,37 @@ from pathlib import Path
 
 # Upstream's release grammar (rust-release.yml / install.sh / install.ps1 /
 # publish_r2_release.py agree on it) with the ore-v prefix.
-SEMVER_RE = re.compile(r"^([0-9]+)\.([0-9]+)\.([0-9]+)(-(alpha(\.[0-9]+){0,2}|beta(\.[0-9]+)?))?$")
-TAG_RE = re.compile(r"^ore-v([0-9]+\.[0-9]+\.[0-9]+(-(alpha(\.[0-9]+){0,2}|beta(\.[0-9]+)?))?)$")
+SEMVER_RE = re.compile(
+    r"^([0-9]+)\.([0-9]+)\.([0-9]+)(-(alpha(\.[0-9]+){0,2}|beta(\.[0-9]+)?))?$"
+)
+TAG_RE = re.compile(
+    r"^ore-v([0-9]+\.[0-9]+\.[0-9]+(-(alpha(\.[0-9]+){0,2}|beta(\.[0-9]+)?))?)$"
+)
 
 # Line 2 must end in ')' so no installer's trailing-token regex can ever
 # mistake the base SHA for a version (verdict-version-on-wire).
-LINE2_RE = re.compile(r"^codex-base: (rust-v[0-9]+\.[0-9]+\.[0-9]+) \(([0-9a-f]{7,40})\)$")
+LINE2_RE = re.compile(
+    r"^codex-base: (rust-v[0-9]+\.[0-9]+\.[0-9]+) \(([0-9a-f]{7,40})\)$"
+)
 
 # The three on-main-proof greps: the shipped CLI is `ore` while the cargo bin
 # target stays `codex` (packaging-time rename, decision 1).
 ON_MAIN_PROOFS = (
-    ("scripts/codex_package/targets.py", re.compile(r'executable_stem\s*=\s*"ore"'),
-     "packaging renames the shipped entrypoint to ore"),
-    ("codex-rs/cli/src/main.rs", re.compile(r'name\s*=\s*"ore"'),
-     "clap identity: --version/--help print ore"),
-    ("codex-cli/package.json", re.compile(r'"ore":\s*"bin/'),
-     "npm bin entry ships the ore command"),
+    (
+        "scripts/codex_package/targets.py",
+        re.compile(r'executable_stem\s*=\s*"ore"'),
+        "packaging renames the shipped entrypoint to ore",
+    ),
+    (
+        "codex-rs/cli/src/main.rs",
+        re.compile(r'name\s*=\s*"ore"'),
+        "clap identity: --version/--help print ore",
+    ),
+    (
+        "codex-cli/package.json",
+        re.compile(r'"ore":\s*"bin/'),
+        "npm bin entry ships the ore command",
+    ),
 )
 
 
@@ -93,6 +108,7 @@ def workspace_version(cargo_toml: Path) -> str | None:
 
 # --- the three real consumers of `--version`, simulated exactly ------------
 
+
 def sim_daemon(output: str) -> str | None:
     # app-server-daemon managed_install.rs: split_whitespace().nth(1) over the
     # WHOLE output — the version must be the second token overall.
@@ -119,26 +135,40 @@ def sim_install_ps1_line(line: str) -> str | None:
     return m.group(1) if m else None
 
 
-def check_binary(bin_path: Path, expect_version: str, expect_tag: str, expect_commit: str, rep: Report) -> None:
+def check_binary(
+    bin_path: Path,
+    expect_version: str,
+    expect_tag: str,
+    expect_commit: str,
+    rep: Report,
+) -> None:
     try:
-        proc = subprocess.run([str(bin_path), "--version"], capture_output=True, text=True, timeout=60)
+        proc = subprocess.run(
+            [str(bin_path), "--version"], capture_output=True, text=True, timeout=60
+        )
     except (OSError, subprocess.TimeoutExpired) as err:
         rep.fails.append(f"could not run {bin_path} --version: {err}")
         return
     out = proc.stdout
     lines = out.splitlines()
     if not lines:
-        rep.fails.append(f"{bin_path} --version produced no stdout (stderr: {proc.stderr.strip()[:200]!r})")
+        rep.fails.append(
+            f"{bin_path} --version produced no stdout (stderr: {proc.stderr.strip()[:200]!r})"
+        )
         return
 
     line1 = lines[0]
     m = re.match(r"^ore (\S+)$", line1)
     if not m:
-        rep.fails.append(f"--version line 1 is {line1!r}; must be exactly two tokens: 'ore <semver>'")
+        rep.fails.append(
+            f"--version line 1 is {line1!r}; must be exactly two tokens: 'ore <semver>'"
+        )
         return
     ver = m.group(1)
     if not SEMVER_RE.match(ver):
-        rep.fails.append(f"--version line 1 version {ver!r} does not match the ore semver grammar")
+        rep.fails.append(
+            f"--version line 1 version {ver!r} does not match the ore semver grammar"
+        )
     if ver != expect_version:
         rep.fails.append(
             f"--version reports {ver} but fork/VERSION (== CARGO_PKG_VERSION by check b) is {expect_version} — "
@@ -147,7 +177,9 @@ def check_binary(bin_path: Path, expect_version: str, expect_tag: str, expect_co
     rep.oks.append(f"--version line 1 = {line1!r}")
 
     if len(lines) < 2:
-        rep.fails.append("--version has no line 2; expected 'codex-base: rust-vX.Y.Z (<sha>)'")
+        rep.fails.append(
+            "--version has no line 2; expected 'codex-base: rust-vX.Y.Z (<sha>)'"
+        )
     else:
         m2 = LINE2_RE.match(lines[1])
         if not m2:
@@ -157,9 +189,13 @@ def check_binary(bin_path: Path, expect_version: str, expect_tag: str, expect_co
             )
         else:
             if expect_tag and m2.group(1) != expect_tag:
-                rep.fails.append(f"line 2 base tag {m2.group(1)} != fork/UPSTREAM tag {expect_tag}")
+                rep.fails.append(
+                    f"line 2 base tag {m2.group(1)} != fork/UPSTREAM tag {expect_tag}"
+                )
             if expect_commit and not expect_commit.startswith(m2.group(2)):
-                rep.fails.append(f"line 2 base sha {m2.group(2)} is not a prefix of fork/UPSTREAM commit {expect_commit}")
+                rep.fails.append(
+                    f"line 2 base sha {m2.group(2)} is not a prefix of fork/UPSTREAM commit {expect_commit}"
+                )
             rep.oks.append(f"--version line 2 = {lines[1]!r}")
 
     for name, got in (
@@ -168,7 +204,9 @@ def check_binary(bin_path: Path, expect_version: str, expect_tag: str, expect_co
         ("install.ps1 first-line trailing-token match", sim_install_ps1_line(line1)),
     ):
         if got != ver:
-            rep.fails.append(f"consumer simulation {name} recovers {got!r}, not {ver!r}")
+            rep.fails.append(
+                f"consumer simulation {name} recovers {got!r}, not {ver!r}"
+            )
         else:
             rep.oks.append(f"consumer simulation ok: {name} -> {got}")
     if len(lines) > 1 and sim_install_ps1_line(lines[1]) is not None:
@@ -179,16 +217,27 @@ def check_binary(bin_path: Path, expect_version: str, expect_tag: str, expect_co
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
     ap.add_argument("--tag", help="validate a release tag (e.g. ore-v1.149.0)")
-    ap.add_argument("--binary", metavar="PATH", help="run PATH --version and check format + consumer sims")
+    ap.add_argument(
+        "--binary",
+        metavar="PATH",
+        help="run PATH --version and check format + consumer sims",
+    )
     ap.add_argument("--tree-only", action="store_true", help="skip binary checks")
-    ap.add_argument("--on-main-proof", action="store_true",
-                    help="force the 3-grep on-main proof (automatic on an assembled tree)")
+    ap.add_argument(
+        "--on-main-proof",
+        action="store_true",
+        help="force the 3-grep on-main proof (automatic on an assembled tree)",
+    )
     args = ap.parse_args(argv)
 
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    root = (
+        Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    )
     rep = Report()
 
     version_file = root / "fork" / "VERSION"
@@ -210,14 +259,18 @@ def main(argv: list[str] | None = None) -> int:
     # (a) grammar
     m = SEMVER_RE.match(fork_version)
     if not m:
-        rep.fails.append(f"fork/VERSION {fork_version!r} does not match the ore semver grammar")
+        rep.fails.append(
+            f"fork/VERSION {fork_version!r} does not match the ore semver grammar"
+        )
     else:
         rep.oks.append(f"fork/VERSION {fork_version} matches the ore semver grammar")
 
     # (c) scheme C: minor tracks the upstream base minor
     base_m = re.match(r"^rust-v([0-9]+)\.([0-9]+)\.([0-9]+)$", base_tag)
     if not base_m:
-        rep.fails.append(f"fork/UPSTREAM tag {base_tag!r} is not a rust-vX.Y.Z stable tag")
+        rep.fails.append(
+            f"fork/UPSTREAM tag {base_tag!r} is not a rust-vX.Y.Z stable tag"
+        )
     elif m:
         if m.group(2) != base_m.group(2):
             rep.fails.append(
@@ -226,14 +279,18 @@ def main(argv: list[str] | None = None) -> int:
                 f"on a new base; fork/VERSION was edited against the scheme"
             )
         else:
-            rep.oks.append(f"scheme C holds: minor {m.group(2)} == upstream base minor ({base_tag})")
+            rep.oks.append(
+                f"scheme C holds: minor {m.group(2)} == upstream base minor ({base_tag})"
+            )
 
     # (b) workspace version, table-scoped
     cargo_toml = root / "codex-rs" / "Cargo.toml"
     ws = workspace_version(cargo_toml)
     base_version = base_m and f"{base_m.group(1)}.{base_m.group(2)}.{base_m.group(3)}"
     if ws is None:
-        rep.fails.append("no version line found inside [workspace.package] in codex-rs/Cargo.toml")
+        rep.fails.append(
+            "no version line found inside [workspace.package] in codex-rs/Cargo.toml"
+        )
     elif ws == fork_version:
         rep.oks.append(f"[workspace.package] version == fork/VERSION ({ws})")
     elif base_version and ws == base_version:
@@ -267,7 +324,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.tag:
         tm = TAG_RE.match(args.tag)
         if not tm:
-            rep.fails.append(f"tag {args.tag!r} does not match the ore tag grammar ^ore-v<semver>$")
+            rep.fails.append(
+                f"tag {args.tag!r} does not match the ore tag grammar ^ore-v<semver>$"
+            )
         elif tm.group(1) != fork_version:
             rep.fails.append(
                 f"tag {args.tag} carries {tm.group(1)}, but fork/VERSION is {fork_version} — set "
@@ -288,7 +347,9 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 rep.oks.append(f"on-main proof: {rel} carries /{rx.pattern}/")
     else:
-        rep.notes.append("on-main proof skipped on a pre-assembly tree (the greps only hold on generated main)")
+        rep.notes.append(
+            "on-main proof skipped on a pre-assembly tree (the greps only hold on generated main)"
+        )
 
     # (e) binary format + consumer simulations
     if args.binary and not args.tree_only:
