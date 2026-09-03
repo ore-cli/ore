@@ -44,7 +44,9 @@ def load_allowlist(path: Path) -> set[str]:
         if line:
             allow.add(line)
     if not allow:
-        raise SystemExit(f"relocate: allowlist {path} is empty — refusing to relocate everything blind")
+        raise SystemExit(
+            f"relocate: allowlist {path} is empty — refusing to relocate everything blind"
+        )
     return allow
 
 
@@ -76,7 +78,11 @@ def stale_relocations(root: Path, allow: set[str]) -> list[Path]:
     dest = root / DEST_DIR
     if not dest.is_dir():
         return []
-    return [DEST_DIR / e.name for e in sorted(dest.iterdir()) if is_workflow_yaml(e) and e.name in allow]
+    return [
+        DEST_DIR / e.name
+        for e in sorted(dest.iterdir())
+        if is_workflow_yaml(e) and e.name in allow
+    ]
 
 
 def git_mv(root: Path, src: Path, dst: Path) -> bool:
@@ -93,7 +99,11 @@ def git_mv(root: Path, src: Path, dst: Path) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--root", default=str(DEFAULT_ROOT), help="tree to operate on (default: repo root)")
+    parser.add_argument(
+        "--root",
+        default=str(DEFAULT_ROOT),
+        help="tree to operate on (default: repo root)",
+    )
     parser.add_argument(
         "--allow",
         default=str(FORK_DIR / "workflows.allow"),
@@ -112,13 +122,19 @@ def main(argv: list[str] | None = None) -> int:
     stale = stale_relocations(root, allow)
 
     for path in stale:
-        print(f"relocate: CONFLICT {path}: basename is allowlisted but sits in {DEST_DIR}", file=sys.stderr)
+        print(
+            f"relocate: CONFLICT {path}: basename is allowlisted but sits in {DEST_DIR}",
+            file=sys.stderr,
+        )
 
     if args.check:
         for src, dst in moves:
             print(f"relocate: would move {src} -> {dst}")
         if moves or stale:
-            print(f"relocate --check: {len(moves)} file(s) out of place, {len(stale)} conflict(s)", file=sys.stderr)
+            print(
+                f"relocate --check: {len(moves)} file(s) out of place, {len(stale)} conflict(s)",
+                file=sys.stderr,
+            )
             return 1
         print("relocate --check: clean")
         return 0

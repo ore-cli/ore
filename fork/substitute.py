@@ -52,6 +52,7 @@ VAR_RE = re.compile(r"\$\{([a-z0-9_]+)\}")
 # Rust literal / comment scanning
 # --------------------------------------------------------------------------
 
+
 def rust_spans(text: str) -> list[tuple[int, int, str]]:
     """Return ``(start, end, kind)`` spans of Rust string literals and comments.
 
@@ -130,7 +131,9 @@ def rust_spans(text: str) -> list[tuple[int, int, str]]:
 _PLACEHOLDER_RE = re.compile(r"\{[A-Za-z0-9_.:#?><^+\-]*\}")
 
 
-def _sub_in_chunk(pattern: re.Pattern[str], repl: str, chunk: str, protect_placeholders: bool) -> tuple[str, int]:
+def _sub_in_chunk(
+    pattern: re.Pattern[str], repl: str, chunk: str, protect_placeholders: bool
+) -> tuple[str, int]:
     if not protect_placeholders:
         return pattern.subn(repl, chunk)
     out: list[str] = []
@@ -148,7 +151,9 @@ def _sub_in_chunk(pattern: re.Pattern[str], repl: str, chunk: str, protect_place
     return "".join(out), count
 
 
-def sub_in_rust_literals(pattern: re.Pattern[str], repl: str, text: str) -> tuple[str, int]:
+def sub_in_rust_literals(
+    pattern: re.Pattern[str], repl: str, text: str
+) -> tuple[str, int]:
     """Substitute only inside Rust literal/comment spans, protecting placeholders."""
     return _sub_in_spans(pattern, repl, text, rust_spans(text))
 
@@ -165,7 +170,9 @@ def _sub_in_spans(
         if start < cursor:  # overlapping span (e.g. comment inside skipped text)
             continue
         out.append(text[cursor:start])
-        chunk, c = _sub_in_chunk(pattern, repl, text[start:end], protect_placeholders=(kind == "lit"))
+        chunk, c = _sub_in_chunk(
+            pattern, repl, text[start:end], protect_placeholders=(kind == "lit")
+        )
         out.append(chunk)
         count += c
         cursor = end
@@ -176,6 +183,7 @@ def _sub_in_spans(
 # --------------------------------------------------------------------------
 # Manifest model
 # --------------------------------------------------------------------------
+
 
 @functools.lru_cache(maxsize=4096)
 def _glob_re(pattern: str) -> re.Pattern[str]:
@@ -291,7 +299,9 @@ def load_manifest(path: Path = MANIFEST) -> Manifest:
                     replace=_interp(str(entry.get("replace", "")), vars_),
                     files=[_interp(str(f), vars_) for f in (entry.get("files") or [])],
                     globs=[_interp(str(g), vars_) for g in (entry.get("globs") or [])],
-                    exclude=[_interp(str(g), vars_) for g in (entry.get("exclude") or [])],
+                    exclude=[
+                        _interp(str(g), vars_) for g in (entry.get("exclude") or [])
+                    ],
                     rust_literals_only=entry.get("rust_literals_only"),
                     optional=bool(entry.get("optional", False)),
                     note=str(entry.get("note", "")),
@@ -311,6 +321,7 @@ def load_manifest(path: Path = MANIFEST) -> Manifest:
 # --------------------------------------------------------------------------
 # File walking
 # --------------------------------------------------------------------------
+
 
 def iter_files(root: Path, engine: Engine) -> list[str]:
     """Walk the tree, pruning skipped directories instead of filtering after the fact."""
@@ -363,7 +374,10 @@ def read_text(path: Path) -> str | None:
 # Apply / check
 # --------------------------------------------------------------------------
 
-def apply_rules(root: Path, manifest: Manifest, write: bool) -> tuple[dict[str, int], dict[str, int]]:
+
+def apply_rules(
+    root: Path, manifest: Manifest, write: bool
+) -> tuple[dict[str, int], dict[str, int]]:
     """Return (per-rule replacement counts, per-file change counts)."""
     counts: dict[str, int] = {rule.name: 0 for rule in manifest.rules}
     changed: dict[str, int] = {}
@@ -402,13 +416,22 @@ def apply_rules(root: Path, manifest: Manifest, write: bool) -> tuple[dict[str, 
                 text, c = rule.pattern.subn(rule.replace, text)
             counts[rule.name] += c
         if text != original:
-            changed[rel] = sum(1 for a, b in zip(original.splitlines(), text.splitlines()) if a != b) or 1
+            changed[rel] = (
+                sum(
+                    1
+                    for a, b in zip(original.splitlines(), text.splitlines())
+                    if a != b
+                )
+                or 1
+            )
             if write:
                 path.write_text(text, encoding="utf-8")
     return counts, changed
 
 
-def apply_path_moves(root: Path, manifest: Manifest, write: bool) -> list[tuple[str, str]]:
+def apply_path_moves(
+    root: Path, manifest: Manifest, write: bool
+) -> list[tuple[str, str]]:
     done: list[tuple[str, str]] = []
     for src, dst in manifest.path_moves:
         src_path = root / src
@@ -433,6 +456,7 @@ def apply_path_moves(root: Path, manifest: Manifest, write: bool) -> list[tuple[
 # Audit
 # --------------------------------------------------------------------------
 
+
 def declared_subcommands(root: Path, source: str) -> list[str]:
     """Re-derive the CLI subcommand list from ``enum Subcommand`` in the source."""
     text = read_text(root / source) or ""
@@ -454,9 +478,13 @@ def audit(root: Path, manifest: Manifest) -> int:
     cfg = manifest.audit or {}
     allow_paths = [str(p) for p in (cfg.get("allow_paths") or [])]
     allow_literals = [str(p) for p in (manifest.allowlist.get("literals") or [])]
-    allow_prefixes = [str(p) for p in (manifest.allowlist.get("literal_prefixes") or [])]
+    allow_prefixes = [
+        str(p) for p in (manifest.allowlist.get("literal_prefixes") or [])
+    ]
     allow_globs = [str(p) for p in (manifest.allowlist.get("paths") or [])]
-    subcommands = declared_subcommands(root, str(cfg.get("cli_subcommands_from", "codex-rs/cli/src/main.rs")))
+    subcommands = declared_subcommands(
+        root, str(cfg.get("cli_subcommands_from", "codex-rs/cli/src/main.rs"))
+    )
     # `bare-command` exists because the other three share the substitution rules'
     # blind spot. cli-command keys off the subcommand that FOLLOWS the word, and
     # product-name needs the capital -- so a bare lowercase `codex` sitting in a
@@ -473,7 +501,13 @@ def audit(root: Path, manifest: Manifest) -> int:
     bare_allow = [str(p) for p in (cfg.get("bare_command_allow") or [])]
     bare_re = re.compile(r"(?<![\w./-])codex(?![\w./-])")
     leak_res = [
-        ("cli-command", re.compile(r"(?<![\w./-])codex(?= (?:%s)\b)" % "|".join(map(re.escape, subcommands)))),
+        (
+            "cli-command",
+            re.compile(
+                r"(?<![\w./-])codex(?= (?:%s)\b)"
+                % "|".join(map(re.escape, subcommands))
+            ),
+        ),
         ("npm-package", re.compile(r"@openai/codex")),
         ("product-name", re.compile(r"\bCodex\b")),
     ]
@@ -481,7 +515,9 @@ def audit(root: Path, manifest: Manifest) -> int:
     for rel in iter_files(root, manifest.engine):
         if any(rel.startswith(p) for p in allow_paths):
             continue
-        if any(glob_match(rel, g) or rel.startswith(g.rstrip("*")) for g in allow_globs):
+        if any(
+            glob_match(rel, g) or rel.startswith(g.rstrip("*")) for g in allow_globs
+        ):
             continue
         text = read_text(root / rel)
         if text is None:
@@ -498,7 +534,11 @@ def audit(root: Path, manifest: Manifest) -> int:
                 if spans is not None and not any(s <= offset < e for s, e, _ in spans):
                     continue
                 lineno = bisect.bisect_right(line_starts, offset)
-                line = text[line_starts[lineno - 1] : (line_starts[lineno] if lineno < len(line_starts) else len(text))]
+                line = text[
+                    line_starts[lineno - 1] : (
+                        line_starts[lineno] if lineno < len(line_starts) else len(text)
+                    )
+                ]
                 frag = line.strip()
                 if any(lit in frag for lit in allow_literals):
                     continue
@@ -512,17 +552,29 @@ def audit(root: Path, manifest: Manifest) -> int:
                 lit = text[s_off:e_off]
                 for m in bare_re.finditer(lit):
                     # prose, not a fixture: the word sits inside a phrase.
-                    if lit[max(0, m.start() - 1):m.start()] != " " and lit[m.end():m.end() + 1] != " ":
+                    if (
+                        lit[max(0, m.start() - 1) : m.start()] != " "
+                        and lit[m.end() : m.end() + 1] != " "
+                    ):
                         continue
                     lineno = bisect.bisect_right(line_starts, s_off)
-                    line = text[line_starts[lineno - 1] : (line_starts[lineno] if lineno < len(line_starts) else len(text))]
+                    line = text[
+                        line_starts[lineno - 1] : (
+                            line_starts[lineno]
+                            if lineno < len(line_starts)
+                            else len(text)
+                        )
+                    ]
                     frag = line.strip()
                     if any(a in lit for a in bare_allow):
                         break
                     findings.append(f"{rel}:{lineno}: [bare-command] {frag[:140]}")
                     break
     if findings:
-        print(f"substitute --audit: {len(findings)} brand leak(s) outside the allowlist", file=sys.stderr)
+        print(
+            f"substitute --audit: {len(findings)} brand leak(s) outside the allowlist",
+            file=sys.stderr,
+        )
         for line in findings[:200]:
             print(f"  {line}", file=sys.stderr)
         if len(findings) > 200:
@@ -536,14 +588,27 @@ def audit(root: Path, manifest: Manifest) -> int:
 # CLI
 # --------------------------------------------------------------------------
 
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--apply", action="store_true", help="rewrite the tree")
-    mode.add_argument("--check", action="store_true", help="fail if applying would still change anything")
-    mode.add_argument("--audit", action="store_true", help="scan for brand leaks outside the allowlist")
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="fail if applying would still change anything",
+    )
+    mode.add_argument(
+        "--audit",
+        action="store_true",
+        help="scan for brand leaks outside the allowlist",
+    )
     mode.add_argument("--list", action="store_true", help="print resolved rules")
-    parser.add_argument("--root", default=str(REPO_ROOT), help="tree to operate on (default: repo root)")
+    parser.add_argument(
+        "--root", default=str(REPO_ROOT), help="tree to operate on (default: repo root)"
+    )
     parser.add_argument("--manifest", default=str(MANIFEST))
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args(argv)
@@ -556,7 +621,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"# yaml backend: {_yamlmin.loader_name()}")
         for rule in manifest.rules:
             scope = ",".join(rule.files or rule.globs) or "<all files>"
-            print(f"{rule.category}/{rule.name}: {rule.pattern.pattern!r} -> {rule.replace!r}  [{scope}]")
+            print(
+                f"{rule.category}/{rule.name}: {rule.pattern.pattern!r} -> {rule.replace!r}  [{scope}]"
+            )
         for src, dst in manifest.path_moves:
             print(f"path_move: {src} -> {dst}")
         return 0
@@ -570,7 +637,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check:
         if changed or moves:
-            print("substitute --check: tree is NOT idempotent; these would still change:", file=sys.stderr)
+            print(
+                "substitute --check: tree is NOT idempotent; these would still change:",
+                file=sys.stderr,
+            )
             for rel in sorted(changed)[:100]:
                 print(f"  {rel}", file=sys.stderr)
             for src, dst in moves:
@@ -581,7 +651,9 @@ def main(argv: list[str] | None = None) -> int:
 
     stale = [r.name for r in manifest.rules if counts[r.name] == 0 and not r.optional]
     total = sum(counts.values())
-    print(f"substitute --apply: {total} replacement(s) in {len(changed)} file(s), {len(moves)} path move(s)")
+    print(
+        f"substitute --apply: {total} replacement(s) in {len(changed)} file(s), {len(moves)} path move(s)"
+    )
     if args.verbose:
         for rule in manifest.rules:
             print(f"  {counts[rule.name]:6d}  {rule.category}/{rule.name}")

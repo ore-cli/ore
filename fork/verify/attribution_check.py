@@ -39,29 +39,63 @@ from pathlib import Path
 # ignored, and an ignored check is worse than no check.
 OVERCLAIM_PATTERNS = (
     (r"coding agent from OpenAI", "claims OpenAI authorship", False),
-    (r"\bore\b[ ,:]{0,3}(?:is )?OpenAI's (?:command-line )?(?:coding )?agent",
-     "claims OpenAI authorship", True),
+    (
+        r"\bore\b[ ,:]{0,3}(?:is )?OpenAI's (?:command-line )?(?:coding )?agent",
+        "claims OpenAI authorship",
+        True,
+    ),
     (r"\bore\b[ ,:]{0,3}(?:is )?an OpenAI\b", "claims to be an OpenAI product", True),
     (r"open source project led by OpenAI", "claims OpenAI stewardship", False),
-    (r"(?:developed|created|maintained|built) by OpenAI\b(?!.*\bCodex\b)",
-     "claims OpenAI authorship", False),
-    (r"github\.com/openai/codex/blob/[^\s\"')]+\.(?:png|jpg|gif|svg)",
-     "hotlinks an OpenAI-hosted image", False),
+    (
+        r"(?:developed|created|maintained|built) by OpenAI\b(?!.*\bCodex\b)",
+        "claims OpenAI authorship",
+        False,
+    ),
+    (
+        r"github\.com/openai/codex/blob/[^\s\"')]+\.(?:png|jpg|gif|svg)",
+        "hotlinks an OpenAI-hosted image",
+        False,
+    ),
 )
 
 # Crediting upstream is these files' whole job.
 ATTRIBUTION_FILES = {"LICENSE", "NOTICE"}
 
 SKIP_DIRS = {
-    ".git", "target", "node_modules", "__pycache__", ".venv", "venv",
-    "bazel-out", "bazel-bin", "bazel-testlogs", "dist", "build",
-    "vendor", "third_party",
+    ".git",
+    "target",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "bazel-out",
+    "bazel-bin",
+    "bazel-testlogs",
+    "dist",
+    "build",
+    "vendor",
+    "third_party",
 }
 SKIP_FILE_NAMES = {
-    "Cargo.lock", "MODULE.bazel.lock", "pnpm-lock.yaml", "uv.lock",
-    "package-lock.json", "flake.lock",
+    "Cargo.lock",
+    "MODULE.bazel.lock",
+    "pnpm-lock.yaml",
+    "uv.lock",
+    "package-lock.json",
+    "flake.lock",
 }
-SCAN_SUFFIXES = {".md", ".json", ".toml", ".rs", ".ts", ".js", ".py", ".yaml", ".yml", ".sh"}
+SCAN_SUFFIXES = {
+    ".md",
+    ".json",
+    ".toml",
+    ".rs",
+    ".ts",
+    ".js",
+    ".py",
+    ".yaml",
+    ".yml",
+    ".sh",
+}
 
 # .github talks about the openai/codex repo because that is where the files
 # came from; fork/ names these phrases as data (this script, the manifest,
@@ -96,7 +130,9 @@ def tree_is_assembled(root: Path) -> bool:
         return False
 
 
-def check_attribution_present(root: Path, fails: list[str], pendings: list[str]) -> None:
+def check_attribution_present(
+    root: Path, fails: list[str], pendings: list[str]
+) -> None:
     license_path = root / "LICENSE"
     if not license_path.is_file():
         fails.append("LICENSE is missing")
@@ -111,7 +147,9 @@ def check_attribution_present(root: Path, fails: list[str], pendings: list[str])
     if not notice_path.is_file():
         # NOTICE is fork-authored (repo-docs series commit); absence before it
         # lands is expected, absence after is a licence violation.
-        pendings.append("NOTICE not present yet (authored by the repo-docs series commit)")
+        pendings.append(
+            "NOTICE not present yet (authored by the repo-docs series commit)"
+        )
         return
     notice = notice_path.read_text(encoding="utf-8")
     if "OpenAI" not in notice:
@@ -119,18 +157,25 @@ def check_attribution_present(root: Path, fails: list[str], pendings: list[str])
     if not re.search(r"\bcodex\b", notice, re.IGNORECASE):
         fails.append("NOTICE does not name the upstream project (Codex)")
     if not re.search(r"\bmodified\b", notice, re.IGNORECASE):
-        fails.append("NOTICE does not state that files were modified (Apache 2.0 section 4(b))")
+        fails.append(
+            "NOTICE does not state that files were modified (Apache 2.0 section 4(b))"
+        )
     if not re.search(r"not affiliated|not endorsed", notice, re.IGNORECASE):
         fails.append("NOTICE does not disclaim affiliation or endorsement")
 
 
 def iter_files(root: Path):
     import os
+
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         for name in sorted(filenames):
             path = Path(dirpath) / name
-            if path.is_symlink() or name in SKIP_FILE_NAMES or name in ATTRIBUTION_FILES:
+            if (
+                path.is_symlink()
+                or name in SKIP_FILE_NAMES
+                or name in ATTRIBUTION_FILES
+            ):
                 continue
             if path.suffix not in SCAN_SUFFIXES:
                 continue
@@ -142,8 +187,12 @@ def iter_files(root: Path):
             yield path, rel
 
 
-def check_no_overclaim(root: Path, assembled: bool, fails: list[str], pendings: list[str]) -> None:
-    compiled = [(re.compile(p), why, anchored) for p, why, anchored in OVERCLAIM_PATTERNS]
+def check_no_overclaim(
+    root: Path, assembled: bool, fails: list[str], pendings: list[str]
+) -> None:
+    compiled = [
+        (re.compile(p), why, anchored) for p, why, anchored in OVERCLAIM_PATTERNS
+    ]
     for path, rel in iter_files(root):
         try:
             text = path.read_text(encoding="utf-8")
@@ -157,18 +206,26 @@ def check_no_overclaim(root: Path, assembled: bool, fails: list[str], pendings: 
                 if anchored or assembled:
                     fails.append(hit)
                 else:
-                    pendings.append(f"{hit} — upstream's own prose, rewritten by the substitution pass at assemble")
+                    pendings.append(
+                        f"{hit} — upstream's own prose, rewritten by the substitution pass at assemble"
+                    )
                 break
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
     args = ap.parse_args(argv)
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    root = (
+        Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    )
 
     assembled = tree_is_assembled(root)
-    print(f"note: tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}")
+    print(
+        f"note: tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}"
+    )
 
     fails: list[str] = []
     pendings: list[str] = []
@@ -180,7 +237,9 @@ def main(argv: list[str] | None = None) -> int:
     for f in fails:
         print(f"FAIL: {f}")
     if fails:
-        print("FAIL: ore is a fork — crediting upstream is required, claiming to be upstream is not allowed")
+        print(
+            "FAIL: ore is a fork — crediting upstream is required, claiming to be upstream is not allowed"
+        )
         return 1
     if pendings:
         return 3

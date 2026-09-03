@@ -64,7 +64,9 @@ ON_KEY_RE = re.compile(r'^(?:"on"|\'on\'|on):(.*)$')
 
 
 def load_yamlmin(root: Path):
-    spec = importlib.util.spec_from_file_location("_yamlmin", root / "fork" / "_yamlmin.py")
+    spec = importlib.util.spec_from_file_location(
+        "_yamlmin", root / "fork" / "_yamlmin.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -104,8 +106,12 @@ def extract_on(text: str, yamlmin) -> dict | None:
             value = _trigger_block(yamlmin.safe_load(f"on: {inline}"))
         else:
             block = ["on:"]
-            for follow in lines[i + 1:]:
-                if follow.strip() == "" or follow.lstrip().startswith("#") or follow[:1] in (" ", "\t"):
+            for follow in lines[i + 1 :]:
+                if (
+                    follow.strip() == ""
+                    or follow.lstrip().startswith("#")
+                    or follow[:1] in (" ", "\t")
+                ):
                     block.append(follow)
                     continue
                 break
@@ -172,12 +178,27 @@ def _trigger_block(doc: dict):
 def upstream_workflow_set(root: Path, commit: str, rep: Report) -> set[str] | None:
     try:
         out = subprocess.run(
-            ["git", "-C", str(root), "ls-tree", "-r", "--name-only", commit, "--",
-             ".github/workflows", ".github/dependabot.yaml", ".github/dependabot.yml"],
-            capture_output=True, text=True, check=True,
+            [
+                "git",
+                "-C",
+                str(root),
+                "ls-tree",
+                "-r",
+                "--name-only",
+                commit,
+                "--",
+                ".github/workflows",
+                ".github/dependabot.yaml",
+                ".github/dependabot.yml",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError) as err:
-        rep.notes.append(f"git ls-tree {commit} failed ({err}); base-tag workflow set unavailable")
+        rep.notes.append(
+            f"git ls-tree {commit} failed ({err}); base-tag workflow set unavailable"
+        )
         return None
     # dependabot.yaml is relocated alongside the workflows even though it lives one
     # directory up: leaving it in place keeps Dependabot opening version-update PRs
@@ -188,8 +209,12 @@ def upstream_workflow_set(root: Path, commit: str, rep: Report) -> set[str] | No
 def check_api(root: Path, allowed: set[str], rep: Report) -> None:
     url = ""
     try:
-        url = subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"],
-                             capture_output=True, text=True, check=True).stdout.strip()
+        url = subprocess.run(
+            ["git", "-C", str(root), "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         pass
     m = re.search(r"github\.com[:/]([^/]+/[^/.]+)", url)
@@ -197,7 +222,9 @@ def check_api(root: Path, allowed: set[str], rep: Report) -> None:
     try:
         out = subprocess.run(
             ["gh", "api", f"/repos/{slug}/actions/workflows", "--paginate"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
     except FileNotFoundError:
         rep.notes.append("api check skipped: gh CLI not installed")
@@ -240,29 +267,50 @@ def check_api(root: Path, allowed: set[str], rep: Report) -> None:
             + ", ".join(sorted(bad))
         )
     else:
-        rep.oks.append(f"api: every non-allowlisted workflow on {slug} is disabled_manually")
+        rep.oks.append(
+            f"api: every non-allowlisted workflow on {slug} is disabled_manually"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
-    ap.add_argument("--mode", choices=["auto", "delta", "main"], default="auto",
-                    help="auto reads fork/UPSTREAM assembled_at")
-    ap.add_argument("--api", action="store_true", help="also assert repo-level workflow disablement via gh")
+    ap.add_argument(
+        "--mode",
+        choices=["auto", "delta", "main"],
+        default="auto",
+        help="auto reads fork/UPSTREAM assembled_at",
+    )
+    ap.add_argument(
+        "--api",
+        action="store_true",
+        help="also assert repo-level workflow disablement via gh",
+    )
     args = ap.parse_args(argv)
 
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    root = (
+        Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    )
     rep = Report()
     yamlmin = load_yamlmin(root)
     meta = read_upstream_meta(root)
 
-    assembled = bool(meta.get("assembled_at")) if args.mode == "auto" else (args.mode == "main")
-    rep.notes.append(f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}")
+    assembled = (
+        bool(meta.get("assembled_at")) if args.mode == "auto" else (args.mode == "main")
+    )
+    rep.notes.append(
+        f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}"
+    )
 
     allow_file = root / "fork" / "workflows.allow"
     if allow_file.is_file():
-        allowed = {ln.strip() for ln in allow_file.read_text(encoding="utf-8").splitlines()
-                   if ln.strip() and not ln.strip().startswith("#")}
+        allowed = {
+            ln.strip()
+            for ln in allow_file.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        }
         allow_is_fallback = False
     else:
         allowed = set(DEFAULT_ALLOW)
@@ -280,7 +328,11 @@ def main(argv: list[str] | None = None) -> int:
         return allow_is_fallback and base.startswith("ore-")
 
     wf_dir = root / ".github" / "workflows"
-    live = sorted(p for p in wf_dir.iterdir() if p.suffix in (".yml", ".yaml")) if wf_dir.is_dir() else []
+    live = (
+        sorted(p for p in wf_dir.iterdir() if p.suffix in (".yml", ".yaml"))
+        if wf_dir.is_dir()
+        else []
+    )
 
     upstream_set = None
     if meta.get("commit"):
@@ -298,7 +350,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             rep.fails.append(
                 f"workflow {base} is not in fork/workflows.allow"
-                + ("" if assembled else " and is not part of the base tag's workflow set")
+                + (
+                    ""
+                    if assembled
+                    else " and is not part of the base tag's workflow set"
+                )
                 + " — deny-by-default: add it to the allowlist deliberately or relocate it"
             )
     if awaiting:
@@ -314,7 +370,9 @@ def main(argv: list[str] | None = None) -> int:
             continue
         on = extract_on(p.read_text(encoding="utf-8"), yamlmin)
         if on is None:
-            rep.fails.append(f"{p.name}: no top-level on: block found (cannot prove it never self-fires)")
+            rep.fails.append(
+                f"{p.name}: no top-level on: block found (cannot prove it never self-fires)"
+            )
             continue
         extra = set(on) - SAFE_ON_KEYS
         if extra:
@@ -329,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
         on = extract_on(text, yamlmin) or {}
         push = on.get("push")
         if isinstance(push, dict):
-            for glob in (push.get("tags") or []):
+            for glob in push.get("tags") or []:
                 if glob_can_match_upstream_tag(str(glob)):
                     rep.fails.append(
                         f"{p.name}: on.push.tags glob {glob!r} can match an upstream-named tag "
@@ -337,10 +395,14 @@ def main(argv: list[str] | None = None) -> int:
                     )
         for lit in FORBIDDEN_LITERALS:
             if lit in text:
-                rep.fails.append(f"{p.name}: references upstream-only credential/action {lit!r}")
+                rep.fails.append(
+                    f"{p.name}: references upstream-only credential/action {lit!r}"
+                )
         for pref in FORBIDDEN_PREFIXES:
             if pref in text:
-                rep.fails.append(f"{p.name}: references upstream-only secret family {pref}*")
+                rep.fails.append(
+                    f"{p.name}: references upstream-only secret family {pref}*"
+                )
         for m in re.finditer(r"uses:\s*(openai/\S+)", text):
             if p.name == FENCE_CARVEOUT[0] and m.group(1).startswith(FENCE_CARVEOUT[1]):
                 continue  # openai/fence is a public, pinned lint action
@@ -354,19 +416,29 @@ def main(argv: list[str] | None = None) -> int:
     # (e) fork/upstream-workflows/ == (base tag set) − allowlist
     reloc_dir = root / "fork" / "upstream-workflows"
     if upstream_set is None:
-        rep.notes.append("relocation set-equality skipped: base tag workflow set unavailable")
+        rep.notes.append(
+            "relocation set-equality skipped: base tag workflow set unavailable"
+        )
     else:
         expected = {b for b in upstream_set if not is_allowed(b)}
         if reloc_dir.is_dir():
-            have = {p.name for p in reloc_dir.iterdir() if p.suffix in (".yml", ".yaml")}
+            have = {
+                p.name for p in reloc_dir.iterdir() if p.suffix in (".yml", ".yaml")
+            }
             missing = sorted(expected - have)
             stale = sorted(have - expected)
             if missing:
-                rep.fails.append(f"fork/upstream-workflows/ missing relocated files: {', '.join(missing)}")
+                rep.fails.append(
+                    f"fork/upstream-workflows/ missing relocated files: {', '.join(missing)}"
+                )
             if stale:
-                rep.fails.append(f"fork/upstream-workflows/ has stale copies not in the base tag set: {', '.join(stale)}")
+                rep.fails.append(
+                    f"fork/upstream-workflows/ has stale copies not in the base tag set: {', '.join(stale)}"
+                )
             if not missing and not stale:
-                rep.oks.append(f"fork/upstream-workflows/ equals base-tag set minus allowlist ({len(expected)} files)")
+                rep.oks.append(
+                    f"fork/upstream-workflows/ equals base-tag set minus allowlist ({len(expected)} files)"
+                )
         elif assembled:
             rep.fails.append(
                 f"fork/upstream-workflows/ does not exist on an assembled tree "

@@ -99,24 +99,37 @@ def clean_bullets(raw: str) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--tag", required=True, help="release tag being announced (ore-vX.Y.Z)")
-    ap.add_argument("--prev", help="previous stable tag (default: the one before --tag)")
+    ap.add_argument(
+        "--tag", required=True, help="release tag being announced (ore-vX.Y.Z)"
+    )
+    ap.add_argument(
+        "--prev", help="previous stable tag (default: the one before --tag)"
+    )
     ap.add_argument("--repo", default=".", help="repository root")
-    ap.add_argument("--upstream-bullets", help="file of candidate upstream-highlight bullets")
+    ap.add_argument(
+        "--upstream-bullets", help="file of candidate upstream-highlight bullets"
+    )
     ap.add_argument("--url", default="", help="release URL")
     args = ap.parse_args()
 
     repo = Path(args.repo).resolve()
     m = STABLE_TAG.match(args.tag)
     if not m:
-        print(f"refusing to announce {args.tag!r}: not a stable ore-vX.Y.Z tag", file=sys.stderr)
+        print(
+            f"refusing to announce {args.tag!r}: not a stable ore-vX.Y.Z tag",
+            file=sys.stderr,
+        )
         return 2
     version = args.tag[len("ore-v") :]
 
     prev = args.prev
     if not prev:
         tags = stable_tags(repo)
-        prev = tags[tags.index(args.tag) - 1] if args.tag in tags and tags.index(args.tag) > 0 else None
+        prev = (
+            tags[tags.index(args.tag) - 1]
+            if args.tag in tags and tags.index(args.tag) > 0
+            else None
+        )
 
     up_now, slugs_now = parse_release(repo, args.tag)
     up_prev, slugs_prev = (None, {})
@@ -168,7 +181,9 @@ def main() -> int:
             out.append("")
 
     out.append("**Install**")
-    out.append(f"`curl -fsSL https://github.com/ore-cli/ore/releases/download/{args.tag}/install.sh | sh -s -- --release {version}`")
+    out.append(
+        f"`curl -fsSL https://github.com/ore-cli/ore/releases/download/{args.tag}/install.sh | sh -s -- --release {version}`"
+    )
     if args.url:
         out.append("")
         out.append(f"<{args.url}>")

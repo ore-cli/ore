@@ -184,7 +184,9 @@ def _split_key(text: str) -> tuple[str, str] | None:
     return None
 
 
-def _block_scalar(lines: list[_Line], index: int, header: str, parent_indent: int) -> tuple[str, int]:
+def _block_scalar(
+    lines: list[_Line], index: int, header: str, parent_indent: int
+) -> tuple[str, int]:
     style = header[0]
     chomp = "clip"
     if "-" in header:
@@ -220,11 +222,15 @@ def _parse_block(lines: list[_Line], index: int, indent: int) -> tuple[Any, int]
     return _parse_map(lines, index, indent)
 
 
-def _parse_seq(lines: list[_Line], index: int, min_indent: int) -> tuple[list[Any], int]:
+def _parse_seq(
+    lines: list[_Line], index: int, min_indent: int
+) -> tuple[list[Any], int]:
     items: list[Any] = []
     base = lines[index].indent
     if base < min_indent:
-        raise YamlError(f"line {lines[index].lineno}: sequence is indented too far left")
+        raise YamlError(
+            f"line {lines[index].lineno}: sequence is indented too far left"
+        )
     while index < len(lines):
         line = lines[index]
         if line.indent < base or not (line.text == "-" or line.text.startswith("- ")):
@@ -259,7 +265,9 @@ def _parse_seq(lines: list[_Line], index: int, min_indent: int) -> tuple[list[An
                 sub_key, sub_value = sub
                 index += 1
                 if sub_value.startswith("|") or sub_value.startswith(">"):
-                    mapping[sub_key], index = _block_scalar(lines, index, sub_value, nxt.indent)
+                    mapping[sub_key], index = _block_scalar(
+                        lines, index, sub_value, nxt.indent
+                    )
                 elif sub_value:
                     mapping[sub_key] = _scalar(sub_value)
                 else:
@@ -271,7 +279,9 @@ def _parse_seq(lines: list[_Line], index: int, min_indent: int) -> tuple[list[An
     return items, index
 
 
-def _parse_map(lines: list[_Line], index: int, min_indent: int) -> tuple[dict[str, Any], int]:
+def _parse_map(
+    lines: list[_Line], index: int, min_indent: int
+) -> tuple[dict[str, Any], int]:
     mapping: dict[str, Any] = {}
     base = lines[index].indent
     if base < min_indent:
@@ -284,7 +294,9 @@ def _parse_map(lines: list[_Line], index: int, min_indent: int) -> tuple[dict[st
             raise YamlError(f"line {line.lineno}: unexpected indentation in mapping")
         pair = _split_key(line.text)
         if pair is None:
-            raise YamlError(f"line {line.lineno}: expected 'key: value', got {line.text!r}")
+            raise YamlError(
+                f"line {line.lineno}: expected 'key: value', got {line.text!r}"
+            )
         key, value = pair
         index += 1
         if value.startswith("|") or value.startswith(">"):
@@ -294,8 +306,10 @@ def _parse_map(lines: list[_Line], index: int, min_indent: int) -> tuple[dict[st
         elif index < len(lines) and lines[index].indent > base:
             child, index = _parse_block(lines, index, base + 1)
             mapping[key] = child
-        elif index < len(lines) and lines[index].indent == base and (
-            lines[index].text.startswith("- ") or lines[index].text == "-"
+        elif (
+            index < len(lines)
+            and lines[index].indent == base
+            and (lines[index].text.startswith("- ") or lines[index].text == "-")
         ):
             child, index = _parse_seq(lines, index, base)
             mapping[key] = child
@@ -311,7 +325,9 @@ def load(text: str) -> Any:
         return None
     value, index = _parse_block(lines, 0, lines[0].indent)
     if index != len(lines):
-        raise YamlError(f"line {lines[index].lineno}: trailing content {lines[index].text!r}")
+        raise YamlError(
+            f"line {lines[index].lineno}: trailing content {lines[index].text!r}"
+        )
     return value
 
 

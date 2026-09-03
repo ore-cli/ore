@@ -33,7 +33,8 @@ def grep(root: Path, needle: str) -> bool:
     """True if `needle` appears anywhere in codex-rs as source text."""
     hit = subprocess.run(
         ["git", "-C", str(root), "grep", "-l", "-F", needle, "--", "codex-rs"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return hit.returncode == 0 and bool(hit.stdout.strip())
 
@@ -46,8 +47,20 @@ def parameterised(root: Path, needle: str) -> bool:
     cheap half and must not need a build.
     """
     hit = subprocess.run(
-        ["git", "-C", str(root), "grep", "-n", "-B8", "-F", f"fn {needle}", "--", "codex-rs"],
-        capture_output=True, text=True,
+        [
+            "git",
+            "-C",
+            str(root),
+            "grep",
+            "-n",
+            "-B8",
+            "-F",
+            f"fn {needle}",
+            "--",
+            "codex-rs",
+        ],
+        capture_output=True,
+        text=True,
     )
     return "test_case" in hit.stdout
 
@@ -74,8 +87,11 @@ def main() -> int:
     # nothing noticed until the shard went red.
     src = root / "codex-rs"
     listings = [
-        p for p in (root / "fork" / "verify" / "known-failing",
-                    root / "fork" / "verify" / "known-failing-upstream")
+        p
+        for p in (
+            root / "fork" / "verify" / "known-failing",
+            root / "fork" / "verify" / "known-failing-upstream",
+        )
         if p.is_file()
     ]
     if not listings or not src.is_dir():
@@ -84,9 +100,7 @@ def main() -> int:
 
     dead: list[str] = []
     checked = 0
-    for listing, lineno, expr in (
-        (l, n, e) for l in listings for n, e in entries(l)
-    ):
+    for listing, lineno, expr in ((l, n, e) for l in listings for n, e in entries(l)):
         names = TEST_ARG.findall(expr)
         if not names:
             # A package()-only entry excludes a whole crate; nothing to resolve.
@@ -107,7 +121,9 @@ def main() -> int:
             if "_" in needle:
                 candidates.append(needle.replace("_", " "))
             if not any(grep(root, c) for c in candidates):
-                dead.append(f"{listing.name}:{lineno}: no test named {needle!r} exists — {expr}")
+                dead.append(
+                    f"{listing.name}:{lineno}: no test named {needle!r} exists — {expr}"
+                )
             elif _prefix == "=" and parameterised(root, needle):
                 # An exact filter cannot match a parameterised test: nextest
                 # reports those as `path::to::fn::case_name`, and `test(=fn)`
@@ -123,12 +139,24 @@ def main() -> int:
                 )
 
     if dead:
-        print(f"\n{len(dead)} known-failing entr(ies) name a test that no longer exists:", file=sys.stderr)
+        print(
+            f"\n{len(dead)} known-failing entr(ies) name a test that no longer exists:",
+            file=sys.stderr,
+        )
         for d in dead:
             print(f"  - {d}", file=sys.stderr)
-        print("\n  An entry that matches nothing excludes nothing and still reports", file=sys.stderr)
-        print("  success. Upstream probably renamed or removed the test: drop the", file=sys.stderr)
-        print("  entry, or re-point it and re-verify the cause still applies.", file=sys.stderr)
+        print(
+            "\n  An entry that matches nothing excludes nothing and still reports",
+            file=sys.stderr,
+        )
+        print(
+            "  success. Upstream probably renamed or removed the test: drop the",
+            file=sys.stderr,
+        )
+        print(
+            "  entry, or re-point it and re-verify the cause still applies.",
+            file=sys.stderr,
+        )
         return 1
     print(f"ok: all {checked} known-failing test name(s) still exist in codex-rs")
     return 0
