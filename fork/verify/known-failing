@@ -48,9 +48,15 @@
 package(codex-exec) & test(shutdown_flushes_completed_turn_and_file_diff)
 # Asserts `feedback_enabled == true` for a default `[feedback]` table.
 package(codex-core) & test(feedback_enabled_defaults_to_true)
-# Drives feedback/upload through a failing proxy and asserts a -32603 transport
-# error; the config gate now rejects it first with "disabled by configuration".
-package(codex-app-server) & test(feedback_upload_reports_transport_failure_as_json_rpc_error)
+# feedback_upload_reports_transport_failure_as_json_rpc_error was dropped at
+# rust-v0.153.0: upstream removed it. It drove feedback/upload through a failing
+# proxy and asserted a -32603 transport error, which the config gate preempts
+# with "disabled by configuration".
+#
+# The suite file survives with one test, feedback_upload_limits_concurrency_and_
+# releases_failed_uploads, and NO entry is added for it here. Whether the seam
+# turns it red has not been demonstrated, and this file does not take entries on
+# resemblance -- if ore-ci reports it, it gets an entry with its cause.
 # Snapshot of the /feedback category popup; the disabled notice renders instead.
 package(codex-tui) & test(feedback_selection_popup_snapshot)
 
