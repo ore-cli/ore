@@ -69,8 +69,9 @@ class Report:
 
 
 def git(root: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(root), *args],
-                          capture_output=True, text=True, timeout=120)
+    return subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, timeout=120
+    )
 
 
 def resolve_tag_ref(root: Path, tag: str) -> tuple[str, str, str] | None:
@@ -103,7 +104,12 @@ def tag_sort_key(name: str) -> tuple[int, ...]:
 def stable_tag_commits(root: Path) -> dict[str, str]:
     """peeled commit sha -> tag name, over both namespaces.  Stable tags only."""
     patterns = [ns + "rust-v*" for ns in TAG_NAMESPACES]
-    proc = git(root, "for-each-ref", "--format=%(refname) %(objectname) %(*objectname)", *patterns)
+    proc = git(
+        root,
+        "for-each-ref",
+        "--format=%(refname) %(objectname) %(*objectname)",
+        *patterns,
+    )
     out: dict[str, str] = {}
     for line in proc.stdout.splitlines():
         parts = line.split()
@@ -126,7 +132,9 @@ def current_branch(root: Path) -> str | None:
 def check_merge_shape(root: Path, commit: str, rep: Report) -> None:
     proc = git(root, "rev-list", "--parents", f"{commit}..HEAD")
     if proc.returncode != 0:
-        rep.notes.append(f"merge shape unavailable: git rev-list {commit[:12]}..HEAD failed")
+        rep.notes.append(
+            f"merge shape unavailable: git rev-list {commit[:12]}..HEAD failed"
+        )
         return
     carriers = []
     for line in proc.stdout.splitlines():
@@ -163,14 +171,23 @@ def check_merge_shape(root: Path, commit: str, rep: Report) -> None:
                 f"-p prev-main -p tag), or `git log --first-parent main` walks into upstream"
             )
         else:
-            rep.oks.append(f"merge {sha[:12]} parents = (prev main {parents[0][:12]}, base {commit[:12]})")
+            rep.oks.append(
+                f"merge {sha[:12]} parents = (prev main {parents[0][:12]}, base {commit[:12]})"
+            )
     else:
-        rep.fails.append(f"merge {sha[:12]} has {len(parents)} parents; the generated merge has at most two")
+        rep.fails.append(
+            f"merge {sha[:12]} has {len(parents)} parents; the generated merge has at most two"
+        )
 
     prev = git(root, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main")
     if prev.returncode != 0:
-        rep.notes.append("append-only check skipped: no refs/remotes/origin/main (the fork is not pushed yet)")
-    elif git(root, "merge-base", "--is-ancestor", prev.stdout.strip(), "HEAD").returncode != 0:
+        rep.notes.append(
+            "append-only check skipped: no refs/remotes/origin/main (the fork is not pushed yet)"
+        )
+    elif (
+        git(root, "merge-base", "--is-ancestor", prev.stdout.strip(), "HEAD").returncode
+        != 0
+    ):
         rep.fails.append(
             f"published main ({prev.stdout.strip()[:12]}) is not an ancestor of HEAD — main is "
             f"append-only and finalize fast-forwards it; this candidate would rewrite it"
@@ -180,13 +197,21 @@ def check_merge_shape(root: Path, commit: str, rep: Report) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
-    ap.add_argument("--mode", choices=["auto", "delta", "main"], default="auto",
-                    help="auto reads fork/UPSTREAM assembled_at")
+    ap.add_argument(
+        "--mode",
+        choices=["auto", "delta", "main"],
+        default="auto",
+        help="auto reads fork/UPSTREAM assembled_at",
+    )
     args = ap.parse_args(argv)
 
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    root = (
+        Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    )
     rep = Report()
 
     try:
@@ -202,21 +227,33 @@ def main(argv: list[str] | None = None) -> int:
     tag = meta.get("tag", "")
     commit = meta.get("commit", "")
     tag_object = meta.get("tag_object", "")
-    assembled = bool(meta.get("assembled_at")) if args.mode == "auto" else (args.mode == "main")
-    rep.notes.append(f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}")
+    assembled = (
+        bool(meta.get("assembled_at")) if args.mode == "auto" else (args.mode == "main")
+    )
+    rep.notes.append(
+        f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}"
+    )
 
     # (a) grammar and internal agreement
     if not STABLE_TAG_RE.match(tag):
-        rep.fails.append(f"fork/UPSTREAM tag {tag!r} is not a stable rust-vX.Y.Z tag (alphas are never a base)")
+        rep.fails.append(
+            f"fork/UPSTREAM tag {tag!r} is not a stable rust-vX.Y.Z tag (alphas are never a base)"
+        )
     if not SHA_RE.match(commit):
-        rep.fails.append(f"fork/UPSTREAM commit {commit!r} is not a full 40-hex sha — nothing below "
-                         f"can be resolved against it")
+        rep.fails.append(
+            f"fork/UPSTREAM commit {commit!r} is not a full 40-hex sha — nothing below "
+            f"can be resolved against it"
+        )
         return rep.finish()
     if tag_object and not SHA_RE.match(tag_object):
-        rep.fails.append(f"fork/UPSTREAM tag_object {tag_object!r} is not a full 40-hex sha")
+        rep.fails.append(
+            f"fork/UPSTREAM tag_object {tag_object!r} is not a full 40-hex sha"
+        )
     series_head = meta.get("series_head", "")
     if series_head and not SHA_RE.match(series_head):
-        rep.fails.append(f"fork/UPSTREAM series_head {series_head!r} is not a full 40-hex sha")
+        rep.fails.append(
+            f"fork/UPSTREAM series_head {series_head!r} is not a full 40-hex sha"
+        )
 
     resolved = resolve_tag_ref(root, tag) if STABLE_TAG_RE.match(tag) else None
     if resolved is None:
@@ -235,11 +272,15 @@ def main(argv: list[str] | None = None) -> int:
         else:
             rep.oks.append(f"{ref} peels to the recorded commit {commit[:12]}")
         if tag_object and obj != tag_object:
-            rep.fails.append(f"{ref} is object {obj} but fork/UPSTREAM records tag_object = {tag_object}")
+            rep.fails.append(
+                f"{ref} is object {obj} but fork/UPSTREAM records tag_object = {tag_object}"
+            )
 
     if git(root, "cat-file", "-e", f"{commit}^{{commit}}").returncode != 0:
-        rep.notes.append(f"commit {commit[:12]} is not in this clone (shallow checkout?) — "
-                         f"ancestry, staleness and merge shape unverified")
+        rep.notes.append(
+            f"commit {commit[:12]} is not in this clone (shallow checkout?) — "
+            f"ancestry, staleness and merge shape unverified"
+        )
         return rep.finish()
 
     # (b) the recorded base is where HEAD's history attaches
@@ -256,7 +297,9 @@ def main(argv: list[str] | None = None) -> int:
     newer: list[str] = []
     by_commit = stable_tag_commits(root)
     if not by_commit:
-        rep.notes.append("no upstream stable tag refs in this clone — staleness unchecked")
+        rep.notes.append(
+            "no upstream stable tag refs in this clone — staleness unchecked"
+        )
     else:
         proc = git(root, "rev-list", f"{commit}..HEAD")
         reachable = {by_commit[sha] for sha in proc.stdout.split() if sha in by_commit}
@@ -273,7 +316,9 @@ def main(argv: list[str] | None = None) -> int:
             key=tag_sort_key,
         )
         if not newer:
-            rep.oks.append(f"no upstream stable tag newer than {tag} is reachable from HEAD")
+            rep.oks.append(
+                f"no upstream stable tag newer than {tag} is reachable from HEAD"
+            )
         elif assembled:
             rep.fails.append(
                 f"fork/UPSTREAM records {tag} but HEAD already contains newer stable tag(s) "
@@ -292,8 +337,10 @@ def main(argv: list[str] | None = None) -> int:
             "commit-tree TREE -p prev-main -p tag, so the two-parent shape is provable only on main"
         )
     elif newer:
-        rep.notes.append("merge shape not judged: the manifest is stale (above), so the commit it "
-                         "names is not the one the merge was built from")
+        rep.notes.append(
+            "merge shape not judged: the manifest is stale (above), so the commit it "
+            "names is not the one the merge was built from"
+        )
     else:
         check_merge_shape(root, commit, rep)
 
@@ -311,9 +358,13 @@ def main(argv: list[str] | None = None) -> int:
             "main is generated by assemble, never hand-built"
         )
     elif branch in ("delta", "main"):
-        rep.oks.append(f"branch {branch} carries the {'generated' if generated else 'placeholder'} manifest")
+        rep.oks.append(
+            f"branch {branch} carries the {'generated' if generated else 'placeholder'} manifest"
+        )
     else:
-        rep.notes.append("placeholder discipline skipped: HEAD is detached (every pull_request checkout is)")
+        rep.notes.append(
+            "placeholder discipline skipped: HEAD is detached (every pull_request checkout is)"
+        )
 
     code = rep.finish()
     if code == 0:

@@ -65,8 +65,9 @@ class Report:
 
 
 def git(root: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(root), *args],
-                          capture_output=True, text=True, timeout=120)
+    return subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, timeout=120
+    )
 
 
 def lock_packages(text: str) -> dict[str, dict]:
@@ -82,33 +83,51 @@ def member_names(root: Path, rep: Report) -> dict[str, str]:
         with open(ws_path, "rb") as fh:
             members = tomllib.load(fh)["workspace"]["members"]
     except (OSError, KeyError, tomllib.TOMLDecodeError) as err:
-        rep.notes.append(f"workspace members unreadable ({err}); member coverage unchecked")
+        rep.notes.append(
+            f"workspace members unreadable ({err}); member coverage unchecked"
+        )
         return {}
     out: dict[str, str] = {}
     for entry in members:
-        dirs = sorted(p.parent for p in (root / "codex-rs").glob(f"{entry}/Cargo.toml")) \
-            if "*" in entry else [root / "codex-rs" / entry]
+        dirs = (
+            sorted(p.parent for p in (root / "codex-rs").glob(f"{entry}/Cargo.toml"))
+            if "*" in entry
+            else [root / "codex-rs" / entry]
+        )
         for d in dirs:
             try:
                 with open(d / "Cargo.toml", "rb") as fh:
                     name = tomllib.load(fh)["package"]["name"]
             except (OSError, KeyError, tomllib.TOMLDecodeError):
-                rep.fails.append(f"workspace member {entry} has no readable [package] name")
+                rep.fails.append(
+                    f"workspace member {entry} has no readable [package] name"
+                )
                 continue
             out[str(d.relative_to(root))] = name
     return out
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
-    ap.add_argument("--mode", choices=["auto", "delta", "main"], default="auto",
-                    help="auto reads fork/UPSTREAM assembled_at")
-    ap.add_argument("--cargo-metadata", action="store_true",
-                    help="also run `cargo metadata --locked` (needs a toolchain; assembled trees only)")
+    ap.add_argument(
+        "--mode",
+        choices=["auto", "delta", "main"],
+        default="auto",
+        help="auto reads fork/UPSTREAM assembled_at",
+    )
+    ap.add_argument(
+        "--cargo-metadata",
+        action="store_true",
+        help="also run `cargo metadata --locked` (needs a toolchain; assembled trees only)",
+    )
     args = ap.parse_args(argv)
 
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    root = (
+        Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    )
     rep = Report()
 
     try:
@@ -125,17 +144,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"skip: base commit {base[:12]} is not in this clone (shallow checkout?)")
         return 2
 
-    assembled = bool(meta.get("assembled_at")) if args.mode == "auto" else (args.mode == "main")
-    rep.notes.append(f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}")
+    assembled = (
+        bool(meta.get("assembled_at")) if args.mode == "auto" else (args.mode == "main")
+    )
+    rep.notes.append(
+        f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}"
+    )
 
     expected_path = root / "fork" / "expected-deps.txt"
     if expected_path.is_file():
-        expected = {ln.strip() for ln in expected_path.read_text(encoding="utf-8").splitlines()
-                    if ln.strip() and not ln.strip().startswith("#")}
+        expected = {
+            ln.strip()
+            for ln in expected_path.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        }
     else:
         expected = set()
-        rep.notes.append("fork/expected-deps.txt is absent — treating the allowed-addition set as "
-                         "empty (deny-by-default: any package the base lock lacks then fails)")
+        rep.notes.append(
+            "fork/expected-deps.txt is absent — treating the allowed-addition set as "
+            "empty (deny-by-default: any package the base lock lacks then fails)"
+        )
 
     # The worktree lock, not the committed blob: this is what cargo resolves
     # against, and on delta the first cargo invocation legitimately rewrites it
@@ -161,19 +189,30 @@ def main(argv: list[str] | None = None) -> int:
     for name in unexpected:
         pkg = here[name]
         source = pkg.get("source", "workspace-local path dependency")
-        origin = "git dependency (unpinned upstream, not a registry release): " if source.startswith("git+") else ""
+        origin = (
+            "git dependency (unpinned upstream, not a registry release): "
+            if source.startswith("git+")
+            else ""
+        )
         rep.fails.append(
             f"{CARGO_LOCK} carries {name} {pkg.get('version', '?')}, which the base tag's lock does "
             f"not — {origin}{source}. Review it, then add the name to fork/expected-deps.txt"
         )
     if added and not unexpected:
-        rep.oks.append(f"lock additions over the base tag are all declared: {', '.join(added)}")
+        rep.oks.append(
+            f"lock additions over the base tag are all declared: {', '.join(added)}"
+        )
     elif not added:
-        rep.oks.append(f"{CARGO_LOCK} adds nothing to the base tag's {len(theirs)} package names")
+        rep.oks.append(
+            f"{CARGO_LOCK} adds nothing to the base tag's {len(theirs)} package names"
+        )
     removed = sorted(set(theirs) - set(here))
     if removed:
-        rep.notes.append(f"{len(removed)} package(s) in the base lock are gone from this one: "
-                         + ", ".join(removed[:8]) + (" …" if len(removed) > 8 else ""))
+        rep.notes.append(
+            f"{len(removed)} package(s) in the base lock are gone from this one: "
+            + ", ".join(removed[:8])
+            + (" …" if len(removed) > 8 else "")
+        )
 
     # (b) the fork's declared crates are actually in the lock
     missing_expected = sorted(n for n in expected if n not in here)
@@ -181,16 +220,21 @@ def main(argv: list[str] | None = None) -> int:
         if assembled:
             rep.fails.append(
                 "declared in fork/expected-deps.txt but absent from the assembled lock: "
-                + ", ".join(missing_expected) + " — assemble's `cargo update --workspace` did not "
+                + ", ".join(missing_expected)
+                + " — assemble's `cargo update --workspace` did not "
                 "run, or the crate left the workspace without its line here leaving too"
             )
         else:
             rep.pendings.append(
-                "the lock does not yet carry " + ", ".join(missing_expected) + " — expected on delta, "
+                "the lock does not yet carry "
+                + ", ".join(missing_expected)
+                + " — expected on delta, "
                 "where series commits may not touch Cargo.lock; assemble regenerates it"
             )
     elif expected:
-        rep.oks.append(f"every declared fork dependency is in the lock ({', '.join(sorted(expected))})")
+        rep.oks.append(
+            f"every declared fork dependency is in the lock ({', '.join(sorted(expected))})"
+        )
 
     # (c) member coverage — the hermetic half of `cargo metadata --locked`
     members = member_names(root, rep)
@@ -198,18 +242,23 @@ def main(argv: list[str] | None = None) -> int:
     broken = [n for n in absent if n not in expected]
     if broken:
         rep.fails.append(
-            "workspace member(s) missing from the lock and undeclared: " + ", ".join(broken)
+            "workspace member(s) missing from the lock and undeclared: "
+            + ", ".join(broken)
             + " — cargo cannot resolve this workspace against this lock (`cargo metadata --locked` "
-              "would refuse it)"
+            "would refuse it)"
         )
     elif members:
-        rep.oks.append(f"{len(members) - len(absent)} of {len(members)} workspace members resolve in the lock"
-                       + (f"; the rest are declared: {', '.join(absent)}" if absent else ""))
+        rep.oks.append(
+            f"{len(members) - len(absent)} of {len(members)} workspace members resolve in the lock"
+            + (f"; the rest are declared: {', '.join(absent)}" if absent else "")
+        )
 
     # (d) the locks nothing regenerates
     diff = git(root, "diff", "--name-only", base, "HEAD", "--", *FROZEN_LOCKS)
     if diff.returncode != 0:
-        rep.notes.append(f"git diff against {base[:12]} failed; frozen-lock equality unchecked")
+        rep.notes.append(
+            f"git diff against {base[:12]} failed; frozen-lock equality unchecked"
+        )
     elif diff.stdout.split():
         for path in diff.stdout.split():
             rep.fails.append(
@@ -222,18 +271,29 @@ def main(argv: list[str] | None = None) -> int:
 
     # `cargo metadata --locked`, for a caller that has a toolchain
     if args.cargo_metadata and not assembled:
-        rep.notes.append("--cargo-metadata skipped on a pre-assembly tree: delta's lock lacks the "
-                         "fork's crates by policy, so --locked is expected to refuse it")
+        rep.notes.append(
+            "--cargo-metadata skipped on a pre-assembly tree: delta's lock lacks the "
+            "fork's crates by policy, so --locked is expected to refuse it"
+        )
     elif args.cargo_metadata:
-        proc = subprocess.run(["cargo", "metadata", "--locked", "--format-version", "1"],
-                              cwd=root / "codex-rs", capture_output=True, text=True, timeout=900)
+        proc = subprocess.run(
+            ["cargo", "metadata", "--locked", "--format-version", "1"],
+            cwd=root / "codex-rs",
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
         if proc.returncode != 0:
             for line in proc.stderr.strip().splitlines()[:10]:
                 print(f"  {line}")
-            rep.fails.append("cargo metadata --locked refused this workspace (stderr above); when it "
-                             "names the lock, the tree was assembled without `cargo update --workspace`")
+            rep.fails.append(
+                "cargo metadata --locked refused this workspace (stderr above); when it "
+                "names the lock, the tree was assembled without `cargo update --workspace`"
+            )
         else:
-            rep.oks.append("cargo metadata --locked resolves the workspace against this lock")
+            rep.oks.append(
+                "cargo metadata --locked resolves the workspace against this lock"
+            )
 
     code = rep.finish()
     if code == 0:

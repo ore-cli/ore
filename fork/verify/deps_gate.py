@@ -33,8 +33,18 @@ WATCH_PREFIXES = ("opentelemetry", "tracing-opentelemetry", "sentry")
 # package name; every current Cargo.lock package was checked against this list
 # for false positives when it was written.
 FORBIDDEN_NEW = (
-    "statsig", "posthog", "segment-", "amplitude", "mixpanel", "datadog",
-    "dd-trace", "honeycomb", "bugsnag", "rollbar", "newrelic", "appsignal",
+    "statsig",
+    "posthog",
+    "segment-",
+    "amplitude",
+    "mixpanel",
+    "datadog",
+    "dd-trace",
+    "honeycomb",
+    "bugsnag",
+    "rollbar",
+    "newrelic",
+    "appsignal",
     "launchdarkly",
 )
 
@@ -55,13 +65,20 @@ def load_baseline(path: Path) -> set[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
-    ap.add_argument("--regen", action="store_true",
-                    help="rewrite the baseline body from the current Cargo.lock (deliberate, reviewed)")
+    ap.add_argument(
+        "--regen",
+        action="store_true",
+        help="rewrite the baseline body from the current Cargo.lock (deliberate, reviewed)",
+    )
     args = ap.parse_args(argv)
 
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    root = (
+        Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    )
     lock_path = root / "codex-rs" / "Cargo.lock"
     baseline_path = Path(__file__).resolve().parent / "telemetry-baseline.txt"
 
@@ -74,9 +91,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.regen:
         text = baseline_path.read_text(encoding="utf-8")
-        header = "".join(line + "\n" for line in text.splitlines() if line.startswith("#"))
-        baseline_path.write_text(header + "".join(n + "\n" for n in sorted(watched)), encoding="utf-8")
-        print(f"ok: baseline regenerated with {len(watched)} crates — review the diff before committing")
+        header = "".join(
+            line + "\n" for line in text.splitlines() if line.startswith("#")
+        )
+        baseline_path.write_text(
+            header + "".join(n + "\n" for n in sorted(watched)), encoding="utf-8"
+        )
+        print(
+            f"ok: baseline regenerated with {len(watched)} crates — review the diff before committing"
+        )
         return 0
 
     failed = False
@@ -91,16 +114,22 @@ def main(argv: list[str] | None = None) -> int:
     added = sorted(watched - baseline)
     removed = sorted(baseline - watched)
     for n in added:
-        print(f"FAIL: telemetry crate added since the frozen baseline: {n} "
-              f"(a sync brought new telemetry; review, then deps_gate.py --regen)")
+        print(
+            f"FAIL: telemetry crate added since the frozen baseline: {n} "
+            f"(a sync brought new telemetry; review, then deps_gate.py --regen)"
+        )
     for n in removed:
-        print(f"FAIL: telemetry crate missing from Cargo.lock but frozen in the baseline: {n} "
-              f"(upstream dropped it; re-verify the seam analysis, then deps_gate.py --regen)")
+        print(
+            f"FAIL: telemetry crate missing from Cargo.lock but frozen in the baseline: {n} "
+            f"(upstream dropped it; re-verify the seam analysis, then deps_gate.py --regen)"
+        )
     failed = failed or added or removed
 
     if not failed:
-        print(f"ok: telemetry crate set == frozen baseline ({len(baseline)} crates); "
-              f"no forbidden analytics SDKs among {len(names)} packages")
+        print(
+            f"ok: telemetry crate set == frozen baseline ({len(baseline)} crates); "
+            f"no forbidden analytics SDKs among {len(names)} packages"
+        )
     return 1 if failed else 0
 
 

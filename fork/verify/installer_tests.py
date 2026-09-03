@@ -59,7 +59,9 @@ def main() -> int:
     print(f"tree: {'rendered (assembled)' if is_rendered else 'unrendered (series)'}")
 
     sys.path.insert(0, str(start))
-    discovered = unittest.defaultTestLoader.discover(str(start), pattern="test_install_*.py")
+    discovered = unittest.defaultTestLoader.discover(
+        str(start), pattern="test_install_*.py"
+    )
     tests: list[unittest.TestCase] = []
     collect(discovered, tests)
     if not tests:
@@ -81,7 +83,9 @@ def main() -> int:
         print(f"  deselected: {d}")
     if dropped:
         print(f"  reason: the rebrand empties RELEASES_BASE_URL, so install.sh never")
-        print(f"          takes the releases.openai.com path these {len(dropped)} case(s) drive")
+        print(
+            f"          takes the releases.openai.com path these {len(dropped)} case(s) drive"
+        )
     print(f"running {len(selected)} of {len(tests)} installer test(s)")
 
     result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(selected))
