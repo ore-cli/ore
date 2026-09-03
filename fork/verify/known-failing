@@ -48,9 +48,15 @@
 package(codex-exec) & test(shutdown_flushes_completed_turn_and_file_diff)
 # Asserts `feedback_enabled == true` for a default `[feedback]` table.
 package(codex-core) & test(feedback_enabled_defaults_to_true)
-# Drives feedback/upload through a failing proxy and asserts a -32603 transport
-# error; the config gate now rejects it first with "disabled by configuration".
-package(codex-app-server) & test(feedback_upload_reports_transport_failure_as_json_rpc_error)
+# feedback_upload_reports_transport_failure_as_json_rpc_error was dropped at
+# rust-v0.153.0: upstream removed it. It drove feedback/upload through a failing
+# proxy and asserted a -32603 transport error, which the config gate preempts
+# with "disabled by configuration".
+#
+# The suite file survives with one test, feedback_upload_limits_concurrency_and_
+# releases_failed_uploads, and NO entry is added for it here. Whether the seam
+# turns it red has not been demonstrated, and this file does not take entries on
+# resemblance -- if ore-ci reports it, it gets an entry with its cause.
 # Snapshot of the /feedback category popup; the disabled notice renders instead.
 package(codex-tui) & test(feedback_selection_popup_snapshot)
 
@@ -371,3 +377,77 @@ package(codex-app-server) & test(clock_tools_emit_control_tool_analytics)
 # predicate recorded in the rust-v0.151.0 guardian block, which correctly
 # predicted both which cases fail and which single case does not.
 package(codex-app-server) & test(guardian_v2_required_model_cannot_reuse_a_cached_score_for_skipped_exec)
+
+# ---------------------------------------------------------------- rust-v0.153.0
+# All nine were read out of the source before they were filed. That mattered
+# here: the guardian_v2 entry below looks exactly like the cause (2) family it
+# sits next to and is not one, which is the mistake rust-v0.150.1 made twice.
+
+# --- (1) analytics force-off ------------------------------------------------
+# suite/v2/client_metadata.rs ends on
+#   wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT, "codex_turn_event")
+# so the wait is the last thing it does and it reaches nextest's ceiling instead
+# of failing an assertion. CI reports it TMT, not FAIL -- read the set with
+# fork/ci_failures.py, which counts both.
+package(codex-app-server) & test(turn_steer_updates_client_metadata_on_follow_up_responses_request_v2)
+# NOT cause (2), despite being the fourth `guardian_v2_required_model_*` entry in
+# this file and routing through the same guardian_v2_routes_tool_approvals
+# wrapper as the cause (2) block above. That wrapper only awaits its own
+# /metrics endpoint when `classifier_in_scope`, which for GuardianToolScope::
+# AllTools is `matches!(requirement, Optional)` (suite/v2/guardian_v2.rs:589).
+# This case passes Required, so classifier_in_scope is false and the metrics
+# await is skipped entirely. It dies later and elsewhere: after a graceful
+# shutdown it reads the captured analytics events and calls
+#   .expect("parent turn analytics")   (guardian_v2.rs:1407)
+# for a codex_turn_event POST the analytics seam never sends. Hence FAIL rather
+# than the family's usual timeout.
+package(codex-app-server) & test(guardian_v2_required_model_bypasses_scoring_and_runs_full_reviews)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# suite/v2/turn_cost_otel.rs builds its own provider through
+# codex_core::otel_init::build_provider against
+#   metrics_exporter = { otlp-http = { endpoint = "<local MockServer>/metrics" } }
+# and finishes by draining collector.received_requests() for
+# codex.turn.cost_microusd, asserting exactly one data point. The seam nulls the
+# whole metrics exporter, so the collector receives nothing. Caveat A exactly.
+package(codex-app-server) & test(chatgpt_turn_cost_reaches_otlp_on_success)
+
+# --- (3) feedback force-off -------------------------------------------------
+# Drives feedback/upload through a proxy and asserts on concurrency and release
+# of failed uploads; the config gate rejects the RPC first, same as the
+# transport-failure sibling recorded above.
+package(codex-app-server) & test(feedback_upload_limits_concurrency_and_releases_failed_uploads)
+# New shape at this tag, and the reason it is worth spelling out: rust-v0.153.0
+# added codex-rs/feedback/src/guardian.rs, an in-process store of failed guardian
+# reviews, and extended this pre-existing test to assert on it. The recorder
+# core/src/guardian/feedback.rs:41 opens with
+#   if !params.spawn_config.feedback_enabled || params.spawn_config.ephemeral {
+#       return;
+#   }
+# and the seam pins feedback_enabled to false, so nothing is ever recorded and
+# .expect("failed ephemeral review survives cleanup and subsequent allowed
+# reviews") panics. Neither that file nor guardian/feedback.rs is touched by the
+# series -- the reach is entirely through Config. It passes on a pristine
+# rust-v0.153.0 checkout, which is what separates it from the four cause (4)
+# guardian entries this same sync produced.
+package(codex-core) & test(=guardian::tests::guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history)
+
+# --- (5) curated plugins sync off, now reaching marketplace policy -----------
+# A new cause, and a consequence of upstream widening its own use of a constant
+# the fork empties. plugins-curated-sync-off drops the address from
+# OPENAI_PLUGINS_GIT_URL; at rust-v0.153.0 marketplace_policy.rs made itself
+# `pub(crate)`-dependent on that constant and now calls
+#   self.validate_git_source(OPENAI_PLUGINS_GIT_URL, /*ref_name*/ None)
+# in two policy decisions (marketplace_policy.rs:115 and :248). Both see an
+# empty URL, so every test that exercises those decisions -- catalog install,
+# cached activation, plugin skills, and the curated marketplace's own name --
+# reads a policy verdict the fork deliberately changed.
+#
+# Nothing here is a bug: a fork that does not sync a curated marketplace cannot
+# also satisfy tests that assert how that marketplace's git source is policed.
+# The behaviour users get is recorded in fork/egress.yaml, where the curated
+# coordinate stays on the decide list so upstream re-adding it stops a human.
+package(codex-core-plugins) & test(=manager::tests::curated_marketplace_policy::curated_git_policy_controls_catalog_install_and_cached_activation)
+package(codex-core-plugins) & test(=manager::tests::curated_marketplace_policy::skills::curated_git_requirements_control_plugin_skills)
+package(codex-core-plugins) & test(=marketplace_policy::tests::curated::curated_catalogs_apply_the_existing_git_source_policy)
+package(codex-core-plugins) & test(=marketplace_policy::tests::curated_marketplace_requires_its_expected_name)

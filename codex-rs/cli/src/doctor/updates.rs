@@ -343,6 +343,7 @@ fn update_action_label(context: &InstallContext) -> &'static str {
     match &context.method {
         InstallMethod::Npm => "npm install -g @ore-cli/ore",
         InstallMethod::Bun => "bun install -g @ore-cli/ore",
+        InstallMethod::VitePlus => "vp install -g @ore-cli/ore",
         InstallMethod::Pnpm => "pnpm add -g @ore-cli/ore",
         InstallMethod::Brew => "brew upgrade ore-cli/homebrew-tap/ore",
         InstallMethod::Standalone { .. } => "standalone installer",
@@ -357,6 +358,7 @@ fn fetch_latest_version(context: &InstallContext) -> Result<String, String> {
         InstallMethod::Brew
         | InstallMethod::Npm
         | InstallMethod::Bun
+        | InstallMethod::VitePlus
         | InstallMethod::Pnpm
         | InstallMethod::Standalone { .. }
         | InstallMethod::Other => fetch_latest_github_release_version(),

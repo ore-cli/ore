@@ -30,6 +30,24 @@ package(codex-core) & test(=suite::compact_resume_fork::snapshot_rollback_past_c
 # against, reached by a route the check could not see. It can now.
 package(codex-core) & test(suite::hooks::async_hook_finishing_while_idle_waits_for_the_next_turn)
 package(codex-core) & test(=suite::unified_exec::unified_exec_formats_large_output_summary)
+#
+# rust-v0.153.0. Demonstrated on a Linux runner by ore-upstream-probe against a
+# pristine rust-v0.153.0 checkout: `5 tests run: 1 passed, 4 failed`. All four
+# abort rather than assert -- nextest reports ABRT, its signal-termination
+# status, on `test aborted with signal 6: SIGABRT` -- which is the
+# codex-approval-review stack overflow the guardian entries in `known-failing`
+# describe, and which does not appear in ore's own CI on the same image.
+#
+# The fifth test in that same probe run,
+# guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history, PASSED
+# upstream, so it is ours: it sits in `known-failing` under cause (3). Filing all
+# five together on the strength of a shared `guardian_` prefix is precisely the
+# guess this file forbids, and the probe is what made the split visible.
+#
+# Substring, not `=`: test_case parameterises the first into catalog_override,
+# empty_override and legacy_fallback, and an exact filter matches none of them.
+package(codex-core) & test(suite::guardian_review::guardian_denial_rejects_tool_call_with_rationale)
+package(codex-core) & test(=suite::guardian_subagent_authorization::guardian_subagent_review_preserves_late_root_user_authorization)
 
 # --- codex-git-attribution ---------------------------------------------
 package(codex-git-attribution) & test(=tests::policy_resolution_retries_after_auth_refresh)

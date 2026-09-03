@@ -252,12 +252,30 @@ set -e
 AGENT_USED=0
 agent_loop() {
   local stops=0 deadline=$(( $(date +%s) + AGENT_MAX_SECONDS ))
-  local conflicted stopped pre post bad
+  local conflicted stopped pre post bad head_before
   while [[ -d "$(wt rev-parse --git-path rebase-merge)" ]]; do
     conflicted=$(wt diff --name-only --diff-filter=U)
     if [[ -z "$conflicted" ]]; then
       # rerere.autoupdate already staged a fully-remembered resolution.
-      GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || return 1
+      #
+      # A non-zero exit here is NOT failure. `rebase --continue` commits the
+      # resolved commit, carries on, and exits non-zero the moment it stops at
+      # the NEXT conflict -- which the next iteration of this loop is what
+      # handles. Treating it as fatal meant the cache could only ever clear the
+      # FIRST conflict of a run: rust-v0.153.0 had four, every one of them
+      # remembered, and the sync still failed at exit 2 on the second.
+      #
+      # Progress is the real signal, so measure it: HEAD advancing means a
+      # commit landed, and fresh unmerged paths mean there is work to hand the
+      # agent. Neither means the rebase is wedged, and only then is it fatal --
+      # which also keeps this loop from spinning.
+      head_before=$(wt rev-parse HEAD)
+      GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || true
+      if [[ "$(wt rev-parse HEAD)" == "$head_before" \
+            && -z "$(wt diff --name-only --diff-filter=U)" \
+            && -d "$(wt rev-parse --git-path rebase-merge)" ]]; then
+        return 1
+      fi
       continue
     fi
     [[ -n "$AGENT_CMD" ]] || return 1
@@ -287,7 +305,11 @@ agent_loop() {
       wt rebase --abort
       return 2
     fi
-    if ( cd "$WORKTREE" && grep -l '^<<<<<<<' $conflicted 2>/dev/null | grep -q . ); then
+    # No `| grep -q`: it exits on the first match and SIGPIPEs the producer, and
+    # under pipefail that 141 makes this condition read FALSE -- "no markers
+    # remain" -- which is the wrong way for a contract check on untrusted output
+    # to fail. Test the captured text instead.
+    if [[ -n "$( cd "$WORKTREE" && grep -l '^<<<<<<<' $conflicted 2>/dev/null )" ]]; then
       echo "agent: conflict markers remain" >>"$APPLY_LOG"
       wt rebase --abort
       return 2
@@ -455,7 +477,13 @@ DROPPED=$(comm -23 <(printf '%s\n' "$SLUGS_BEFORE") <(printf '%s\n' "$SLUGS_AFTE
   echo
   echo "## range-diff vs previous series"
   echo '```'
-  git range-diff "$BASE_COMMIT..$DELTA" "$TAG_COMMIT..$SERIES_HEAD" 2>&1 | head -200
+  # `|| true` because `head` closing the pipe sends SIGPIPE to range-diff, and
+  # under `set -o pipefail` that is exit 141 -- fatal, from a REPORT line that
+  # produces no artifact. Dormant until the diff exceeded 200 lines, which
+  # rust-v0.153.0 did at 205 commits, killing the run after the version step and
+  # before a single generated pass. The report is convenience; it must never be
+  # able to fail an assembly.
+  git range-diff "$BASE_COMMIT..$DELTA" "$TAG_COMMIT..$SERIES_HEAD" 2>&1 | head -200 || true
   echo '```'
 } >>"$APPLY_LOG"
 # Review convenience only — the branch is the source of truth, never patch files.
@@ -582,7 +610,13 @@ end_pass
 # write-app-server-schema` is stale — the python driver is the real entry.
 if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   begin_pass "schema regen"
-  ( cd "$WORKTREE/codex-rs" && cargo "+$TOOLCHAIN" run -p codex-core --bin codex-write-config-schema ) \
+  # No `-p`: rust-v0.153.0 moved this binary out of codex-core into its own
+  # codex-config-schema crate, and the pass died with "no bin target named
+  # codex-write-config-schema in codex-core". The bin target name is unique in
+  # the workspace, so cargo resolves it wherever the crate lives -- a relocation
+  # is mechanical, while a RENAME still fails loudly, which is the behaviour the
+  # tooltips substitution rules settled on for the same reason.
+  ( cd "$WORKTREE/codex-rs" && cargo "+$TOOLCHAIN" run --bin codex-write-config-schema ) \
     >>"$PASSES_LOG" 2>&1 || fail_pass "config schema regen"
   python3 "$WORKTREE/codex-rs/app-server-protocol/scripts/write_schema_fixtures.py" \
     >>"$PASSES_LOG" 2>&1 || fail_pass "app-server schema fixtures"

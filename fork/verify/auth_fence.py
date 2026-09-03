@@ -58,18 +58,36 @@ FENCE_EXCLUDE = (":(exclude)codex-rs/app-server-protocol/schema/**",)
 # (file, literal, why) — wire identifiers that live outside the fence.
 # All verified present at rust-v0.149.0.
 OUTSIDE_LITERALS = (
-    ("codex-rs/exec/src/lib.rs", '"codex_exec"',
-     "originator for the exec binary; the backend keys behaviour off it"),
-    ("codex-rs/tui/src/lib.rs", 'client_name: "codex-tui"',
-     "wire client_name sent by the TUI"),
-    ("codex-rs/app-server/src/request_processors/initialize_processor.rs", '"codex_app_server_daemon"',
-     "non-originating client name the app-server recognises"),
-    ("codex-rs/app-server/src/request_processors/initialize_processor.rs", '"codex-backend"',
-     "non-originating client name the app-server recognises"),
-    ("codex-rs/chatgpt/src/chatgpt_client.rs", 'CODEX_PRODUCT_SKU: &str = "codex"',
-     "OAI-Product-Sku header value on ChatGPT-backend requests"),
-    ("codex-rs/backend-client/src/client.rs", '"codex-cli"',
-     "User-Agent fallback for the backend client"),
+    (
+        "codex-rs/exec/src/lib.rs",
+        '"codex_exec"',
+        "originator for the exec binary; the backend keys behaviour off it",
+    ),
+    (
+        "codex-rs/tui/src/lib.rs",
+        'client_name: "codex-tui"',
+        "wire client_name sent by the TUI",
+    ),
+    (
+        "codex-rs/app-server/src/request_processors/initialize_processor.rs",
+        '"codex_app_server_daemon"',
+        "non-originating client name the app-server recognises",
+    ),
+    (
+        "codex-rs/app-server/src/request_processors/initialize_processor.rs",
+        '"codex-backend"',
+        "non-originating client name the app-server recognises",
+    ),
+    (
+        "codex-rs/chatgpt/src/chatgpt_client.rs",
+        'CODEX_PRODUCT_SKU: &str = "codex"',
+        "OAI-Product-Sku header value on ChatGPT-backend requests",
+    ),
+    (
+        "codex-rs/backend-client/src/client.rs",
+        '"codex-cli"',
+        "User-Agent fallback for the backend client",
+    ),
 )
 
 
@@ -80,18 +98,28 @@ def normalize_diff(text: str) -> list[str]:
 
 
 def load_allowed(path: Path) -> list[str]:
-    return [ln for ln in path.read_text(encoding="utf-8").splitlines()
-            if ln and not ln.startswith("#")]
+    return [
+        ln
+        for ln in path.read_text(encoding="utf-8").splitlines()
+        if ln and not ln.startswith("#")
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
-    ap.add_argument("--binary", metavar="PATH",
-                    help="also run the binary keep/forbid sets via strings_check.py")
+    ap.add_argument(
+        "--binary",
+        metavar="PATH",
+        help="also run the binary keep/forbid sets via strings_check.py",
+    )
     args = ap.parse_args(argv)
 
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    root = (
+        Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[2]
+    )
     here = Path(__file__).resolve().parent
     fails: list[str] = []
 
@@ -117,13 +145,20 @@ def main(argv: list[str] | None = None) -> int:
     # worth catching.
     try:
         proc = subprocess.run(
-            ["git", "-C", str(root), "diff", base, "--"] + list(FENCE_PATHS) + list(FENCE_EXCLUDE),
-            capture_output=True, text=True, check=True,
+            ["git", "-C", str(root), "diff", base, "--"]
+            + list(FENCE_PATHS)
+            + list(FENCE_EXCLUDE),
+            capture_output=True,
+            text=True,
+            check=True,
         )
         untracked = subprocess.run(
             ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard", "--"]
-            + list(FENCE_PATHS) + list(FENCE_EXCLUDE),
-            capture_output=True, text=True, check=True,
+            + list(FENCE_PATHS)
+            + list(FENCE_EXCLUDE),
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.split()
     except (OSError, subprocess.CalledProcessError) as err:
         print(f"skip: git diff against {base} failed: {err}")
@@ -136,7 +171,16 @@ def main(argv: list[str] | None = None) -> int:
     allowed = load_allowed(here / "allowed-fence.diff")
     if actual != allowed:
         import difflib
-        delta = list(difflib.unified_diff(allowed, actual, "allowed-fence.diff", "git diff (normalised)", lineterm=""))
+
+        delta = list(
+            difflib.unified_diff(
+                allowed,
+                actual,
+                "allowed-fence.diff",
+                "git diff (normalised)",
+                lineterm="",
+            )
+        )
         fails.append(
             f"fence diff against {base} does not equal allowed-fence.diff "
             f"({len(actual)} vs {len(allowed)} lines) — either an unauthorised change touched the auth "
@@ -147,13 +191,17 @@ def main(argv: list[str] | None = None) -> int:
         if len(delta) > 40:
             print(f"  … {len(delta) - 40} more lines")
     else:
-        print(f"ok: fence diff vs {base[:12]} equals allowed-fence.diff ({len(allowed)} allowed lines)")
+        print(
+            f"ok: fence diff vs {base[:12]} equals allowed-fence.diff ({len(allowed)} allowed lines)"
+        )
 
     # (b) wire literals outside the fence
     for rel, literal, why in OUTSIDE_LITERALS:
         path = root / rel
         if not path.is_file():
-            fails.append(f"{rel} no longer exists — the wire literal {literal!r} moved; re-derive the fence ({why})")
+            fails.append(
+                f"{rel} no longer exists — the wire literal {literal!r} moved; re-derive the fence ({why})"
+            )
             continue
         if literal not in path.read_text(encoding="utf-8"):
             fails.append(
@@ -165,17 +213,23 @@ def main(argv: list[str] | None = None) -> int:
 
     # (c) binary keep/forbid, shared engine
     if args.binary:
-        spec = importlib.util.spec_from_file_location("strings_check", here / "strings_check.py")
+        spec = importlib.util.spec_from_file_location(
+            "strings_check", here / "strings_check.py"
+        )
         sc = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sc)
         code = sc.main(["--binary", args.binary, "--root", str(root)])
         if code == 1:
-            fails.append("binary keep/forbid sets failed (strings_check --binary above)")
+            fails.append(
+                "binary keep/forbid sets failed (strings_check --binary above)"
+            )
         elif code == 2:
             print(f"skip: binary {args.binary} not scannable")
             return 2
     else:
-        print("note: binary keep/forbid deferred to the strings-binary check (no --binary given)")
+        print(
+            "note: binary keep/forbid deferred to the strings-binary check (no --binary given)"
+        )
 
     for f in fails:
         print(f"FAIL: {f}")

@@ -12,6 +12,8 @@ pub enum UpdateAction {
     NpmGlobalLatest,
     /// Update via `bun install -g @ore-cli/ore@latest`.
     BunGlobalLatest,
+    /// Update via `vp install -g @ore-cli/ore@latest`.
+    VitePlusGlobalLatest,
     /// Update via `pnpm add -g @ore-cli/ore@latest`.
     PnpmGlobalLatest,
     /// Update via `brew upgrade codex`.
@@ -28,6 +30,7 @@ impl UpdateAction {
         match &context.method {
             InstallMethod::Npm => Some(UpdateAction::NpmGlobalLatest),
             InstallMethod::Bun => Some(UpdateAction::BunGlobalLatest),
+            InstallMethod::VitePlus => Some(UpdateAction::VitePlusGlobalLatest),
             InstallMethod::Pnpm => Some(UpdateAction::PnpmGlobalLatest),
             InstallMethod::Brew => Some(UpdateAction::BrewUpgrade),
             InstallMethod::Standalone { platform, .. } => Some(match platform {
@@ -43,6 +46,7 @@ impl UpdateAction {
         match self {
             UpdateAction::NpmGlobalLatest => ("npm", &["install", "-g", "@ore-cli/ore"]),
             UpdateAction::BunGlobalLatest => ("bun", &["install", "-g", "@ore-cli/ore"]),
+            UpdateAction::VitePlusGlobalLatest => ("vp", &["install", "-g", "@ore-cli/ore"]),
             UpdateAction::PnpmGlobalLatest => ("pnpm", &["add", "-g", "@ore-cli/ore"]),
             UpdateAction::BrewUpgrade => ("brew", &["upgrade", "ore-cli/homebrew-tap/ore"]),
             UpdateAction::StandaloneUnix => (

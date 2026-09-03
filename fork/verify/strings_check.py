@@ -39,18 +39,42 @@ from pathlib import Path
 # Directories that hold build output, vendored code or scm state — never ours
 # to police, and target/ alone is tens of GB.
 SKIP_DIRS = {
-    ".git", "target", "node_modules", "__pycache__", ".venv", "venv",
-    "bazel-out", "bazel-bin", "bazel-testlogs", "dist", "build",
-    "vendor", "third_party",
+    ".git",
+    "target",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "bazel-out",
+    "bazel-bin",
+    "bazel-testlogs",
+    "dist",
+    "build",
+    "vendor",
+    "third_party",
 }
 # Lockfiles enumerate upstream package names by design.
 SKIP_FILES = {
-    "Cargo.lock", "MODULE.bazel.lock", "pnpm-lock.yaml", "uv.lock",
-    "package-lock.json", "flake.lock",
+    "Cargo.lock",
+    "MODULE.bazel.lock",
+    "pnpm-lock.yaml",
+    "uv.lock",
+    "package-lock.json",
+    "flake.lock",
 }
 SKIP_SUFFIXES = {
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2",
-    ".zip", ".gz", ".zst", ".tar", ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".zip",
+    ".gz",
+    ".zst",
+    ".tar",
+    ".pdf",
 }
 
 # Shipped entrypoint names, pre- and post- packaging-time rename.
@@ -107,15 +131,30 @@ class Lists:
         self.forbid = data.get("forbid", [])
         allow = data.get("source_allow", {})
         self.allow_res = [glob_to_re(p) for p in allow.get("paths", [])]
+        # kill entries get the same per-entry path allowance forbid entries have.
+        # A kill exists because the literal must not reach a shipped BINARY, and
+        # a test file never does -- so a path that cannot be linked into one is
+        # exempt on the source tripwire while `--artifacts` keeps policing the
+        # binaries themselves.
+        self.kill_allow_res = [
+            [glob_to_re(p) for p in e.get("source_allow_paths", [])] for e in self.kill
+        ]
         self.forbid_allow_res = [
-            [glob_to_re(p) for p in e.get("source_allow_paths", [])] for e in self.forbid
+            [glob_to_re(p) for p in e.get("source_allow_paths", [])]
+            for e in self.forbid
         ]
         self.allow_prefixes = [p.encode() for p in allow.get("literal_prefixes", [])]
         self.allow_literals = [l.encode() for l in allow.get("literals", [])]
-        for section, entries in (("kill", self.kill), ("keep", self.keep), ("forbid", self.forbid)):
+        for section, entries in (
+            ("kill", self.kill),
+            ("keep", self.keep),
+            ("forbid", self.forbid),
+        ):
             for e in entries:
                 if not e.get("reason"):
-                    raise SystemExit(f"strings.toml: {section} entry {e!r} has no reason (mandatory)")
+                    raise SystemExit(
+                        f"strings.toml: {section} entry {e!r} has no reason (mandatory)"
+                    )
         self.kill_res = [re.compile(e["pattern"].encode()) for e in self.kill]
         self.forbid_res = [re.compile(e["pattern"].encode()) for e in self.forbid]
 
@@ -172,36 +211,59 @@ class Report:
         return 3 if self.pendings else 0
 
 
-def emit_kill_hits(lists: Lists, kill_hits: dict[int, list[str]],
-                   assembled: bool, binary: bool, rep: Report) -> None:
+def emit_kill_hits(
+    lists: Lists,
+    kill_hits: dict[int, list[str]],
+    assembled: bool,
+    binary: bool,
+    rep: Report,
+) -> None:
     for idx, wheres in sorted(kill_hits.items()):
         entry = lists.kill[idx]
         removed_by = entry.get("removed_by", "")
         pending = bool(entry.get("pending"))
-        listing = ", ".join(wheres[:8]) + (f", … +{len(wheres) - 8} more" if len(wheres) > 8 else "")
+        listing = ", ".join(wheres[:8]) + (
+            f", … +{len(wheres) - 8} more" if len(wheres) > 8 else ""
+        )
         what = f"kill '{entry['pattern']}' present in {listing} — {entry['reason']}"
         if pending:
             rep.pendings.append(f"{what} [expected until {removed_by} lands]")
         elif removed_by == "substitution" and not binary and not assembled:
             # Substitution runs at assemble time; on delta these literals are the
             # upstream text the manifest exists to rewrite.
-            rep.notes.append(f"{what} [removed by the substitution pass at assemble; expected on delta]")
+            rep.notes.append(
+                f"{what} [removed by the substitution pass at assemble; expected on delta]"
+            )
         else:
             rep.fails.append(what)
 
 
-def scan_blob(data: bytes, where: str, lists: Lists, *, rel: str | None,
-              rep: Report, kill_hits: dict[int, list[str]]) -> None:
+def scan_blob(
+    data: bytes,
+    where: str,
+    lists: Lists,
+    *,
+    rel: str | None,
+    rep: Report,
+    kill_hits: dict[int, list[str]],
+) -> None:
     if rel is not None and lists.path_allowed(rel):
         return
-    for idx, (entry, rx) in enumerate(zip(lists.kill, lists.kill_res)):
+    for idx, (entry, rx, kill_allow) in enumerate(
+        zip(lists.kill, lists.kill_res, lists.kill_allow_res)
+    ):
         m = rx.search(data)
         if not m:
             continue
         if rel is not None and lists.match_is_allowed_token(data, m.start(), m.end()):
             continue
+        # Source-only exemption: never consulted for a binary, where rel is None.
+        if rel is not None and any(a.match(rel) for a in kill_allow):
+            continue
         kill_hits.setdefault(idx, []).append(where)
-    for entry, rx, allow_res in zip(lists.forbid, lists.forbid_res, lists.forbid_allow_res):
+    for entry, rx, allow_res in zip(
+        lists.forbid, lists.forbid_res, lists.forbid_allow_res
+    ):
         if not rx.search(data):
             continue
         # A forbid entry may name paths where the literal is documentation rather
@@ -209,7 +271,9 @@ def scan_blob(data: bytes, where: str, lists: Lists, *, rel: str | None,
         # binary contacts. Binary scans pass rel=None and so are never exempt.
         if rel is not None and any(r.match(rel) for r in allow_res):
             continue
-        rep.fails.append(f"forbid '{entry['pattern']}' present in {where} ({entry['reason']})")
+        rep.fails.append(
+            f"forbid '{entry['pattern']}' present in {where} ({entry['reason']})"
+        )
 
 
 def run_tree(root: Path, lists: Lists, assembled: bool, rep: Report) -> None:
@@ -265,14 +329,21 @@ def run_binary(path: Path, lists: Lists, *, entrypoint: bool, rep: Report) -> No
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--tree", action="store_true", help="scan the source tree")
     mode.add_argument("--binary", metavar="PATH", help="scan one shipped binary")
-    mode.add_argument("--artifacts", metavar="DIR", help="scan every binary in a package dir")
+    mode.add_argument(
+        "--artifacts", metavar="DIR", help="scan every binary in a package dir"
+    )
     ap.add_argument("--root", help="repo root (default: two levels above this script)")
-    ap.add_argument("--not-entrypoint", action="store_true",
-                    help="with --binary: skip the keep set (binary is not the entrypoint)")
+    ap.add_argument(
+        "--not-entrypoint",
+        action="store_true",
+        help="with --binary: skip the keep set (binary is not the entrypoint)",
+    )
     args = ap.parse_args(argv)
 
     root = repo_root(args.root)
@@ -282,9 +353,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.tree:
         assembled = tree_is_assembled(root)
         if assembled is None:
-            rep.notes.append("fork/UPSTREAM unreadable — judging the tree as pre-assembly")
+            rep.notes.append(
+                "fork/UPSTREAM unreadable — judging the tree as pre-assembly"
+            )
             assembled = False
-        rep.notes.append(f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}")
+        rep.notes.append(
+            f"tree mode: {'assembled (main)' if assembled else 'pre-assembly (delta)'}"
+        )
         run_tree(root, lists, assembled, rep)
     elif args.binary:
         p = Path(args.binary)

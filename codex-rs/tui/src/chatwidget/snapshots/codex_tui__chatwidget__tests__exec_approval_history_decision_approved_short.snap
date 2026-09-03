@@ -2,5 +2,4 @@
 source: tui/src/chatwidget/tests/exec_flow.rs
 expression: lines_to_single_string(&decision)
 ---
-
 ✔ You approved ore to run echo hello world this time

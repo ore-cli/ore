@@ -24,6 +24,19 @@ const GITHUB_API_BASE_URL: &str = "https://api.github.com";
 const GITHUB_API_ACCEPT_HEADER: &str = "application/vnd.github+json";
 const GITHUB_API_VERSION_HEADER: &str = "2022-11-28";
 const CURATED_PLUGINS_REPO_ENV_VAR: &str = "ORE_CURATED_PLUGINS_REPO";
+// ore: the name survives, the address does not -- the same shape as
+// feedback's SENTRY_DSN. rust-v0.153.0 made marketplace_policy.rs depend on this
+// constant in two policy decisions, and that file is pure upstream that ore does
+// not otherwise touch; deleting the constant outright would force ore to start
+// editing it. The URL itself is a strings.toml kill entry, so the literal
+// cannot ship.
+//
+// Empty is safe in both directions. validate_git_source returns Ok(None) before
+// looking at the source whenever the policy is unrestricted, so the common path
+// is byte-for-byte upstream's behaviour; under a RESTRICTED policy the empty
+// source fails to parse and the branch denies, which is the right direction for
+// a curated marketplace ore never provisions.
+pub(crate) const OPENAI_PLUGINS_GIT_URL: &str = "";
 const CURATED_PLUGINS_FETCH_REF: &str = "refs/codex/curated-sync";
 const CURATED_PLUGINS_RELATIVE_DIR: &str = ".tmp/plugins";
 const CURATED_PLUGINS_SHA_FILE: &str = ".tmp/plugins.sha";
@@ -56,7 +69,7 @@ pub(crate) struct CuratedPluginsRepo {
 }
 
 impl CuratedPluginsRepo {
-    fn git_url(&self) -> String {
+    pub(crate) fn git_url(&self) -> String {
         format!("https://github.com/{}/{}.git", self.owner, self.repo)
     }
 }
