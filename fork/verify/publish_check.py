@@ -34,30 +34,55 @@ from pathlib import Path
 
 # Each pattern is (regex, what it means, why it must not ship).
 FORBIDDEN = [
-    (re.compile(r"/Users/[a-z][a-z0-9._-]*/", re.I),
-     "a macOS home directory",
-     "names the maintainer's account and local layout"),
-    (re.compile(r"/home/(?!user/|runner/|ubuntu/|linuxbrew/)[a-z][a-z0-9._-]*/", re.I),
-     "a Linux home directory",
-     "names the maintainer's account and local layout"),
-    (re.compile(r"\bcore-editor\b"),
-     "the predecessor organisation",
-     "names a private repository that is not this project's to disclose"),
-    (re.compile(r"\bcore-ci\b"),
-     "the predecessor secret vault",
-     "names private infrastructure"),
+    (
+        re.compile(r"/Users/[a-z][a-z0-9._-]*/", re.I),
+        "a macOS home directory",
+        "names the maintainer's account and local layout",
+    ),
+    (
+        re.compile(
+            r"/home/(?!user/|runner/|ubuntu/|linuxbrew/)[a-z][a-z0-9._-]*/", re.I
+        ),
+        "a Linux home directory",
+        "names the maintainer's account and local layout",
+    ),
+    (
+        re.compile(r"\bcore-editor\b"),
+        "the predecessor organisation",
+        "names a private repository that is not this project's to disclose",
+    ),
+    (
+        re.compile(r"\bcore-ci\b"),
+        "the predecessor secret vault",
+        "names private infrastructure",
+    ),
 ]
 
 # Directories the fork must never carry, whatever they contain.
 FORBIDDEN_DIRS = [
-    ("fork/reference/",
-     "copies of a predecessor repository and internal audit notes; the reasoning "
-     "that mattered lives in the commit messages, fork/README.md and docs/"),
+    (
+        "fork/reference/",
+        "copies of a predecessor repository and internal audit notes; the reasoning "
+        "that mattered lives in the commit messages, fork/README.md and docs/",
+    ),
 ]
 
 TEXT_SUFFIXES = {
-    ".rs", ".py", ".sh", ".md", ".toml", ".yaml", ".yml", ".json", ".txt",
-    ".ps1", ".js", ".ts", ".diff", ".allow", "",
+    ".rs",
+    ".py",
+    ".sh",
+    ".md",
+    ".toml",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".txt",
+    ".ps1",
+    ".js",
+    ".ts",
+    ".diff",
+    ".allow",
+    "",
 }
 
 
@@ -65,7 +90,9 @@ def upstream_files(root: Path, base: str) -> set[str]:
     try:
         out = subprocess.run(
             ["git", "-C", str(root), "ls-tree", "-r", "--name-only", base],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError):
         return set()
@@ -80,10 +107,13 @@ def tracked_files(root: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--root", default=".", help="repository root")
-    ap.add_argument("--base", default="", help="upstream base (default: fork/UPSTREAM's commit)")
+    ap.add_argument(
+        "--base", default="", help="upstream base (default: fork/UPSTREAM's commit)"
+    )
     args = ap.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -91,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     if not base:
         try:
             import tomllib
+
             with open(root / "fork" / "UPSTREAM", "rb") as fh:
                 base = tomllib.load(fh).get("commit", "")
         except (OSError, ValueError):
@@ -134,7 +165,9 @@ def main(argv: list[str] | None = None) -> int:
         print("FAIL: the fork publishes only what is its own to publish")
         return 1
 
-    print(f"ok: {scanned} fork-authored file(s) carry no local paths and no predecessor references")
+    print(
+        f"ok: {scanned} fork-authored file(s) carry no local paths and no predecessor references"
+    )
     return 0
 
 

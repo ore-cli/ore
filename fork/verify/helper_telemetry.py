@@ -155,7 +155,10 @@ def main() -> int:
         try:
             path = reach(crate, manifest, members)
             extra = sorted(
-                d for k in NON_SHIPPING for d in direct(load(manifest), k) if d == OTEL_CRATE
+                d
+                for k in NON_SHIPPING
+                for d in direct(load(manifest), k)
+                if d == OTEL_CRATE
             )
         except Failure as exc:
             failures.append(f"FAIL: {exc}")
@@ -164,7 +167,9 @@ def main() -> int:
         actual = path is not None
         if extra:
             # Never part of the verdict: neither table links into the binary.
-            print(f"note: {crate} names {OTEL_CRATE} in {'/'.join(NON_SHIPPING)} (does not ship)")
+            print(
+                f"note: {crate} names {OTEL_CRATE} in {'/'.join(NON_SHIPPING)} (does not ship)"
+            )
         if actual == expected:
             via = " -> ".join(path) if path else "no normal-dependency path"
             print(f"ok: {crate}: {via}")
@@ -183,7 +188,10 @@ def main() -> int:
             )
 
     if failures:
-        print(f"\n{len(failures)} helper telemetry change(s) need a verdict:", file=sys.stderr)
+        print(
+            f"\n{len(failures)} helper telemetry change(s) need a verdict:",
+            file=sys.stderr,
+        )
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1

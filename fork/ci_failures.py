@@ -70,7 +70,9 @@ def fetch(run: str, repo: str | None) -> str:
         cmd += ["--repo", repo]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0 or not proc.stdout.strip():
-        print(f"could not fetch run {run}: {proc.stderr.strip()[:400]}", file=sys.stderr)
+        print(
+            f"could not fetch run {run}: {proc.stderr.strip()[:400]}", file=sys.stderr
+        )
         raise SystemExit(2)
     return proc.stdout
 
@@ -80,17 +82,24 @@ def main() -> int:
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--run", help="GitHub Actions run id, fetched with gh")
     src.add_argument("--log", type=Path, help="a log file already on disk")
-    ap.add_argument("--repo", help="owner/name, when --run is not in this repo's default")
+    ap.add_argument(
+        "--repo", help="owner/name, when --run is not in this repo's default"
+    )
     args = ap.parse_args()
 
-    text = strip_ansi(args.log.read_text(encoding="utf-8", errors="replace")
-                      if args.log else fetch(args.run, args.repo))
+    text = strip_ansi(
+        args.log.read_text(encoding="utf-8", errors="replace")
+        if args.log
+        else fetch(args.run, args.repo)
+    )
 
     # Per test, every attempt's status in order. A test that ever reaches PASS
     # succeeded on retry: nextest counts it flaky, and so do we.
     attempts: dict[tuple[str, str], list[str]] = {}
     for m in OUTCOME.finditer(text):
-        attempts.setdefault((m.group("binary"), m.group("test")), []).append(m.group("status"))
+        attempts.setdefault((m.group("binary"), m.group("test")), []).append(
+            m.group("status")
+        )
 
     failed = sorted(
         f"{binary} {test} [{outcomes[-1]}]"
@@ -113,18 +122,29 @@ def main() -> int:
         print(entry)
 
     if summaries == 0:
-        print("\nno nextest Summary line found: cannot reconcile, so this list is "
-              "unverified. Check that the log covers the test jobs.", file=sys.stderr)
+        print(
+            "\nno nextest Summary line found: cannot reconcile, so this list is "
+            "unverified. Check that the log covers the test jobs.",
+            file=sys.stderr,
+        )
         return 1
     if len(failed) != declared:
-        print(f"\nRECONCILIATION FAILED: extracted {len(failed)} failing test(s), but "
-              f"{summaries} nextest Summary line(s) declare {declared}.", file=sys.stderr)
-        print("  The extractor is missing an outcome class, or the log is truncated.",
-              file=sys.stderr)
+        print(
+            f"\nRECONCILIATION FAILED: extracted {len(failed)} failing test(s), but "
+            f"{summaries} nextest Summary line(s) declare {declared}.",
+            file=sys.stderr,
+        )
+        print(
+            "  The extractor is missing an outcome class, or the log is truncated.",
+            file=sys.stderr,
+        )
         print("  Do not report either number until they agree.", file=sys.stderr)
         return 1
-    print(f"\nok: {len(failed)} failing test(s), reconciled against {summaries} "
-          f"nextest summary line(s)", file=sys.stderr)
+    print(
+        f"\nok: {len(failed)} failing test(s), reconciled against {summaries} "
+        f"nextest summary line(s)",
+        file=sys.stderr,
+    )
     return 0
 
 
