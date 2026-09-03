@@ -252,12 +252,30 @@ set -e
 AGENT_USED=0
 agent_loop() {
   local stops=0 deadline=$(( $(date +%s) + AGENT_MAX_SECONDS ))
-  local conflicted stopped pre post bad
+  local conflicted stopped pre post bad head_before
   while [[ -d "$(wt rev-parse --git-path rebase-merge)" ]]; do
     conflicted=$(wt diff --name-only --diff-filter=U)
     if [[ -z "$conflicted" ]]; then
       # rerere.autoupdate already staged a fully-remembered resolution.
-      GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || return 1
+      #
+      # A non-zero exit here is NOT failure. `rebase --continue` commits the
+      # resolved commit, carries on, and exits non-zero the moment it stops at
+      # the NEXT conflict -- which the next iteration of this loop is what
+      # handles. Treating it as fatal meant the cache could only ever clear the
+      # FIRST conflict of a run: rust-v0.153.0 had four, every one of them
+      # remembered, and the sync still failed at exit 2 on the second.
+      #
+      # Progress is the real signal, so measure it: HEAD advancing means a
+      # commit landed, and fresh unmerged paths mean there is work to hand the
+      # agent. Neither means the rebase is wedged, and only then is it fatal --
+      # which also keeps this loop from spinning.
+      head_before=$(wt rev-parse HEAD)
+      GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || true
+      if [[ "$(wt rev-parse HEAD)" == "$head_before" \
+            && -z "$(wt diff --name-only --diff-filter=U)" \
+            && -d "$(wt rev-parse --git-path rebase-merge)" ]]; then
+        return 1
+      fi
       continue
     fi
     [[ -n "$AGENT_CMD" ]] || return 1
