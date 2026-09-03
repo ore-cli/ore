@@ -242,6 +242,37 @@ categories:
       pattern: '(?<![\w./-])codex(?= -{1,2}[a-zA-Z])'
       replace: '${bin}'
 
+    - name: cli-command-after-a-colour-escape
+      note: >
+        rust-v0.153.0 added exit-summary tests that assert on COLOURED output:
+        "\u{1b}[36mcodex resume <id>\u{1b}[39m". The character immediately before
+        the word is the `m` that closes the ANSI escape, and cli-command-in-help-text's
+        `(?<![\w./-])` lookbehind reads that as a word character -- so the rule that
+        exists to rewrite `codex resume` cannot see this one.
+
+        Production is already right: the command vector is rebranded before
+        color_command() wraps it, so the binary prints `ore`. Only the assertions
+        were left behind, which is the same asymmetry the reconnect-command fix hit
+        at rust-v0.151.0, reached through a different blind spot.
+      globs: ["codex-rs/**/*.rs"]
+      pattern: '(?<=\[36m)codex\b'
+      replace: '${bin}'
+
+    - name: markdown-render-test-expects-the-rebranded-label
+      note: >
+        The fixture feeds "Your `codex` launcher ..." and asserts the rendered inline
+        code span. cli-command-in-backticks rewrites the INPUT, because it is
+        backticked; the expected span is a bare `"codex".cyan()`, which no rule
+        matches -- so the renderer emits `ore` and the assertion still wants `codex`.
+
+        Anchored on `.cyan()` so it cannot touch the path literals in the same test:
+        `/home/.../bin/codex:1105` is a filesystem path in the fixture and must stay
+        exactly as upstream wrote it.
+      files: [codex-rs/tui/src/markdown_render_tests.rs]
+      rust_literals_only: false
+      pattern: '"codex"\.cyan\(\)'
+      replace: '"${bin}".cyan()'
+
     - name: cli-command-in-backticks
       globs: ["codex-rs/**/*.rs", "**/*.md"]
       pattern: '`codex`'
