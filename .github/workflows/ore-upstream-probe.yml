@@ -162,7 +162,11 @@ jobs:
               echo "run never started. This result establishes nothing."
             else
               echo '```'
-              grep -E '^ +(Summary|PASS|FAIL|TMT|TRY [0-9]+ (FAIL|TMT)) ' "$log" | tail -60
+              # Statuses, not one status word: this run's four real results were
+              # ABRT (SIGABRT), which the FAIL|TMT pair silently dropped -- the
+              # Summary line said `4 failed` and the listing showed none of them.
+              # Same shape fork/ci_failures.py exists to prevent, one level up.
+              grep -E '^ +(Summary|PASS|SIGSEGV|(TRY [0-9]+ )?(FAIL|TMT|ABRT|SIGSEGV)) ' "$log" | tail -60
               echo '```'
               echo
               if [[ "$RC" == "0" ]]; then
