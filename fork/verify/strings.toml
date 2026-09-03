@@ -117,6 +117,15 @@ removed_by = "substitution"
 pattern = 'github\.com/openai/plugins'
 reason = "curated-plugins git repo cloned at startup when plugins are enabled (codex-rs/core-plugins/src/startup_sync.rs:28-30); sync disabled per the ratified plugins-curated-sync-off rider (decision is final — only the commit is outstanding)"
 removed_by = "series:plugins-curated-sync-off"
+# rust-v0.153.0 spread this URL across upstream's own marketplace-policy tests --
+# three of these files are new at that tag. None is linked into a shipped binary,
+# which is the thing this kill exists to keep it out of, and `--artifacts` still
+# scans the binaries themselves. Rewriting upstream test fixtures to satisfy a
+# SOURCE tripwire would add diff surface for no change in what ships.
+source_allow_paths = [
+  "codex-rs/core-plugins/src/*_tests.rs",
+  "codex-rs/core-plugins/src/marketplace_policy/*_tests.rs",
+]
 
 [[kill]]
 pattern = 'chatgpt\.com/backend-api/plugins/export/curated'

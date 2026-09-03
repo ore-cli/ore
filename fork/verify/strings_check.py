@@ -107,6 +107,14 @@ class Lists:
         self.forbid = data.get("forbid", [])
         allow = data.get("source_allow", {})
         self.allow_res = [glob_to_re(p) for p in allow.get("paths", [])]
+        # kill entries get the same per-entry path allowance forbid entries have.
+        # A kill exists because the literal must not reach a shipped BINARY, and
+        # a test file never does -- so a path that cannot be linked into one is
+        # exempt on the source tripwire while `--artifacts` keeps policing the
+        # binaries themselves.
+        self.kill_allow_res = [
+            [glob_to_re(p) for p in e.get("source_allow_paths", [])] for e in self.kill
+        ]
         self.forbid_allow_res = [
             [glob_to_re(p) for p in e.get("source_allow_paths", [])] for e in self.forbid
         ]
@@ -194,11 +202,16 @@ def scan_blob(data: bytes, where: str, lists: Lists, *, rel: str | None,
               rep: Report, kill_hits: dict[int, list[str]]) -> None:
     if rel is not None and lists.path_allowed(rel):
         return
-    for idx, (entry, rx) in enumerate(zip(lists.kill, lists.kill_res)):
+    for idx, (entry, rx, kill_allow) in enumerate(
+        zip(lists.kill, lists.kill_res, lists.kill_allow_res)
+    ):
         m = rx.search(data)
         if not m:
             continue
         if rel is not None and lists.match_is_allowed_token(data, m.start(), m.end()):
+            continue
+        # Source-only exemption: never consulted for a binary, where rel is None.
+        if rel is not None and any(a.match(rel) for a in kill_allow):
             continue
         kill_hits.setdefault(idx, []).append(where)
     for entry, rx, allow_res in zip(lists.forbid, lists.forbid_res, lists.forbid_allow_res):
