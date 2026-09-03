@@ -305,7 +305,11 @@ agent_loop() {
       wt rebase --abort
       return 2
     fi
-    if ( cd "$WORKTREE" && grep -l '^<<<<<<<' $conflicted 2>/dev/null | grep -q . ); then
+    # No `| grep -q`: it exits on the first match and SIGPIPEs the producer, and
+    # under pipefail that 141 makes this condition read FALSE -- "no markers
+    # remain" -- which is the wrong way for a contract check on untrusted output
+    # to fail. Test the captured text instead.
+    if [[ -n "$( cd "$WORKTREE" && grep -l '^<<<<<<<' $conflicted 2>/dev/null )" ]]; then
       echo "agent: conflict markers remain" >>"$APPLY_LOG"
       wt rebase --abort
       return 2
@@ -473,7 +477,13 @@ DROPPED=$(comm -23 <(printf '%s\n' "$SLUGS_BEFORE") <(printf '%s\n' "$SLUGS_AFTE
   echo
   echo "## range-diff vs previous series"
   echo '```'
-  git range-diff "$BASE_COMMIT..$DELTA" "$TAG_COMMIT..$SERIES_HEAD" 2>&1 | head -200
+  # `|| true` because `head` closing the pipe sends SIGPIPE to range-diff, and
+  # under `set -o pipefail` that is exit 141 -- fatal, from a REPORT line that
+  # produces no artifact. Dormant until the diff exceeded 200 lines, which
+  # rust-v0.153.0 did at 205 commits, killing the run after the version step and
+  # before a single generated pass. The report is convenience; it must never be
+  # able to fail an assembly.
+  git range-diff "$BASE_COMMIT..$DELTA" "$TAG_COMMIT..$SERIES_HEAD" 2>&1 | head -200 || true
   echo '```'
 } >>"$APPLY_LOG"
 # Review convenience only — the branch is the source of truth, never patch files.
