@@ -610,7 +610,13 @@ end_pass
 # write-app-server-schema` is stale — the python driver is the real entry.
 if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   begin_pass "schema regen"
-  ( cd "$WORKTREE/codex-rs" && cargo "+$TOOLCHAIN" run -p codex-core --bin codex-write-config-schema ) \
+  # No `-p`: rust-v0.153.0 moved this binary out of codex-core into its own
+  # codex-config-schema crate, and the pass died with "no bin target named
+  # codex-write-config-schema in codex-core". The bin target name is unique in
+  # the workspace, so cargo resolves it wherever the crate lives -- a relocation
+  # is mechanical, while a RENAME still fails loudly, which is the behaviour the
+  # tooltips substitution rules settled on for the same reason.
+  ( cd "$WORKTREE/codex-rs" && cargo "+$TOOLCHAIN" run --bin codex-write-config-schema ) \
     >>"$PASSES_LOG" 2>&1 || fail_pass "config schema regen"
   python3 "$WORKTREE/codex-rs/app-server-protocol/scripts/write_schema_fixtures.py" \
     >>"$PASSES_LOG" 2>&1 || fail_pass "app-server schema fixtures"
