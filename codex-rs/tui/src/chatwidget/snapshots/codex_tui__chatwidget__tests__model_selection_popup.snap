@@ -1,6 +1,6 @@
 ---
 source: tui/src/chatwidget/tests/popups_and_settings.rs
-expression: "render_bottom_popup(&chat, 80)"
+expression: popup
 ---
   Select Model and Effort
   Access legacy models by running ore -m <model_name> or in your config.toml
