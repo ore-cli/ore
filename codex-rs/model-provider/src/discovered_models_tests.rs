@@ -452,10 +452,17 @@ async fn an_openai_compatible_gateway_list_decides_which_models_are_offered() {
     );
     let manager = provider.models_manager_without_cache(/*config_model_catalog*/ None);
     let static_models = static_catalog_of(&manager).await;
-    let known = static_models
-        .first()
-        .map(|model| model.slug.clone())
-        .expect("the bundled catalog is not empty");
+    // The first model the PICKER would show, not the first the catalog holds.
+    // `slugs()` drops hidden entries, so a `Hide` model here compares a filtered
+    // actual against an unfiltered expectation and fails on a fixture detail --
+    // which is what rust-v0.153.1 did by adding `gpt-6-astra`, visibility `hide`,
+    // as the first entry in models.json.
+    let known_model = static_models
+        .iter()
+        .find(|model| model.visibility != ModelVisibility::Hide)
+        .cloned()
+        .expect("the bundled catalog has a visible model");
+    let known = known_model.slug.clone();
 
     Mock::given(method("GET"))
         .and(path("/models"))
@@ -483,7 +490,7 @@ async fn an_openai_compatible_gateway_list_decides_which_models_are_offered() {
     );
     assert_eq!(
         catalog.models.first(),
-        static_models.first(),
+        Some(&known_model),
         "a listed model keeps its catalog metadata"
     );
 }
