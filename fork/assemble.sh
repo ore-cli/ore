@@ -433,21 +433,45 @@ fi
 # that landed it. main was never wrong; the series just had no commit saying so.
 #
 # Writing it here, as a series commit next to the base record it belongs with,
-# means the two move together or not at all. A respin still bumps the PATCH by
-# hand -- that part is a decision and stays one.
+# means the two move together or not at all.
+#
+# BOTH halves of the version are derived, and the second half was learned the
+# expensive way. A base advance that moves only upstream's PATCH leaves the minor
+# alone, so the guard below saw 153 == 153 and correctly did nothing -- three
+# times running, at rust-v0.153.{0,1,2}. Each time that shipped a tree under a
+# version already published from a DIFFERENT tree, and nothing caught it:
+# version_check asserts minor(fork/VERSION) == minor(UPSTREAM.tag), which holds
+# either way. It was found by a human following a runbook step, three times.
+#
+# The signal was always here. `$TAG != $BASE` means the tree changed, and a tree
+# that changed needs a version that changed; which half moves is arithmetic, not
+# judgement. --reassemble is the one case that must NOT bump: it regenerates the
+# same base (it refuses to run otherwise), so the operator has already decided
+# what the version is and assemble must not decide again.
+#
+# A non-numeric patch (the 1.149.0-alpha.N line) is left alone deliberately --
+# incrementing a prerelease is a decision about the prerelease, not about the
+# base -- which keeps this strictly additive to the behaviour it replaces.
 _upstream_minor=$(sed -E 's/^rust-v[0-9]+\.([0-9]+)\.[0-9]+$/\1/' <<<"$TAG")
 _series_version=$(tr -d '[:space:]' <"$WORKTREE/fork/VERSION")
-if [[ "$(cut -d. -f2 <<<"$_series_version")" != "$_upstream_minor" ]]; then
+_series_minor=$(cut -d. -f2 <<<"$_series_version")
+_series_patch=$(cut -d. -f3 <<<"$_series_version")
+_new_version="" _version_reason=""
+if [[ "$_series_minor" != "$_upstream_minor" ]]; then
   _new_version="1.$_upstream_minor.0"
+  _version_reason="the minor follows the base, so advancing to $TAG forces it"
+elif [[ "$TAG" != "$BASE" && "$_series_patch" =~ ^[0-9]+$ ]]; then
+  _new_version="1.$_upstream_minor.$((_series_patch + 1))"
+  _version_reason="the base moved $BASE -> $TAG without moving the minor, so the ore patch is what separates the two trees"
+fi
+if [[ -n "$_new_version" ]]; then
   printf '%s\n' "$_new_version" >"$WORKTREE/fork/VERSION"
   wt add fork/VERSION
   wt -c "user.name=$BOT_NAME" -c "user.email=$BOT_EMAIL" -c commit.gpgsign=false \
     commit --quiet -F - <<EOF
 release: $_new_version
 
-Written by fork/assemble.sh alongside the base record. Scheme C ties the minor to
-the upstream base, so advancing to $TAG forces $_new_version; only the patch is a
-choice, and a respin bumps that by hand.
+Written by fork/assemble.sh alongside the base record: $_version_reason.
 
 The assembled tree gets this from the version pass either way. This commit is
 what stops the SERIES disagreeing with what ships -- the case that turned delta
@@ -455,7 +479,7 @@ red immediately after the rust-v0.150.1 sync landed.
 
 Fork-Patch: release-${_new_version//./-}
 Purpose: Keep fork/VERSION on the series tracking the base it is rebased onto.
-Invariant: minor(fork/VERSION) equals the minor of the base tag in fork/UPSTREAM.
+Invariant: two trees never ship under one ore version, and minor(fork/VERSION) equals the minor of the base tag in fork/UPSTREAM.
 Verify: fork/verify/version_check.py --root <series checkout> reports scheme C clean.
 EOF
   info "version: series now records $_new_version"
