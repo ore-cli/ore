@@ -114,7 +114,7 @@ jobs:
             --model claude-fable-5 \
             --effort max \
             --max-turns 500 \
-            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Read")"
+            --allowedTools="Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Read")"
           # release-note.py's clean_bullets is all-or-nothing: one stray line and
           # the whole section is dropped. Keep only bullet lines, so a preamble
           # costs the summary nothing.

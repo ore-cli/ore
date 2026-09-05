@@ -59,7 +59,7 @@ jobs:
             --model claude-fable-5
             --effort max
             --max-turns 500
-            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git grep:*),Bash(git merge-base:*),Bash(git for-each-ref:*),Read,Grep,Glob,Write,mcp__github_comment__create_comment"
+            --allowedTools="Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git grep:*),Bash(git merge-base:*),Bash(git for-each-ref:*),Read,Grep,Glob,Write,mcp__github_comment__create_comment"
           prompt: |
             A sync failed and filed the issue you are looking at. Read CLAUDE.md at
             the repo root first — it describes the branch topology and the rules you
