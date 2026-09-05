@@ -83,9 +83,24 @@ fi
 # Cheap corroboration: the base tag should reach a plausible amount of history.
 # When this bit, the base tag reached 81 commits and its neighbour 9784 -- the
 # difference was unmistakable the moment anything actually counted.
+#
+# Resolve it through the fetch namespace FIRST. Upstream tags are fetched into
+# refs/upstream/tags/* and deliberately not as local tags, so the bare name is
+# exactly what a correctly-namespaced clone cannot resolve -- which silently
+# skipped this whole block and printed nothing, while preflight still said
+# clean. It ran at all only in a clone carrying legacy local rust-v* tags.
 _base_tag="$(sed -n 's/^tag = "\(.*\)"/\1/p' fork/UPSTREAM 2>/dev/null | head -1)"
-if [ -n "$_base_tag" ] && git rev-parse --verify -q "$_base_tag^{commit}" >/dev/null 2>&1; then
-  _n="$(git rev-list --count "$_base_tag" 2>/dev/null || echo 0)"
+_base_ref=""
+for _cand in "refs/upstream/tags/$_base_tag" "$_base_tag"; do
+  if [ -n "$_base_tag" ] && git rev-parse --verify -q "$_cand^{commit}" >/dev/null 2>&1; then
+    _base_ref="$_cand"
+    break
+  fi
+done
+if [ -n "$_base_tag" ] && [ -z "$_base_ref" ]; then
+  bad "$_base_tag does not resolve — cannot corroborate history depth"
+elif [ -n "$_base_ref" ]; then
+  _n="$(git rev-list --count "$_base_ref" 2>/dev/null || echo 0)"
   if [ "$_n" -lt 1000 ]; then
     bad "$_base_tag reaches only $_n commit(s) — history looks truncated"
   else
