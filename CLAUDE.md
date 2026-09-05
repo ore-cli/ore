@@ -205,27 +205,27 @@ there produces work that cannot be pushed and has to be replayed:
 git checkout delta && git fetch origin && git reset --hard origin/delta
 ```
 
-**Check whether the version actually moved.** Scheme C is
-`1.{upstream_minor}.{ore_patch}` and encodes upstream's *minor* only, so a base
-advance that moves only upstream's PATCH — `rust-v0.152.0` → `rust-v0.152.1` —
-leaves the derived version unchanged. `assemble` is right to leave it; it has no
-signal that anything user-visible changed.
+**Check whether the version actually moved.** `assemble` now derives BOTH halves,
+so this should take one command — but check it, because the failure it replaces
+was silent and cost three releases.
 
-The result is a version collision: `ore-v1.152.0` was published from upstream
-0.152.0, and `main` then built 0.152.1 under that same number. One version, two
-trees. Nothing catches it — `version_check` asserts
-`minor(fork/VERSION) == minor(UPSTREAM.tag)`, which still holds.
-
-So before releasing, compare the candidate's `fork/UPSTREAM` tag against the base
-of the tag already published under that version. If they differ, the ore patch
-needs a deliberate bump:
+Scheme C is `1.{upstream_minor}.{ore_patch}` and encodes upstream's *minor* only.
+A base advance moving just upstream's PATCH (`rust-v0.153.1` → `rust-v0.153.2`)
+therefore leaves the minor alone, and until `assemble` learned to bump the ore
+patch on `$TAG != $BASE`, it left the whole version alone. That shipped a tree
+under a number already published from a different tree, at
+`rust-v0.153.{0,1,2}` in a row. `version_check` cannot see it: it asserts
+`minor(fork/VERSION) == minor(UPSTREAM.tag)`, which holds either way. All three
+were caught by a human reading this section.
 
 ```bash
-echo 1.152.1 > fork/VERSION      # a `release:` series commit, then reassemble
+git show <candidate>:fork/VERSION                    # expect the patch to have moved
 ```
 
-A minor advance (`0.151.x` → `0.152.0`) needs none of this — `assemble` derives
-the new minor itself.
+If it did not move on a forward sync, that is a bug in `assemble`'s version block
+— not something to paper over by hand. The one case it deliberately leaves alone
+is `--reassemble`, which regenerates the same base: the operator has already
+decided the version there, so bump `fork/VERSION` yourself and reassemble.
 
 ## Before you claim something works
 
