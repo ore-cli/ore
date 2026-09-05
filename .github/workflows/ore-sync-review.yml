@@ -59,7 +59,7 @@ jobs:
             --model claude-fable-5
             --effort max
             --max-turns 500
-            --allowedTools "Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git range-diff:*),Read,Grep,Glob,mcp__github_comment__create_comment"
+            --allowedTools="Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git range-diff:*),Read,Grep,Glob,mcp__github_comment__create_comment"
           prompt: |
             You are reviewing an ore sync PR. ore is a telemetry-free fork of
             openai/codex; read CLAUDE.md at the repo root first, it describes the
