@@ -67,6 +67,20 @@ jobs:
             status=alarm
             notes="${notes}- ${blocked} open sync-blocked issue(s): a sync stopped -- conflicts, or a clean rebase that then failed to build or regenerate -- and none can land until it is resolved\n"
           fi
+          # sync_concl was fetched, emitted into the digest, and never tested --
+          # so a sync that FAILED raised nothing here. On 2026-09-06 the
+          # rust-v0.153.3 sync failed its verify step, filed no issue (that
+          # handler was gated on assemble's exit code), and this job ran
+          # afterwards and reported ok. The value was already in hand; the
+          # condition was simply missing.
+          #
+          # "none" is not a failure: it is what a repo with no sync runs yet
+          # reports, and the staleness check above already covers a schedule
+          # that stopped. Anything else that is not success is one.
+          if [ "$sync_concl" != "success" ] && [ "$sync_concl" != "none" ]; then
+            status=alarm
+            notes="${notes}- the last ore-sync run concluded '${sync_concl}' — a sync failed and nothing else may have said so; check for an open sync-blocked issue and, if there is none, the failure happened after assembly\n"
+          fi
           if [ "$main_concl" != "success" ]; then
             status=alarm
             notes="${notes}- main's last ore-ci run is '${main_concl}' — releases are cut from main and ore-release runs no tests of its own\n"
