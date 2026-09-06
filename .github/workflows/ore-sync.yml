@@ -339,37 +339,8 @@ jobs:
               esac
             } >"$RUNNER_TEMP/issue.md"
 
-            gh label create sync-blocked --repo "$GITHUB_REPOSITORY" \
-              --description "a sync stopped and cannot land until it is resolved" --color B60205 2>/dev/null || true
-            if [ "$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label sync-blocked --json number --jq length)" -gt 0 ]; then
-              echo "an open sync-blocked issue already exists; not filing a duplicate"
-            else
-              url="$(gh issue create --repo "$GITHUB_REPOSITORY" --label sync-blocked \
-                --title "sync blocked: $BASE -> $TAG ($kind)" \
-                --body-file "$RUNNER_TEMP/issue.md")"
-              num="${url##*/}"
-              # The label is what the watchdog alarms on, and --label on create
-              # silently produced an unlabelled issue the first time this ran --
-              # so the issue existed and the alarm still did not. Apply it again
-              # and confirm, because an unlabelled sync-blocked issue is exactly
-              # as invisible as no issue at all.
-              if [ -z "$(gh issue view "$num" --repo "$GITHUB_REPOSITORY" --json labels \
-                   --jq '[.labels[].name] | map(select(. == "sync-blocked")) | .[]')" ]; then
-                # The retry is allowed to fail, and says what to do when it does.
-                # The ore-sync App holds actions/contents/pull_requests but NO
-                # issues permission, which is enough to CREATE an issue and not
-                # enough to label one:
-                #   GraphQL: Resource not accessible by integration (addLabelsToLabelable)
-                # `set -e` would abort this handler mid-way and lose the ::error::
-                # below, so the whole point of the step, so guard it.
-                if gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --add-label sync-blocked 2>&1; then
-                  echo "::warning::sync-blocked did not stick on create; applied it to #$num afterwards"
-                else
-                  echo "::error::could not label #$num sync-blocked. The ore-sync App needs Issues: Read and write (App settings -> Permissions, then approve the update on the installation). Until then the watchdog cannot see this issue and ore-sync-blocked-triage will not start; label it by hand to start triage."
-                fi
-              fi
-              echo "filed #$num"
-            fi
+            bash fork/ci/file-sync-blocked.sh \
+              "sync blocked: $BASE -> $TAG ($kind)" "$RUNNER_TEMP/issue.md"
             echo "::error::sync $BASE -> $TAG stopped: $kind (exit $RC)"
             exit "$RC"
 
@@ -536,6 +507,54 @@ jobs:
             gh pr edit "$url" --repo "$GITHUB_REPOSITORY" --add-label "$l"
           done
           echo "sync PR: $url" >>"$GITHUB_STEP_SUMMARY"
+
+      # Everything above this line between the assembly and the PR -- verify,
+      # semantic review, push, governance, open-PR -- had NO failure handler at
+      # all. The handler above is gated on assemble's exit code, so a sync that
+      # assembled cleanly and then failed verification filed no issue, started no
+      # triage, and left the watchdog reporting ok. rust-v0.153.3 did exactly
+      # that: `54 vs 54 lines` from the auth fence, and silence everywhere else.
+      #
+      # `failure()` covers every step in the job; the rc == '0' guard is what
+      # keeps this from double-filing when the assembly itself was the failure.
+      - name: Handle a failure AFTER a clean assembly
+        if: >-
+          failure() && steps.target.outputs.tag != ''
+          && steps.assemble.outputs.rc == '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          BASE: ${{ steps.target.outputs.base }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          {
+            echo "The sync \`$BASE\` -> \`$TAG\` assembled cleanly and then failed after"
+            echo "the assembly -- verification, semantic review, push, or opening the PR."
+            echo
+            echo "The candidate itself may be fine; what failed is a check ON it. Read the"
+            echo "failing step in the run before assuming the rebase is at fault."
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo "Reproduce locally:"
+            echo '```bash'
+            echo "fork/assemble.sh --tag $TAG --base $BASE --worktree /tmp/asm"
+            echo "python3 fork/verify/run.py --suite static --root <candidate checkout>"
+            echo "fork/preflight.sh sync/$TAG    # from a checkout of sync-delta/$TAG"
+            echo '```'
+            echo
+            echo "## passes report (tail)"
+            echo '```'
+            tail -c 8000 "$OUT_DIR/passes.md" 2>/dev/null || echo "(no passes report)"
+            echo
+            echo '```'
+          } >"$RUNNER_TEMP/issue-post.md"
+
+          bash fork/ci/file-sync-blocked.sh \
+            "sync blocked: $BASE -> $TAG (a check after assembly failed)" \
+            "$RUNNER_TEMP/issue-post.md"
+          echo "::error::sync $BASE -> $TAG assembled but a later step failed"
 
       - name: Upload assembly reports
         if: always() && steps.target.outputs.tag != ''
