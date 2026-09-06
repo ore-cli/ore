@@ -1,0 +1,275 @@
+# ore-sync-autoland — land and tag a sync that needed no judgement.
+#
+# The fork releases roughly daily, and most syncs are mechanical: upstream moves,
+# the series rebases, CI is green, nothing in fork/ changes. Standing watch over
+# those by hand is the tedium this exists to remove. What it must never remove is
+# the review of a sync that DID need a decision, so the gate
+# (fork/ci/autoland-gate.sh) refuses anything whose series changed -- a
+# known-failing entry, a substitution rule, a regenerated fence reference. Every
+# one of those, historically, was an argument someone had to make.
+#
+# Three jobs rather than one, because the signing key lives in an environment:
+# `tagging` is gated to `main` and holds ORE_TAG_SIGNING_KEY and nothing else,
+# while the Apple Developer ID certificate and notarization key stay behind
+# `release`, which admits only `ore-v*` tags. Nothing that can sign a tag can
+# reach the signing certificates.
+name: ore-sync-autoland
+
+on:
+  workflow_run:
+    workflows: [ore-ci]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "sync PR number to evaluate (bypasses the workflow_run lookup)"
+        required: true
+        type: string
+
+# Shared with ore-sync.yml and ore-sync-finalize.yml: landing must never
+# interleave with a sync or another landing.
+concurrency:
+  group: ore-sync
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  gate:
+    name: gate
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'sync/'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      boring: ${{ steps.gate.outputs.boring }}
+      pr: ${{ steps.resolve.outputs.pr }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      version: ${{ steps.gate.outputs.version }}
+      reasons: ${{ steps.gate.outputs.reasons }}
+    steps:
+      - name: Mint the ore-sync App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
+          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      # Full history: the gate diffs origin/main against the candidate.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the sync PR
+        id: resolve
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          INPUT_PR: ${{ inputs.pr }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_PR:-}" ]; then
+            pr="$INPUT_PR"
+          else
+            pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --label sync \
+              --head "$HEAD_BRANCH" --json number --jq '.[0].number // empty')"
+          fi
+          if [ -z "$pr" ]; then
+            echo "no open sync PR for '${HEAD_BRANCH:-}'; nothing to land"
+            echo "pr=" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Read the head SHA from the PR, not from the event: a force-push
+          # between ore-ci finishing and this job starting must not land a
+          # commit nobody tested. The gate re-checks `required` on THIS sha.
+          sha="$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)"
+          echo "pr=$pr" >>"$GITHUB_OUTPUT"
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          echo "PR #$pr at $sha"
+
+      - name: Evaluate the gate
+        id: gate
+        if: steps.resolve.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ steps.resolve.outputs.pr }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: |
+          set -uo pipefail
+          git fetch --no-tags origin main "$SHA" --quiet || true
+          out="$(bash fork/ci/autoland-gate.sh "$PR" "$SHA" 2>&1)" || true
+          printf '%s\n' "$out"
+          boring=no
+          printf '%s\n' "$out" | grep -qx 'boring=yes' && boring=yes
+          {
+            echo "boring=$boring"
+            echo "version=$(printf '%s\n' "$out" | sed -n 's/^version=//p' | head -1)"
+            echo "reasons<<EOF"
+            printf '%s\n' "$out" | sed -n 's/^reason=/- /p'
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+          printf '%s\n' "$out" | sed -n 's/^reason=/- /p' >>"$GITHUB_STEP_SUMMARY" || true
+
+  land:
+    name: land
+    needs: gate
+    if: needs.gate.outputs.boring == 'yes' && needs.gate.outputs.pr != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Mint the ore-sync App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
+          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      # Reuse ore-sync-finalize rather than re-implement its ancestry checks.
+      # Those checks are the append-only spine of main; there must be exactly
+      # one implementation of them and this is not it.
+      - name: Dispatch ore-sync-finalize and wait
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ needs.gate.outputs.pr }}
+        run: |
+          set -euo pipefail
+          before="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ore-sync-finalize.yml \
+            --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
+          gh workflow run ore-sync-finalize.yml --repo "$GITHUB_REPOSITORY" -f pr="$PR"
+
+          run_id=""
+          for _ in $(seq 1 30); do
+            sleep 10
+            run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ore-sync-finalize.yml \
+              --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
+            [ "$run_id" != "$before" ] && [ "$run_id" != "0" ] && break
+            run_id=""
+          done
+          [ -n "$run_id" ] || { echo "::error::ore-sync-finalize never started"; exit 1; }
+          echo "finalize run: $run_id"
+
+          for _ in $(seq 1 60); do
+            state="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" \
+              --json status,conclusion --jq '"\(.status)/\(.conclusion // "pending")"')"
+            case "$state" in
+              completed/success) echo "finalize: $state"; exit 0 ;;
+              completed/*) echo "::error::finalize concluded $state"; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::finalize did not conclude in time"; exit 1
+
+  tag:
+    name: tag
+    needs: [gate, land]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # The signing key lives here and only here, and this environment admits main.
+    environment: tagging
+    steps:
+      - name: Mint the ore-sync App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
+          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Sign and push the release tag
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          SIGNING_KEY: ${{ secrets.ORE_TAG_SIGNING_KEY }}
+          VERSION: ${{ needs.gate.outputs.version }}
+          PR: ${{ needs.gate.outputs.pr }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main --quiet
+          git checkout --quiet FETCH_HEAD
+
+          # Land moved main; read the version from what actually shipped rather
+          # than trusting the gate's copy across a job boundary.
+          version="$(tr -d '[:space:]' <fork/VERSION)"
+          if [ -n "$VERSION" ] && [ "$VERSION" != "$version" ]; then
+            echo "::error::gate saw $VERSION, main carries $version -- refusing to tag"
+            exit 1
+          fi
+          tag="ore-v$version"
+          base="$(sed -n 's/^tag = "\(.*\)"/\1/p' fork/UPSTREAM | head -1)"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::$tag already exists on origin -- a version was reused"
+            exit 1
+          fi
+
+          key="$RUNNER_TEMP/tag-signing"
+          printf '%s\n' "$SIGNING_KEY" >"$key"
+          chmod 600 "$key"
+          git config user.name "ore release automation"
+          git config user.email "release-automation@ore-cli"
+          git config gpg.format ssh
+          git config user.signingkey "$key"
+
+          git tag -s "$tag" -m "$(printf '%s\n' \
+            "ore $version" \
+            "" \
+            "Upstream's $base." \
+            "" \
+            "Landed and tagged by ore-sync-autoland: ore-ci was green on the candidate," \
+            "the rebase dropped no fork commits, and nothing under fork/ changed -- so" \
+            "this sync carried no decision for a human to make. A sync that changes a" \
+            "known-failing entry, a substitution rule or the fence reference does not" \
+            "come through this path." \
+            "" \
+            "PR #$PR.")"
+
+          # Verify before publishing: an unverifiable tag must never reach origin.
+          git -c gpg.ssh.allowedSignersFile=fork/verify/allowed-signers verify-tag "$tag"
+
+          . fork/lib.sh
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+          safe_push "refs/tags/$tag"
+          echo "tagged and pushed $tag" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  explain:
+    name: explain
+    needs: gate
+    if: needs.gate.outputs.boring == 'no' && needs.gate.outputs.pr != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Mint the ore-sync App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
+          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      # Not an alarm: a held sync is the gate working. It is a note on the PR so
+      # the reason is where the reviewer already is, rather than in a run log.
+      - name: Say why it was held
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ needs.gate.outputs.pr }}
+          REASONS: ${{ needs.gate.outputs.reasons }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Held for review by ore-sync-autoland:"
+            echo
+            printf '%s\n' "$REASONS"
+            echo
+            echo "Land it the usual way once you are satisfied -- approve this PR, or"
+            echo "dispatch ore-sync-finalize with \`-f pr=$PR\`."
+          } >"$RUNNER_TEMP/held.md"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/held.md"
