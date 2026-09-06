@@ -11,11 +11,19 @@
 # now-unused `CHAT_WIRE_API_REMOVED_ERROR` const.  No other fenced file may
 # change at all, and no other hunk in this file may appear — auth flows,
 # header names, env keys, URLs, and every other line of lib.rs stay
-# byte-identical to upstream rust-v0.150.1.
+# byte-identical to upstream rust-v0.153.3.
+#
+# Hunk OFFSETS are regenerated when upstream inserts above them; the hunk
+# CONTENT is the contract and does not move. rust-v0.153.3 added one line
+# (AMAZON_BEDROCK_GPT_6_ASTRA_MODEL_ID) above all three hunks, shifting every
+# @@ header by exactly +1 and changing nothing else -- verified by diffing the
+# regenerated file against this one and confirming only @@ lines differed.
+# Regenerate the same way, and do not accept a regeneration that alters a
+# +, - or context line: that is a real fence change and needs a real review.
 diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-info/src/lib.rs
 --- a/codex-rs/model-provider-info/src/lib.rs
 +++ b/codex-rs/model-provider-info/src/lib.rs
-@@ -54,7 +54,6 @@ pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
+@@ -55,7 +55,6 @@ pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
      "https://bedrock-mantle.us-east-1.api.aws/openai/v1";
  const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_HEADER: &str = "x-amzn-mantle-client-agent";
  const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE: &str = "codex";
@@ -23,7 +31,7 @@ diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-i
  pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
  pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
  
-@@ -65,12 +64,26 @@ pub enum WireApi {
+@@ -66,12 +65,26 @@ pub enum WireApi {
      /// The Responses API exposed by OpenAI at `/v1/responses`.
      #[default]
      Responses,
@@ -50,7 +58,7 @@ diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-i
          };
          f.write_str(value)
      }
-@@ -84,8 +97,13 @@ impl<'de> Deserialize<'de> for WireApi {
+@@ -85,8 +98,13 @@ impl<'de> Deserialize<'de> for WireApi {
          let value = String::deserialize(deserializer)?;
          match value.as_str() {
              "responses" => Ok(Self::Responses),
