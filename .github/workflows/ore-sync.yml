@@ -528,10 +528,25 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # Name the step. The first issue this filed (#13, rust-v0.153.4) said
+          # only "verification, semantic review, push, or opening the PR" and
+          # attached a passes report that had nothing to do with the failure --
+          # the reader still had to open the run to learn it was the workflow
+          # allowlist. The API knows; ask it.
+          failed_steps="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" \
+            --jq '.jobs[] | .name as $j | .steps[]? | select(.conclusion == "failure") | "\($j) -> \(.name)"' \
+            2>/dev/null || true)"
           {
             echo "The sync \`$BASE\` -> \`$TAG\` assembled cleanly and then failed after"
-            echo "the assembly -- verification, semantic review, push, or opening the PR."
+            echo "the assembly."
             echo
+            if [ -n "$failed_steps" ]; then
+              echo "## failing step"
+              echo '```'
+              printf '%s\n' "$failed_steps"
+              echo '```'
+              echo
+            fi
             echo "The candidate itself may be fine; what failed is a check ON it. Read the"
             echo "failing step in the run before assuming the rebase is at fault."
             echo
