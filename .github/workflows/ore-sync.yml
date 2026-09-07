@@ -528,10 +528,26 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # Name the step. The first issue this filed (#13, rust-v0.153.4) said
+          # only "verification, semantic review, push, or opening the PR" and
+          # attached a passes report that had nothing to do with the failure --
+          # the reader still had to open the run to learn it was the workflow
+          # allowlist. The API knows; ask it.
+          # shellcheck disable=SC2016  # $j is a jq binding, not a shell variable
+          failed_steps="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" \
+            --jq '.jobs[] | .name as $j | .steps[]? | select(.conclusion == "failure") | "\($j) -> \(.name)"' \
+            2>/dev/null || true)"
           {
             echo "The sync \`$BASE\` -> \`$TAG\` assembled cleanly and then failed after"
-            echo "the assembly -- verification, semantic review, push, or opening the PR."
+            echo "the assembly."
             echo
+            if [ -n "$failed_steps" ]; then
+              echo "## failing step"
+              echo '```'
+              printf '%s\n' "$failed_steps"
+              echo '```'
+              echo
+            fi
             echo "The candidate itself may be fine; what failed is a check ON it. Read the"
             echo "failing step in the run before assuming the rebase is at fault."
             echo
@@ -555,6 +571,36 @@ jobs:
             "sync blocked: $BASE -> $TAG (a check after assembly failed)" \
             "$RUNNER_TEMP/issue-post.md"
           echo "::error::sync $BASE -> $TAG assembled but a later step failed"
+
+      # The machinery files the sync-blocked issue; the machinery retracts it.
+      # Otherwise a sync that FAILED and then succeeded on a re-run leaves the
+      # issue open for a pair that is no longer blocked, and ore-watchdog alarms
+      # on any open sync-blocked issue -- so the fix for yesterday's silence
+      # would have become tomorrow's false alarm. Same pair, both directions.
+      #
+      # Scoped to this tag pair, matching how the filing script dedupes: an issue
+      # about a DIFFERENT blocked sync is not this run's to close.
+      - name: Close the sync-blocked issue this pair resolved
+        if: >-
+          success() && steps.target.outputs.tag != ''
+          && steps.assemble.outputs.rc == '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          BASE: ${{ steps.target.outputs.base }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          pair="$BASE -> $TAG"
+          nums="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label sync-blocked \
+            --json number,title --jq "[.[] | select(.title | contains(\"$pair\"))] | .[].number")"
+          for n in $nums; do
+            gh issue comment "$n" --repo "$GITHUB_REPOSITORY" \
+              --body "Resolved: \`$pair\` assembled and verified in $RUN_URL. Closing." || true
+            gh issue close "$n" --repo "$GITHUB_REPOSITORY" || true
+            echo "closed #$n"
+          done
+          [ -n "$nums" ] || echo "no open sync-blocked issue for $pair"
 
       - name: Upload assembly reports
         if: always() && steps.target.outputs.tag != ''

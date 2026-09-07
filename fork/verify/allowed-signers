@@ -1,0 +1,19 @@
+# fork/verify/allowed-signers — who may sign an ore release tag.
+#
+# ssh-keygen's allowed_signers format: <principal> <keytype> <key>.
+# Verify a tag with:
+#   git -c gpg.ssh.allowedSignersFile=fork/verify/allowed-signers verify-tag ore-vX.Y.Z
+#
+# Release tags are created by ore-sync-autoland from the `tagging` environment,
+# which is gated to `main` and holds ORE_TAG_SIGNING_KEY and nothing else. The
+# Apple Developer ID certificate and notarization key stay behind the separate
+# `release` environment, which admits only `ore-v*` tags -- so nothing that can
+# sign a tag can also reach the signing certificates, and vice versa.
+#
+# GitHub will show these tags as "Unverified" in the web UI: it verifies SSH
+# signatures against keys registered to a GitHub ACCOUNT, and this key belongs
+# to the repository's release automation rather than to a person. That is the
+# honest provenance, and this file is what makes it checkable -- the property
+# worth having is "the key this repository declares as its release signer made
+# this tag", which is asserted here and verified in CI, not inferred from a badge.
+release-automation@ore-cli ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILb4Kas7TG/TSQNx/YwBzoQAVjUxReTePUo/q3oOYMKH
