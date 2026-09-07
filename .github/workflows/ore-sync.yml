@@ -533,6 +533,7 @@ jobs:
           # attached a passes report that had nothing to do with the failure --
           # the reader still had to open the run to learn it was the workflow
           # allowlist. The API knows; ask it.
+          # shellcheck disable=SC2016  # $j is a jq binding, not a shell variable
           failed_steps="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" \
             --jq '.jobs[] | .name as $j | .steps[]? | select(.conclusion == "failure") | "\($j) -> \(.name)"' \
             2>/dev/null || true)"
