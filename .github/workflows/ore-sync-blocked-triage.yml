@@ -26,6 +26,15 @@ on:
 
 permissions: {}
 
+# Filing an issue WITH a label emits `opened` and `labeled`, and both satisfy the
+# job's condition, so one failed sync started two identical triages on
+# 2026-09-07. Collapsing per issue is robust to whichever pair of events GitHub
+# chooses to send; keying on the issue lets two DIFFERENT blocked syncs still
+# triage concurrently.
+concurrency:
+  group: ore-sync-blocked-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
   triage:
     name: triage
@@ -55,6 +64,13 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The action refuses a non-human actor by default, and the actor here
+          # is ALWAYS the machinery: ore-sync files the issue that triggers this.
+          # Without this the workflow cannot ever run for the case it exists for
+          # -- "Workflow initiated by non-human actor: ore-sync (type: Bot)".
+          # Named rather than '*': the only bot that should reach this is the one
+          # whose failure it is triaging.
+          allowed_bots: "ore-sync"
           claude_args: |
             --model claude-fable-5
             --effort max
