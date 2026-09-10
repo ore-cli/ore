@@ -53,7 +53,15 @@ BOT_EMAIL="ore-sync[bot]@users.noreply.github.com"
 # rerere is enabled per-invocation, never via global config, so read-only
 # clones are unaffected and CI needs no setup step. gc.auto=0 prevents a
 # mid-run gc from pruning fresh rr-cache entries before the snapshot.
-RERERE_CFG=(-c rerere.enabled=true -c rerere.autoupdate=true -c gc.auto=0)
+# Config for the rebase and every `--continue` under it. commit.gpgsign is
+# forced OFF: the series is re-created wholesale by every sync, on a runner with
+# no signing key, so a signature here is discarded at the next sync anyway. What
+# it DID do was break local assembly outright -- with 1Password locked, git
+# could not sign, `rebase` reported "failed to write commit object", rescheduled
+# the todo and wedged at commit 1 with staged changes, which reads like a
+# conflict and is not one. Provenance is carried by the signed release TAG, not
+# by a commit that will be rewritten tomorrow.
+RERERE_CFG=(-c rerere.enabled=true -c rerere.autoupdate=true -c gc.auto=0 -c commit.gpgsign=false)
 AGENT_MAX_STOPS=25
 AGENT_MAX_SECONDS=3600
 
