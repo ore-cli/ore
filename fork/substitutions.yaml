@@ -188,12 +188,6 @@ categories:
       pattern: 'let name = "codex";'
       replace: 'let name = "${bin}";'
 
-    - name: doctor-path-probe
-      files: [codex-rs/cli/src/doctor.rs]
-      rust_literals_only: false
-      pattern: '(run_command\("where", \["|run_command\("which", \["-a", ")codex"'
-      replace: '\1${bin}"'
-
     - name: sandbox-version-banner-probe
       note: >
         The sandboxed `--version` banner opens with the clap program name, which
@@ -273,6 +267,12 @@ categories:
       pattern: '"codex"\.cyan\(\)'
       replace: '"${bin}".cyan()'
 
+    # doctor-path-probe and npm-doctor-package-root were retired at
+    # rust-v0.154.0. Both targeted text upstream DELETED: the `where`/`which -a`
+    # PATH probe and the npm package-root inspection are gone -- replaced by a
+    # "not inspected (PATH helpers are not executed)" detail line that names no
+    # binary. Their patterns matched at rust-v0.153.4 and match nothing at
+    # rust-v0.154.0, which is what --apply's stale-rule check is for.
     - name: cli-command-in-backticks
       globs: ["codex-rs/**/*.rs", "**/*.md"]
       pattern: '`codex`'
@@ -980,23 +980,6 @@ categories:
       globs: ["codex-cli/bin/codex.js"]
       pattern: 'path\.join\(nodeModulesDir, "@openai", "codex"\)'
       replace: 'path.join(nodeModulesDir, "@ore-cli", "${product}")'
-
-    - name: npm-doctor-package-root
-      note: |
-        Same split-segment problem as npm-shim-pnpm-path, in Rust. `codex doctor`
-        compares the running install against the npm package root it would
-        update; built as two joined literals, the package-name rule misses it and
-        the check would compare ore against @openai/codex forever -- reporting a
-        mismatch on every correctly-installed ore. The test fixtures at the other
-        two sites are the same expression, so one rule covers all three.
-      globs: ["codex-rs/cli/src/doctor.rs"]
-      # The pattern spans code, not a string literal: `.join(` sits between the
-      # two literals it joins. Rust files default to substituting inside literal
-      # spans only, where this can never match -- and a rule that matches nothing
-      # fails --apply, which is how the assembly caught it.
-      rust_literals_only: false
-      pattern: '\.join\("@openai"\)\.join\("codex"\)'
-      replace: '.join("${npm_scope}").join("${product}")'
 
     - name: npm-staging-repo
       globs: ["scripts/stage_npm_packages.py"]

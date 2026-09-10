@@ -53,7 +53,15 @@ BOT_EMAIL="ore-sync[bot]@users.noreply.github.com"
 # rerere is enabled per-invocation, never via global config, so read-only
 # clones are unaffected and CI needs no setup step. gc.auto=0 prevents a
 # mid-run gc from pruning fresh rr-cache entries before the snapshot.
-RERERE_CFG=(-c rerere.enabled=true -c rerere.autoupdate=true -c gc.auto=0)
+# Config for the rebase and every `--continue` under it. commit.gpgsign is
+# forced OFF: the series is re-created wholesale by every sync, on a runner with
+# no signing key, so a signature here is discarded at the next sync anyway. What
+# it DID do was break local assembly outright -- with 1Password locked, git
+# could not sign, `rebase` reported "failed to write commit object", rescheduled
+# the todo and wedged at commit 1 with staged changes, which reads like a
+# conflict and is not one. Provenance is carried by the signed release TAG, not
+# by a commit that will be rewritten tomorrow.
+RERERE_CFG=(-c rerere.enabled=true -c rerere.autoupdate=true -c gc.auto=0 -c commit.gpgsign=false)
 AGENT_MAX_STOPS=25
 AGENT_MAX_SECONDS=3600
 
@@ -249,6 +257,25 @@ set -e
 # (throwing away everything the agent wrote). Contract: $AGENT_CMD is run with
 # cwd = worktree, the conflicted paths on stdin (one per line), and the stopped
 # commit's full message (intent trailers included) in ORE_STOPPED_COMMIT_MSG.
+# The agent command runs with cwd set to the rebase WORKTREE, where fork tooling
+# exists only once the commit that adds it has been replayed. agent-resolve.sh
+# arrives at series commit 35; the rust-v0.154.0 conflict stopped at 15, so
+# `--agent fork/agent-resolve.sh` resolved to nothing:
+#
+#     fork/assemble.sh: line 301: fork/agent-resolve.sh: No such file or directory
+#
+# Every conflict before commit 35 was therefore unreachable by the agent -- which
+# is most of them, and it had never been noticed because nothing had ever passed
+# --agent in CI. The wrapper is tooling belonging to the checkout doing the
+# assembling, not content of the tree being assembled, so resolve it here.
+if [[ -n "$AGENT_CMD" ]]; then
+  read -r _agent_bin _agent_rest <<<"$AGENT_CMD"
+  if [[ "$_agent_bin" != /* && -e "$REPO_ROOT/$_agent_bin" ]]; then
+    AGENT_CMD="$REPO_ROOT/$_agent_bin${_agent_rest:+ $_agent_rest}"
+    info "agent: $AGENT_CMD"
+  fi
+fi
+
 AGENT_USED=0
 agent_loop() {
   local stops=0 deadline=$(( $(date +%s) + AGENT_MAX_SECONDS ))
@@ -321,7 +348,22 @@ agent_loop() {
       return 2
     fi
     echo "agent: resolved $(wc -l <<<"$conflicted" | tr -d ' ') file(s), continuing" >>"$APPLY_LOG"
-    GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || return 1
+    # Same trap as the rerere branch above, and it was fixed there and not here:
+    # `rebase --continue` commits the resolved stop, carries on, and exits
+    # NON-ZERO the moment it stops at the next conflict. Treating that as failure
+    # capped the agent at exactly one conflict per run -- rust-v0.154.0 resolved
+    # its first stop cleanly, hit a second in the same file at commit 17, and the
+    # loop returned "rebase stopped on conflicts" as though the agent had never
+    # worked. Measure progress instead: HEAD advancing means a commit landed and
+    # fresh unmerged paths mean there is another stop to hand over. Only the
+    # absence of both, with the rebase still open, is genuinely wedged.
+    head_before=$(wt rev-parse HEAD)
+    GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || true
+    if [[ "$(wt rev-parse HEAD)" == "$head_before" \
+          && -z "$(wt diff --name-only --diff-filter=U)" \
+          && -d "$(wt rev-parse --git-path rebase-merge)" ]]; then
+      return 1
+    fi
   done
   return 0
 }
@@ -378,7 +420,11 @@ while read -r _c; do
   fi
 done < <(wt log --format='%H' "$TAG_COMMIT..HEAD")
 if [[ -n "$_stale" && "$_stale" != "$(wt rev-parse HEAD)" ]]; then
-  wt rebase --onto "${_stale}^" "$_stale" >>"$APPLY_LOG" 2>&1 \
+  # gpgsign off for the same reason as the main rebase: this replays series
+  # commits, and with a locked signing agent git cannot write them --
+  # "could not drop the stale base record" is what a signing failure looks like
+  # from here. CI never sees it, having no key; every local assembly does.
+  wt -c commit.gpgsign=false rebase --onto "${_stale}^" "$_stale" >>"$APPLY_LOG" 2>&1 \
     || fail_pass "could not drop the stale base record $(wt rev-parse --short "$_stale")"
   info "dropped the stale base record $(wt rev-parse --short "$_stale")"
 fi

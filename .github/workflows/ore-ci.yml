@@ -148,7 +148,18 @@ jobs:
       # codex-rs/Cargo.toml, which already denies a curated set. A blanket deny
       # here would make CI stricter than the declared policy and fail on
       # upstream code the fork has not chosen to fix.
-      - run: just clippy
+      # codex-voice-host arrived at rust-v0.154.0 and is NOT ore's to build here.
+      # Nothing depends on it, it is a standalone helper binary, and its own
+      # manifest says Bazel supplies its runtime inputs and runs its tests --
+      # which is why upstream's cargo CI never installs gstreamer either. It
+      # demands `gstreamer-1.0 >= 1.28`; Ubuntu 24.04 ships 1.24, so no apt
+      # package can satisfy it.
+      #
+      # It reaches no shipped binary on any platform: ore-release builds named
+      # --bin targets, never --workspace. Only cargo's workspace default pulls
+      # it in, so excluding it here removes a build ore does not ship rather
+      # than coverage ore relies on.
+      - run: just clippy --workspace --exclude codex-voice-host
 
       # Catches a build step that writes into the tree -- a generated file left
       # uncommitted, a lockfile bumped as a side effect.
@@ -309,7 +320,11 @@ jobs:
           set -euo pipefail
           # Round-robin over the filtered test list, so the shards get even
           # counts and a slow neighbourhood of tests cannot land wholly in one.
-          args=(--workspace --no-fail-fast --partition "count:${SHARD}/4")
+          # codex-voice-host is excluded for the reason given at the clippy
+          # step: nothing depends on it, Bazel owns its build and tests, it
+          # demands gstreamer >= 1.28 which Ubuntu 24.04 cannot supply, and it
+          # reaches no shipped binary.
+          args=(--workspace --exclude codex-voice-host --no-fail-fast --partition "count:${SHARD}/4")
           merged="$RUNNER_TEMP/known-failing.merged"
           : > "$merged"
           for f in "$KNOWN_FAILING_UPSTREAM" "$KNOWN_FAILING"; do

@@ -113,6 +113,28 @@ run python3 fork/verify/version_check.py --root .
 run bash fork/lint-series.sh
 run python3 fork/verify/known_failing_check.py --root .
 
+# actionlint runs in ore-ci's fork-guards job and NOWHERE else -- not in
+# fork/verify's invariant suite, and until now not here. So a malformed
+# fork-owned workflow could not be caught before CI, and on 2026-09-07 two went
+# out in a row: ore-sync-autoland.yml was assembled and passed 11/11 static
+# invariants locally, then failed fork-guards on a shellcheck finding. The suite
+# was not wrong; it simply does not lint YAML.
+#
+# Not installed is reported, not skipped silently. A check that quietly does
+# nothing is the shape this file exists to catch -- preflight's own history-depth
+# corroboration went dead that way and stayed green for two syncs.
+if command -v actionlint >/dev/null 2>&1; then
+  if out="$(actionlint .github/workflows/ore-*.yml 2>&1)"; then
+    ok "actionlint .github/workflows/ore-*.yml"
+  else
+    bad "actionlint reported issues in the fork's workflows:"
+    printf '%s\n' "$out" | sed 's/^/      /'
+  fi
+else
+  printf '    \033[33mskip\033[0m actionlint is not installed — the fork workflow lint runs only in CI\n'
+  printf '      install it (brew install actionlint) to catch a malformed workflow before pushing\n'
+fi
+
 say "candidate $CAND — what ships"
 WT="$(mktemp -d)/candidate"
 git worktree add -q --detach "$WT" "$CAND" || { echo "preflight: could not check out $CAND" >&2; exit 2; }

@@ -1,0 +1,5 @@
+---
+source: tui/src/app/agents_overview_tests.rs
+expression: rendered
+---
+• Background server started. Run `ore agents` in another terminal; this session remains unchanged.

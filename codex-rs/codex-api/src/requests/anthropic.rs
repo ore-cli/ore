@@ -297,6 +297,11 @@ impl<'a> AnthropicRequestBuilder<'a> {
                 | ResponseItem::ContextCompaction { .. }
                 | ResponseItem::CompactionTrigger { .. }
                 | ResponseItem::AdditionalTools { .. }
+                // A durable control the OpenAI backend interprets at its
+                // position in history. Anthropic has no equivalent, and there is
+                // no message to synthesise: sending it as text would put an
+                // internal control into the model's context as if a user wrote it.
+                | ResponseItem::ConfigurationUpdate { .. }
                 | ResponseItem::Other => {}
             }
         }

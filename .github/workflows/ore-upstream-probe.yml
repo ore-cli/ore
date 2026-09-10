@@ -84,6 +84,21 @@ jobs:
             https://github.com/openai/codex.git upstream
           echo "probing $(git -C upstream rev-parse HEAD)"
 
+      # The probe builds the same workspace ore-ci builds, so it needs the same
+      # system libraries. It installed none until rust-v0.154.0, having been
+      # carried by whatever the runner image happened to provide -- which stopped
+      # being enough when codex-bwrap's build script could not find libcap:
+      #
+      #     error: failed to run custom build command for `codex-bwrap`
+      #
+      # A probe that cannot build reports nothing, which is honest and useless.
+      - name: Install the system libraries the workspace needs
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            pkg-config libcap-dev
+
       - name: Install the pinned Rust toolchain
         working-directory: upstream
         run: rustup show active-toolchain || rustup toolchain install
@@ -130,8 +145,20 @@ jobs:
           PACKAGES: ${{ inputs.packages }}
         run: |
           set -uo pipefail
+          # Naming packages keeps the build small AND sidesteps codex-voice-host,
+          # which demands gstreamer >= 1.28 (Ubuntu ships 1.24) and belongs to
+          # Bazel rather than cargo. Prefer it: building upstream's whole
+          # workspace to probe a handful of tests exhausted the runner's disk --
+          #     error: No space left on device
+          # -- after an --exclude was added, which requires --workspace and so
+          # pulled in everything. Fall back to the whole workspace minus that one
+          # crate only when the caller names nothing.
           args=(--no-fail-fast -E "$FILTER")
-          for pkg in ${PACKAGES:-}; do args+=(-p "$pkg"); done
+          if [ -n "${PACKAGES:-}" ]; then
+            for pkg in ${PACKAGES}; do args+=(-p "$pkg"); done
+          else
+            args+=(--workspace --exclude codex-voice-host)
+          fi
           rc=0
           cargo nextest run "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/probe.log" || rc=${PIPESTATUS[0]}
           echo "rc=$rc" >>"$GITHUB_OUTPUT"

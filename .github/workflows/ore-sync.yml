@@ -228,6 +228,41 @@ jobs:
       # steps can react per code (0 clean, 2 conflicts, 3 generated-pass
       # failure, 4 precondition). On failure assemble keeps its worktree,
       # which is where the conflict diffs for the sync-blocked issue live.
+      # The conflict agent's runtime. Installed here rather than through
+      # anthropics/claude-code-action deliberately: that action has been failing
+      # since 2026-09-03 with is_error/num_turns:1/$0/empty modelUsage on every
+      # workflow that uses it, while THIS path -- plain `claude -p` with the same
+      # token, model and CLI -- succeeded in ore-release-announce on 2026-09-07.
+      # The break is in the action, not the CLI, so conflict resolution routes
+      # around it.
+      # Unconditional when there is a target: a step's own `env:` is not visible
+      # to that step's `if:`, so gating this on the token here would have read an
+      # empty string and never installed. The assemble step below does the real
+      # check at runtime, where the value exists.
+      - name: Install the conflict agent's runtime
+        if: steps.target.outputs.tag != ''
+        run: npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+
+      # Read the Claude token from 1Password rather than mirroring it into a
+      # GitHub secret, so rotating it is one edit in the vault and nothing here.
+      #
+      # NOT the OP_SERVICE_ACCOUNT_TOKEN the release jobs use: that one can read
+      # the whole ore-cli vault -- Apple Developer ID certificate, notarization
+      # key, release tag signing key -- and it lives in the `release`
+      # environment, gated to `ore-v*` tags, precisely so a branch-triggered
+      # workflow cannot reach it. This is a separate service account with
+      # read_items on the ore-ci-claude vault and nothing else; it was verified
+      # to be denied on all three of those items before being wired here.
+      - name: Load the conflict agent's token
+        id: op
+        if: steps.target.outputs.tag != ''
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CLAUDE_AGENT_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: op://ore-ci-claude/Claude OAuth Token/credential
+
       - name: Assemble the merge candidate
         id: assemble
         if: steps.target.outputs.tag != ''
@@ -235,12 +270,34 @@ jobs:
           TAG: ${{ steps.target.outputs.tag }}
           BASE: ${{ steps.target.outputs.base }}
           REASSEMBLE_FLAG: ${{ steps.target.outputs.reassemble_flag }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.op.outputs.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Declared here rather than in a repository variable so the agent that
+          # may rewrite fork code is reviewable in the diff that introduces it.
+          # agent-resolve.sh refuses to guess an agent; this is the declaration,
+          # not a guess. It runs with cwd = the sandbox and PROMPT.md on stdin,
+          # sees only copies of the conflicted files, and every guard in that
+          # wrapper still applies -- a rejected stop discards its work and the
+          # rebase aborts exactly as it does today.
+          ORE_AGENT_CMD: >-
+            claude -p --model claude-opus-5 --permission-mode acceptEdits
+            --allowedTools=Read,Edit,Write,Glob,Grep
         run: |
           set -euo pipefail
+          # No token, no agent: assemble then behaves exactly as before and a
+          # conflict files a sync-blocked issue. Passing --agent without a way to
+          # run one would turn every conflict into a confusing agent failure.
+          agent_flag=()
+          if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && command -v claude >/dev/null 2>&1; then
+            agent_flag=(--agent fork/agent-resolve.sh)
+            echo "conflict agent: enabled ($(claude --version 2>&1 | head -1))"
+          else
+            echo "conflict agent: disabled (no token or no CLI); conflicts will block as before"
+          fi
           rc=0
           fork/assemble.sh --tag "$TAG" --base "$BASE" \
             --delta refs/remotes/origin/delta \
             --worktree "$ASSEMBLY" ${REASSEMBLE_FLAG:+"$REASSEMBLE_FLAG"} \
+            "${agent_flag[@]}" \
             2>&1 | tee "$RUNNER_TEMP/assemble.log" || rc=$?
           echo "rc=$rc" >>"$GITHUB_OUTPUT"
           echo "assemble exit code: $rc"
@@ -262,6 +319,7 @@ jobs:
           TAG: ${{ steps.target.outputs.tag }}
           BASE: ${{ steps.target.outputs.base }}
           RC: ${{ steps.assemble.outputs.rc }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
             # Every non-zero exit files an issue. A sync that fails leaves no

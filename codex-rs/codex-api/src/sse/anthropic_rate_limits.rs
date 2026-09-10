@@ -98,6 +98,10 @@ pub(crate) fn parse_anthropic_rate_limits(headers: &HeaderMap) -> Option<RateLim
     Some(RateLimitSnapshot {
         limit_id: None,
         limit_name: Some(limit_name.to_string()),
+        // Quota-alias metadata for a ChatGPT plan. Anthropic's rate-limit
+        // headers describe the key's own limits and carry no alias, so there is
+        // nothing to report and None is the honest value, not a placeholder.
+        normal_model_slug: None,
         primary: Some(primary.into()),
         secondary: secondary.map(Into::into),
         credits: None,
