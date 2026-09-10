@@ -1,0 +1,127 @@
+# ore-tag — sign and push a release tag for whatever main currently carries.
+#
+# The signing key lives in the `tagging` environment, which admits main and holds
+# ORE_TAG_SIGNING_KEY and nothing else. The Apple Developer ID certificate and
+# the notarization key stay behind `release`, gated to `ore-v*` tags, so nothing
+# that can sign a tag can reach the certificates that sign the binaries.
+#
+# Two entry points, one implementation. ore-sync-autoland calls this after a
+# boring sync lands; a human dispatches it for a sync landed by hand. Before
+# this existed the signing lived inside autoland's job graph and was unreachable
+# except through gate->land->tag, so a hand-repaired sync -- rust-v0.154.0 was
+# assembled locally a dozen times -- had no way to get a signed tag except a
+# maintainer unlocking a password manager, four times in one afternoon, which is
+# how the local signing configuration came to be switched off entirely.
+#
+# The tagger is `ore release automation`, not a person. That is the honest
+# provenance and fork/verify/allowed-signers is what makes it checkable; GitHub
+# will show these as Unverified because it only recognises keys registered to an
+# account.
+name: ore-tag
+
+on:
+  workflow_call:
+    secrets:
+      ORE_SYNC_APP_ID:
+        required: true
+      ORE_SYNC_APP_PRIVATE_KEY:
+        required: true
+    inputs:
+      expected_version:
+        description: "refuse to tag unless main carries this version"
+        required: false
+        type: string
+      note:
+        description: "one line appended to the tag message, e.g. a PR reference"
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "refuse to tag unless main carries this version (leave blank to accept whatever main says)"
+        required: false
+        type: string
+      note:
+        description: "one line appended to the tag message"
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  tag:
+    name: tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: tagging
+    steps:
+      - name: Mint the ore-sync App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
+          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Sign and push the release tag
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          SIGNING_KEY: ${{ secrets.ORE_TAG_SIGNING_KEY }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          NOTE: ${{ inputs.note }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main --quiet
+          git checkout --quiet FETCH_HEAD
+
+          # Read the version from what actually shipped rather than trusting a
+          # value carried across a job or workflow boundary.
+          version="$(tr -d '[:space:]' <fork/VERSION)"
+          if [ -n "${EXPECTED_VERSION:-}" ] && [ "$EXPECTED_VERSION" != "$version" ]; then
+            echo "::error::caller expected $EXPECTED_VERSION, main carries $version -- refusing to tag"
+            exit 1
+          fi
+          tag="ore-v$version"
+          base="$(sed -n 's/^tag = "\(.*\)"/\1/p' fork/UPSTREAM | head -1)"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::$tag already exists on origin -- a version was reused"
+            exit 1
+          fi
+
+          key="$RUNNER_TEMP/tag-signing"
+          printf '%s\n' "$SIGNING_KEY" >"$key"
+          chmod 600 "$key"
+          git config user.name "ore release automation"
+          git config user.email "release-automation@ore-cli"
+          git config gpg.format ssh
+          git config user.signingkey "$key"
+          # tag.gpgsign is NOT relied on: `git tag -a` silently produces an
+          # UNSIGNED tag when it is unset, with no error and exit 0. That is how
+          # an unsigned ore-v1.154.0 was nearly published by hand.
+          git tag -s "$tag" -m "$(printf '%s\n' \
+            "ore $version" \
+            "" \
+            "Upstream's $base." \
+            "" \
+            "Signed by ore's release automation. The key is declared in" \
+            "fork/verify/allowed-signers; verify with" \
+            "  git -c gpg.ssh.allowedSignersFile=fork/verify/allowed-signers verify-tag $tag" \
+            "" \
+            "${NOTE:-}")"
+
+          # Verify before publishing: an unverifiable tag must never reach origin.
+          git -c gpg.ssh.allowedSignersFile=fork/verify/allowed-signers verify-tag "$tag"
+
+          . fork/lib.sh
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+          safe_push "refs/tags/$tag"
+          echo "tagged and pushed $tag" | tee -a "$GITHUB_STEP_SUMMARY"
