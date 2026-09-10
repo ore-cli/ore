@@ -32,10 +32,40 @@ gh label create sync-blocked --repo "$repo" \
   --description "a sync stopped and cannot land until it is resolved" \
   --color B60205 2>/dev/null || true
 
-existing="$(gh issue list --repo "$repo" --state open --label sync-blocked \
-  --json number,title --jq "[.[] | select(.title | contains(\"$pair\"))] | .[0].number // empty")"
+found="$(gh issue list --repo "$repo" --state open --label sync-blocked \
+  --json number,title --jq "[.[] | select(.title | contains(\"$pair\"))] | .[0] // empty")"
+existing="$(printf '%s' "$found" | jq -r '.number // empty' 2>/dev/null || true)"
 if [ -n "$existing" ]; then
-  echo "an open sync-blocked issue for $pair already exists (#$existing); not filing a duplicate"
+  # Same pair, but not necessarily the same failure. rust-v0.154.0 filed as
+  # "rebase conflicts", the conflict agent then resolved all four, and the next
+  # run failed on compile errors instead -- with the dedupe silently swallowing
+  # that, the issue kept describing a cause that no longer existed. Suppressing
+  # a duplicate is right; suppressing NEW INFORMATION is how an issue becomes a
+  # stale diagnosis someone acts on.
+  prev_title="$(printf '%s' "$found" | jq -r '.title // empty' 2>/dev/null || true)"
+  if [ "$prev_title" != "$title" ]; then
+    {
+      echo "The failure for \`$pair\` changed."
+      echo
+      echo "- was: $prev_title"
+      echo "- now: $title"
+      echo
+      [ -n "${RUN_URL:-}" ] && { echo "Run: $RUN_URL"; echo; }
+      echo "<details><summary>latest failure detail</summary>"
+      echo
+      cat "$body_file"
+      echo
+      echo "</details>"
+    } >"${TMPDIR:-/tmp}/sync-blocked-update.$$"
+    gh issue comment "$existing" --repo "$repo" \
+      --body-file "${TMPDIR:-/tmp}/sync-blocked-update.$$" >/dev/null 2>&1 \
+      && echo "the failure changed; commented the new cause on #$existing"
+    gh issue edit "$existing" --repo "$repo" --title "$title" >/dev/null 2>&1 \
+      && echo "retitled #$existing to the current failure"
+    rm -f "${TMPDIR:-/tmp}/sync-blocked-update.$$"
+  else
+    echo "an open sync-blocked issue for $pair already exists (#$existing), same failure; not filing a duplicate"
+  fi
   echo "issue=$existing"
   return 0 2>/dev/null || exit 0
 fi

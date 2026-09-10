@@ -319,6 +319,7 @@ jobs:
           TAG: ${{ steps.target.outputs.tag }}
           BASE: ${{ steps.target.outputs.base }}
           RC: ${{ steps.assemble.outputs.rc }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
             # Every non-zero exit files an issue. A sync that fails leaves no
