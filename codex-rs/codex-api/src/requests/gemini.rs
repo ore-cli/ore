@@ -341,6 +341,11 @@ impl<'a> GeminiRequestBuilder<'a> {
                 | ResponseItem::ContextCompaction { .. }
                 | ResponseItem::CompactionTrigger { .. }
                 | ResponseItem::AdditionalTools { .. }
+                // A durable control the OpenAI backend interprets at its
+                // position in history; no equivalent on this wire, and
+                // rendering it as text would put an internal control into the
+                // model's context as if a user had written it.
+                | ResponseItem::ConfigurationUpdate { .. }
                 | ResponseItem::Other => {}
             }
         }
