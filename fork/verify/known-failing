@@ -209,7 +209,8 @@ package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytic
 #
 # test_exec_command_approval_triggers_elicitation stays: it FAILS on pristine
 # rust-v0.152.0 on Linux, in 0.13s, an assertion rather than a signal.
-package(codex-mcp-server) & test(test_exec_command_approval_triggers_elicitation)
+# codex-mcp-server was deleted upstream at rust-v0.154.0; this entry named a
+# package that no longer resolves. See known-failing-upstream for the detail.
 # Overflows the stack in a debug build, on an unmodified rust-v0.150.1 worktree
 # as readily as on ore's. Not an assertion failure -- `fatal runtime error: stack
 # overflow` before any assertion runs. Confirmed on LINUX at rust-v0.152.0 by

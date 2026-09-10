@@ -61,9 +61,14 @@ package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::
 package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::successful_rustls_fallback_replays_the_request_and_reuses_the_destination)
 
 # --- codex-mcp-server --------------------------------------------------
-package(codex-mcp-server) & test(=suite::codex_tool::test_codex_tool_forwards_skills_extension_warnings)
-package(codex-mcp-server) & test(=suite::codex_tool::test_codex_tool_passes_base_instructions)
-package(codex-mcp-server) & test(=suite::codex_tool::test_patch_approval_triggers_elicitation)
+# Removed at rust-v0.154.0: upstream deleted the crate outright -- codex-rs/
+# mcp-server holds zero files at that tag -- so all three entries named a
+# package nextest can no longer resolve. That is not a dead FILTER, which
+# known_failing_check catches; it is a dead PACKAGE, which fails the filterset
+# parse itself with "operator didn't match any packages" and stops the snapshot
+# regeneration before any test runs.
+#
+# The fork never touched this crate, so nothing of ore's went with it.
 # test_shell_command_approval_triggers_elicitation was dropped here: upstream has
 # no test by that name at rust-v0.151.0 or rust-v0.152.0, so the entry had been
 # excluding nothing for at least two tags. Found the moment known_failing_check
