@@ -31,6 +31,21 @@ package(codex-core) & test(=suite::compact_resume_fork::snapshot_rollback_past_c
 package(codex-core) & test(suite::hooks::async_hook_finishing_while_idle_waits_for_the_next_turn)
 package(codex-core) & test(=suite::unified_exec::unified_exec_formats_large_output_summary)
 #
+# rust-v0.154.0. Demonstrated by ore-upstream-probe against a pristine checkout:
+# `9 tests run: 6 passed, 3 failed`, and these are the three, failing on both
+# tries. Every other test in that probe -- the history-notes family and the two
+# codex-cli entries -- PASSED upstream and is therefore ours, filed in
+# known-failing with a cause.
+#
+# Worth recording that the prior was wrong: every previous guardian_v2 family
+# has been ore's, through the metrics endpoint or an analytics POST, so the
+# obvious move was to file these the same way. The probe says otherwise.
+#
+# Substring, not `=`: test_case parameterises this into adaptive_cells_and_cua_
+# reuse_cached_scores, adaptive_cells_retain_synchronous_nested_reviews and
+# shell_and_cua_do_not_enable_code_mode.
+package(codex-app-server) & test(model_guardian_policy_scores_code_mode_cells)
+#
 # rust-v0.153.0. Demonstrated on a Linux runner by ore-upstream-probe against a
 # pristine rust-v0.153.0 checkout: `5 tests run: 1 passed, 4 failed`. All four
 # abort rather than assert -- nextest reports ABRT, its signal-termination
