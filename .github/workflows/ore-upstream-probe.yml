@@ -130,7 +130,12 @@ jobs:
           PACKAGES: ${{ inputs.packages }}
         run: |
           set -uo pipefail
-          args=(--no-fail-fast -E "$FILTER")
+          # codex-voice-host is excluded for the same reason ore-ci excludes it:
+          # it demands gstreamer >= 1.28, Ubuntu 24.04 ships 1.24, and Bazel --
+          # not cargo -- owns its build. Without this the probe cannot build the
+          # workspace at all and reports "nothing was probed", which is honest
+          # but useless. Excluding a crate the probe never selects costs nothing.
+          args=(--no-fail-fast --workspace --exclude codex-voice-host -E "$FILTER")
           for pkg in ${PACKAGES:-}; do args+=(-p "$pkg"); done
           rc=0
           cargo nextest run "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/probe.log" || rc=${PIPESTATUS[0]}
