@@ -259,7 +259,7 @@ jobs:
           # wrapper still applies -- a rejected stop discards its work and the
           # rebase aborts exactly as it does today.
           ORE_AGENT_CMD: >-
-            claude -p --model claude-fable-5 --permission-mode acceptEdits
+            claude -p --model claude-opus-5 --permission-mode acceptEdits
             --allowedTools=Read,Edit,Write,Glob,Grep
         run: |
           set -euo pipefail
