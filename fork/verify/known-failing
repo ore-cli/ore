@@ -452,3 +452,46 @@ package(codex-core-plugins) & test(=manager::tests::curated_marketplace_policy::
 package(codex-core-plugins) & test(=manager::tests::curated_marketplace_policy::skills::curated_git_requirements_control_plugin_skills)
 package(codex-core-plugins) & test(=marketplace_policy::tests::curated::curated_catalogs_apply_the_existing_git_source_policy)
 package(codex-core-plugins) & test(=marketplace_policy::tests::curated_marketplace_requires_its_expected_name)
+
+# ---------------------------------------------------------------- rust-v0.154.0
+# Five of the eight failures at this tag are ours; the other three fail on
+# pristine upstream and live in known-failing-upstream. That split came from
+# ore-upstream-probe, not from resemblance -- and the priors were wrong both
+# ways. guardian_v2 has been ours every previous time and is upstream's here;
+# the doctor_path_safety one looked upstream-red because upstream had just
+# rewritten that area, and is ours.
+
+# --- (1) analytics force-off ------------------------------------------------
+# suite/v2/history_notes_extension.rs is parameterised four ways and only three
+# fail, which is the demonstration rather than a coincidence: the analytics wait
+#   if use_history_notes_extension {
+#       wait_for_matching_analytics_event(&server, .., |event|
+#           event["event_type"] == "codex_thread_hint_status" ..)
+# runs only for the three cases passing `true`. `bridge_hint` passes `false`,
+# never reaches that block, and passes on ore.
+package(codex-app-server) & test(app_server_uses_configured_notes_backend_for_context_window_hints)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# cli/tests/worktree.rs configures
+#   metrics_exporter = { otlp-http = { endpoint = "<local MockServer>/metrics" } }
+# and, for the analytics-enabled permutations, awaits an export:
+#   if analytics { timeout(10s, metric_rx.recv()).await?
+#       .context("metrics export while the TUI is running")?; }
+# The test sets `analytics.enabled=true` itself, which the seam overrides to
+# Some(false), and the exporter is nulled with it. Caveat A exactly: a user's
+# own collector receives nothing.
+package(codex-cli) & test(interactive_worktree_start_and_fork_bind_owner_before_turn)
+
+# --- (3) feedback force-off -------------------------------------------------
+# Drives feedback/upload through a proxy that answers 503 and asserts the error
+# is a transport failure:
+#   assert!(error.error.message.contains("failed to upload feedback"));
+# The config gate rejects the RPC before any transport, so the message is the
+# disabled one. Same shape as feedback_upload_reports_transport_failure_as_json_rpc_error
+# above, in codex-cli this time.
+#
+# Note what the test is FOR: it asserts feedback never executes a PATH helper.
+# That property still holds on ore -- more trivially, since the upload never
+# starts. The entry excludes a test whose subject the fork satisfies by not
+# reaching the code at all, which is worth knowing if upstream ever reworks it.
+package(codex-cli) & test(feedback_with_logs_does_not_execute_path_helpers)
