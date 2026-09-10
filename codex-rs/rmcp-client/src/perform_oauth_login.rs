@@ -670,7 +670,20 @@ impl OauthLoginFlow {
                 );
             }
 
-            if webbrowser::open(auth_url).is_err() {
+            // ore: do not hijack a desktop from a test run. cli/tests/cloud_config.rs
+            // spawns the real binary to exercise `mcp login` against a mock OAuth
+            // server, the child inherits the test environment, and this line
+            // reached the actual browser -- so every local `cargo nextest`, and
+            // every assemble (its snapshot-regen pass runs that suite), opened a
+            // window and stole focus mid-task.
+            //
+            // There is no environment escape hatch to set instead: webbrowser
+            // honours $BROWSER on unix only, and its macOS backend calls
+            // NSWorkspace directly. NEXTEST is set by cargo-nextest and CI by the
+            // runner, so neither can be true for a human running `mcp login`.
+            let suppress_browser =
+                std::env::var_os("NEXTEST").is_some() || std::env::var_os("CI").is_some();
+            if !suppress_browser && webbrowser::open(auth_url).is_err() {
                 if !emit_browser_url {
                     eprintln!(
                         "Authorize `{server_name}` by opening this URL in your browser:\n{auth_url}\n"
