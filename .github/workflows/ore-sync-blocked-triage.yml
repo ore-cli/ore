@@ -72,7 +72,7 @@ jobs:
           # whose failure it is triaging.
           allowed_bots: "ore-sync"
           claude_args: |
-            --model claude-fable-5
+            --model claude-opus-5
             --effort max
             --max-turns 500
             --allowedTools="Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git grep:*),Bash(git merge-base:*),Bash(git for-each-ref:*),Read,Grep,Glob,Write,mcp__github_comment__create_comment"
