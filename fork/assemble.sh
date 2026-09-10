@@ -257,6 +257,25 @@ set -e
 # (throwing away everything the agent wrote). Contract: $AGENT_CMD is run with
 # cwd = worktree, the conflicted paths on stdin (one per line), and the stopped
 # commit's full message (intent trailers included) in ORE_STOPPED_COMMIT_MSG.
+# The agent command runs with cwd set to the rebase WORKTREE, where fork tooling
+# exists only once the commit that adds it has been replayed. agent-resolve.sh
+# arrives at series commit 35; the rust-v0.154.0 conflict stopped at 15, so
+# `--agent fork/agent-resolve.sh` resolved to nothing:
+#
+#     fork/assemble.sh: line 301: fork/agent-resolve.sh: No such file or directory
+#
+# Every conflict before commit 35 was therefore unreachable by the agent -- which
+# is most of them, and it had never been noticed because nothing had ever passed
+# --agent in CI. The wrapper is tooling belonging to the checkout doing the
+# assembling, not content of the tree being assembled, so resolve it here.
+if [[ -n "$AGENT_CMD" ]]; then
+  read -r _agent_bin _agent_rest <<<"$AGENT_CMD"
+  if [[ "$_agent_bin" != /* && -e "$REPO_ROOT/$_agent_bin" ]]; then
+    AGENT_CMD="$REPO_ROOT/$_agent_bin${_agent_rest:+ $_agent_rest}"
+    info "agent: $AGENT_CMD"
+  fi
+fi
+
 AGENT_USED=0
 agent_loop() {
   local stops=0 deadline=$(( $(date +%s) + AGENT_MAX_SECONDS ))
