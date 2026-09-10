@@ -111,7 +111,7 @@ jobs:
           # downstream either way.
           npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
           raw="$(claude -p "$PROMPT" \
-            --model claude-fable-5 \
+            --model claude-opus-5 \
             --effort max \
             --max-turns 500 \
             --allowedTools="Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Read")"

@@ -56,7 +56,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --model claude-fable-5
+            --model claude-opus-5
             --effort max
             --max-turns 500
             --allowedTools="Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git range-diff:*),Read,Grep,Glob,mcp__github_comment__create_comment"
