@@ -420,7 +420,11 @@ while read -r _c; do
   fi
 done < <(wt log --format='%H' "$TAG_COMMIT..HEAD")
 if [[ -n "$_stale" && "$_stale" != "$(wt rev-parse HEAD)" ]]; then
-  wt rebase --onto "${_stale}^" "$_stale" >>"$APPLY_LOG" 2>&1 \
+  # gpgsign off for the same reason as the main rebase: this replays series
+  # commits, and with a locked signing agent git cannot write them --
+  # "could not drop the stale base record" is what a signing failure looks like
+  # from here. CI never sees it, having no key; every local assembly does.
+  wt -c commit.gpgsign=false rebase --onto "${_stale}^" "$_stale" >>"$APPLY_LOG" 2>&1 \
     || fail_pass "could not drop the stale base record $(wt rev-parse --short "$_stale")"
   info "dropped the stale base record $(wt rev-parse --short "$_stale")"
 fi
