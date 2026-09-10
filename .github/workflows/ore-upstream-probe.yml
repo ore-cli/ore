@@ -145,13 +145,20 @@ jobs:
           PACKAGES: ${{ inputs.packages }}
         run: |
           set -uo pipefail
-          # codex-voice-host is excluded for the same reason ore-ci excludes it:
-          # it demands gstreamer >= 1.28, Ubuntu 24.04 ships 1.24, and Bazel --
-          # not cargo -- owns its build. Without this the probe cannot build the
-          # workspace at all and reports "nothing was probed", which is honest
-          # but useless. Excluding a crate the probe never selects costs nothing.
-          args=(--no-fail-fast --workspace --exclude codex-voice-host -E "$FILTER")
-          for pkg in ${PACKAGES:-}; do args+=(-p "$pkg"); done
+          # Naming packages keeps the build small AND sidesteps codex-voice-host,
+          # which demands gstreamer >= 1.28 (Ubuntu ships 1.24) and belongs to
+          # Bazel rather than cargo. Prefer it: building upstream's whole
+          # workspace to probe a handful of tests exhausted the runner's disk --
+          #     error: No space left on device
+          # -- after an --exclude was added, which requires --workspace and so
+          # pulled in everything. Fall back to the whole workspace minus that one
+          # crate only when the caller names nothing.
+          args=(--no-fail-fast -E "$FILTER")
+          if [ -n "${PACKAGES:-}" ]; then
+            for pkg in ${PACKAGES}; do args+=(-p "$pkg"); done
+          else
+            args+=(--workspace --exclude codex-voice-host)
+          fi
           rc=0
           cargo nextest run "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/probe.log" || rc=${PIPESTATUS[0]}
           echo "rc=$rc" >>"$GITHUB_OUTPUT"
