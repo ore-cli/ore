@@ -348,7 +348,22 @@ agent_loop() {
       return 2
     fi
     echo "agent: resolved $(wc -l <<<"$conflicted" | tr -d ' ') file(s), continuing" >>"$APPLY_LOG"
-    GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || return 1
+    # Same trap as the rerere branch above, and it was fixed there and not here:
+    # `rebase --continue` commits the resolved stop, carries on, and exits
+    # NON-ZERO the moment it stops at the next conflict. Treating that as failure
+    # capped the agent at exactly one conflict per run -- rust-v0.154.0 resolved
+    # its first stop cleanly, hit a second in the same file at commit 17, and the
+    # loop returned "rebase stopped on conflicts" as though the agent had never
+    # worked. Measure progress instead: HEAD advancing means a commit landed and
+    # fresh unmerged paths mean there is another stop to hand over. Only the
+    # absence of both, with the rebase still open, is genuinely wedged.
+    head_before=$(wt rev-parse HEAD)
+    GIT_EDITOR=true wt "${RERERE_CFG[@]}" rebase --continue >>"$APPLY_LOG" 2>&1 || true
+    if [[ "$(wt rev-parse HEAD)" == "$head_before" \
+          && -z "$(wt diff --name-only --diff-filter=U)" \
+          && -d "$(wt rev-parse --git-path rebase-merge)" ]]; then
+      return 1
+    fi
   done
   return 0
 }
