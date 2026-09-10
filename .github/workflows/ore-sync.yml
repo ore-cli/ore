@@ -228,6 +228,21 @@ jobs:
       # steps can react per code (0 clean, 2 conflicts, 3 generated-pass
       # failure, 4 precondition). On failure assemble keeps its worktree,
       # which is where the conflict diffs for the sync-blocked issue live.
+      # The conflict agent's runtime. Installed here rather than through
+      # anthropics/claude-code-action deliberately: that action has been failing
+      # since 2026-09-03 with is_error/num_turns:1/$0/empty modelUsage on every
+      # workflow that uses it, while THIS path -- plain `claude -p` with the same
+      # token, model and CLI -- succeeded in ore-release-announce on 2026-09-07.
+      # The break is in the action, not the CLI, so conflict resolution routes
+      # around it.
+      # Unconditional when there is a target: a step's own `env:` is not visible
+      # to that step's `if:`, so gating this on the token here would have read an
+      # empty string and never installed. The assemble step below does the real
+      # check at runtime, where the value exists.
+      - name: Install the conflict agent's runtime
+        if: steps.target.outputs.tag != ''
+        run: npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+
       - name: Assemble the merge candidate
         id: assemble
         if: steps.target.outputs.tag != ''
@@ -235,12 +250,34 @@ jobs:
           TAG: ${{ steps.target.outputs.tag }}
           BASE: ${{ steps.target.outputs.base }}
           REASSEMBLE_FLAG: ${{ steps.target.outputs.reassemble_flag }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Declared here rather than in a repository variable so the agent that
+          # may rewrite fork code is reviewable in the diff that introduces it.
+          # agent-resolve.sh refuses to guess an agent; this is the declaration,
+          # not a guess. It runs with cwd = the sandbox and PROMPT.md on stdin,
+          # sees only copies of the conflicted files, and every guard in that
+          # wrapper still applies -- a rejected stop discards its work and the
+          # rebase aborts exactly as it does today.
+          ORE_AGENT_CMD: >-
+            claude -p --model claude-fable-5 --permission-mode acceptEdits
+            --allowedTools=Read,Edit,Write,Glob,Grep
         run: |
           set -euo pipefail
+          # No token, no agent: assemble then behaves exactly as before and a
+          # conflict files a sync-blocked issue. Passing --agent without a way to
+          # run one would turn every conflict into a confusing agent failure.
+          agent_flag=()
+          if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && command -v claude >/dev/null 2>&1; then
+            agent_flag=(--agent fork/agent-resolve.sh)
+            echo "conflict agent: enabled ($(claude --version 2>&1 | head -1))"
+          else
+            echo "conflict agent: disabled (no token or no CLI); conflicts will block as before"
+          fi
           rc=0
           fork/assemble.sh --tag "$TAG" --base "$BASE" \
             --delta refs/remotes/origin/delta \
             --worktree "$ASSEMBLY" ${REASSEMBLE_FLAG:+"$REASSEMBLE_FLAG"} \
+            "${agent_flag[@]}" \
             2>&1 | tee "$RUNNER_TEMP/assemble.log" || rc=$?
           echo "rc=$rc" >>"$GITHUB_OUTPUT"
           echo "assemble exit code: $rc"
