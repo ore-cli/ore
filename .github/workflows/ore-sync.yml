@@ -243,6 +243,26 @@ jobs:
         if: steps.target.outputs.tag != ''
         run: npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
 
+      # Read the Claude token from 1Password rather than mirroring it into a
+      # GitHub secret, so rotating it is one edit in the vault and nothing here.
+      #
+      # NOT the OP_SERVICE_ACCOUNT_TOKEN the release jobs use: that one can read
+      # the whole ore-cli vault -- Apple Developer ID certificate, notarization
+      # key, release tag signing key -- and it lives in the `release`
+      # environment, gated to `ore-v*` tags, precisely so a branch-triggered
+      # workflow cannot reach it. This is a separate service account with
+      # read_items on the ore-ci-claude vault and nothing else; it was verified
+      # to be denied on all three of those items before being wired here.
+      - name: Load the conflict agent's token
+        id: op
+        if: steps.target.outputs.tag != ''
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CLAUDE_AGENT_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: op://ore-ci-claude/Claude OAuth Token/credential
+
       - name: Assemble the merge candidate
         id: assemble
         if: steps.target.outputs.tag != ''
@@ -250,7 +270,7 @@ jobs:
           TAG: ${{ steps.target.outputs.tag }}
           BASE: ${{ steps.target.outputs.base }}
           REASSEMBLE_FLAG: ${{ steps.target.outputs.reassemble_flag }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.op.outputs.CLAUDE_CODE_OAUTH_TOKEN }}
           # Declared here rather than in a repository variable so the agent that
           # may rewrite fork code is reviewable in the diff that introduces it.
           # agent-resolve.sh refuses to guess an agent; this is the declaration,
