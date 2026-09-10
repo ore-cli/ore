@@ -1122,7 +1122,7 @@ jobs:
     # (The checker greps the raw file, so the phrase it forbids cannot appear
     # here even in a comment explaining why it is not used.)
     secrets:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      OP_CLAUDE_AGENT_TOKEN: ${{ secrets.OP_CLAUDE_AGENT_TOKEN }}
       DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
 
   publish-dotslash:

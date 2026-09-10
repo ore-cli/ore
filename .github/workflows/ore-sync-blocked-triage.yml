@@ -61,9 +61,24 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Read the token from 1Password rather than a mirrored GitHub secret: a
+      # copy that must be updated by hand on every rotation is a copy that goes
+      # stale, and a stale one here fails as a silent is_error with no message.
+      # This service account has read_items on the ore-ci-claude vault ONLY --
+      # not the release credentials, which stay behind the tag-gated
+      # `release` environment.
+      - name: Load the Claude token
+        id: op
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CLAUDE_AGENT_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: op://ore-ci-claude/Claude OAuth Token/credential
+
       - uses: anthropics/claude-code-action@v1
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ steps.op.outputs.CLAUDE_CODE_OAUTH_TOKEN }}
           # The action refuses a non-human actor by default, and the actor here
           # is ALWAYS the machinery: ore-sync files the issue that triggers this.
           # Without this the workflow cannot ever run for the case it exists for

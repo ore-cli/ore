@@ -35,7 +35,7 @@ on:
         required: true
         type: string
     secrets:
-      CLAUDE_CODE_OAUTH_TOKEN:
+      OP_CLAUDE_AGENT_TOKEN:
         required: false
       DISCORD_RELEASE_WEBHOOK_URL:
         required: false
@@ -75,12 +75,27 @@ jobs:
       # context -- and this job wants none of it. It wants text. `claude -p`
       # prints a response and exits, which is the whole requirement, and it has
       # no opinion about the event that started the workflow.
+      # Read the token from 1Password rather than a mirrored GitHub secret: a
+      # copy that must be updated by hand on every rotation is a copy that goes
+      # stale, and a stale one here fails as a silent is_error with no message.
+      # This service account has read_items on the ore-ci-claude vault ONLY --
+      # not the release credentials, which stay behind the tag-gated
+      # `release` environment.
+      - name: Load the Claude token
+        id: op
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CLAUDE_AGENT_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: op://ore-ci-claude/Claude OAuth Token/credential
+
       - name: Summarise upstream's own changes
         id: bullets
         continue-on-error: true
         env:
           # Documented as the CI credential; authentication precedence rank 5.
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.op.outputs.CLAUDE_CODE_OAUTH_TOKEN }}
           TAG: ${{ inputs.tag }}
           PROMPT: |
             Read fork/UPSTREAM to find the upstream tag this release is built on,
