@@ -100,7 +100,10 @@ AGENT="${ORE_AGENT_CMD:-${AGENT_CMD:-}}"
 # Recursion guard: assemble's --agent is this script; the env var must be the
 # actual agent, or every stop would re-enter here forever.
 for word in $(printf '%s\n' "$AGENT" | awk '{ print $1; if ($2) print $2 }'); do
-  if [[ "$(basename "$word")" == "agent-resolve.sh" ]]; then
+  # `--`: the second word of an agent command is routinely a flag, and
+  # `basename -p` is parsed as an option -- "basename: invalid option -- 'p'"
+  # in every CI log the moment a real agent command was first used.
+  if [[ "$(basename -- "$word")" == "agent-resolve.sh" ]]; then
     fail_pre "ORE_AGENT_CMD/AGENT_CMD points back at this wrapper; it must name the real agent command"
   fi
 done
