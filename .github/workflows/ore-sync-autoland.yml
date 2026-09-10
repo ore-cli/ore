@@ -162,84 +162,27 @@ jobs:
           done
           echo "::error::finalize did not conclude in time"; exit 1
 
+  # One implementation of tag signing, in ore-tag.yml, reachable both from here
+  # and by hand for a sync landed outside this workflow. Carrying a second copy
+  # is how the same fix ends up applied to one call site and not its twin.
   tag:
     name: tag
     needs: [gate, land]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    # The signing key lives here and only here, and this environment admits main.
-    environment: tagging
-    steps:
-      - name: Mint the ore-sync App token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.ORE_SYNC_APP_ID }}
-          private-key: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Sign and push the release tag
-        env:
-          APP_TOKEN: ${{ steps.app-token.outputs.token }}
-          SIGNING_KEY: ${{ secrets.ORE_TAG_SIGNING_KEY }}
-          VERSION: ${{ needs.gate.outputs.version }}
-          PR: ${{ needs.gate.outputs.pr }}
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin main --quiet
-          git checkout --quiet FETCH_HEAD
-
-          # Land moved main; read the version from what actually shipped rather
-          # than trusting the gate's copy across a job boundary.
-          version="$(tr -d '[:space:]' <fork/VERSION)"
-          if [ -n "$VERSION" ] && [ "$VERSION" != "$version" ]; then
-            echo "::error::gate saw $VERSION, main carries $version -- refusing to tag"
-            exit 1
-          fi
-          tag="ore-v$version"
-          base="$(sed -n 's/^tag = "\(.*\)"/\1/p' fork/UPSTREAM | head -1)"
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
-            echo "::error::$tag already exists on origin -- a version was reused"
-            exit 1
-          fi
-
-          key="$RUNNER_TEMP/tag-signing"
-          printf '%s\n' "$SIGNING_KEY" >"$key"
-          chmod 600 "$key"
-          git config user.name "ore release automation"
-          git config user.email "release-automation@ore-cli"
-          git config gpg.format ssh
-          git config user.signingkey "$key"
-
-          git tag -s "$tag" -m "$(printf '%s\n' \
-            "ore $version" \
-            "" \
-            "Upstream's $base." \
-            "" \
-            "Landed and tagged by ore-sync-autoland: ore-ci was green on the candidate," \
-            "the rebase dropped no fork commits, and nothing under fork/ changed -- so" \
-            "this sync carried no decision for a human to make. A sync that changes a" \
-            "known-failing entry, a substitution rule or the fence reference does not" \
-            "come through this path." \
-            "" \
-            "PR #$PR.")"
-
-          # Verify before publishing: an unverifiable tag must never reach origin.
-          git -c gpg.ssh.allowedSignersFile=fork/verify/allowed-signers verify-tag "$tag"
-
-          . fork/lib.sh
-          export GIT_CONFIG_COUNT=1
-          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
-          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)"
-          export GIT_CONFIG_VALUE_0
-          safe_push "refs/tags/$tag"
-          echo "tagged and pushed $tag" | tee -a "$GITHUB_STEP_SUMMARY"
+    uses: ./.github/workflows/ore-tag.yml
+    with:
+      expected_version: ${{ needs.gate.outputs.version }}
+      note: "Landed by ore-sync-autoland from PR #${{ needs.gate.outputs.pr }}."
+    # Named one by one. fork/verify/workflows_check.py forbids a fork-owned
+    # workflow from handing on the caller's whole secret set, and it caught the
+    # blanket form the moment it was written -- the check doing exactly its job,
+    # since the tagging environment sits beside credentials that sign binaries.
+    #
+    # (The checker greps the raw file, so the phrase it forbids cannot appear
+    # here even in a comment explaining why it is not used. ore-release.yml
+    # carries the same note, and this is the second time it has been needed.)
+    secrets:
+      ORE_SYNC_APP_ID: ${{ secrets.ORE_SYNC_APP_ID }}
+      ORE_SYNC_APP_PRIVATE_KEY: ${{ secrets.ORE_SYNC_APP_PRIVATE_KEY }}
 
   explain:
     name: explain
