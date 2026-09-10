@@ -193,3 +193,31 @@ jobs:
           safe_push --delete "refs/heads/sync/$tag" "refs/heads/sync-delta/$tag"
 
           echo "finalized: main -> $M; delta -> $delta_new" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # LANDING is when a pair stops being blocked, not assembly. ore-sync closes
+      # the issue on a successful assemble, which covers the nightly and misses
+      # every sync assembled by hand -- rust-v0.154.0 was repaired locally and
+      # landed here, so #15 stayed open describing a rebase conflict that had
+      # been resolved hours earlier. An alarm nobody can act on is one people
+      # learn to ignore, which is what the retraction was added to prevent.
+      #
+      # Both paths now retract, and both are scoped to their own tag pair. Doing
+      # it twice is harmless: the second finds nothing open to close.
+      - name: Close the sync-blocked issue this pair resolved
+        if: success()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          tag="${HEAD_REF#sync/}"
+          nums="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label sync-blocked \
+            --json number,title --jq "[.[] | select(.title | contains(\"-> $tag\"))] | .[].number")"
+          for n in $nums; do
+            gh issue comment "$n" --repo "$GITHUB_REPOSITORY" \
+              --body "Resolved: \`$tag\` landed in $RUN_URL. Closing." || true
+            gh issue close "$n" --repo "$GITHUB_REPOSITORY" || true
+            echo "closed #$n"
+          done
+          [ -n "$nums" ] || echo "no open sync-blocked issue for $tag"
