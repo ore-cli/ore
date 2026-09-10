@@ -238,6 +238,13 @@ fn anthropic_model(
     let default_reasoning_level =
         (!supported_reasoning_levels.is_empty()).then_some(ReasoningEffort::High);
     ModelInfo {
+        // Model-owned approval coverage, and startup activation of experimental
+        // context management. Both are OpenAI-backend concepts: a BYO gateway
+        // model carries no model-owned Guardian policy, and nothing here can
+        // activate an upstream experimental context path. Absent preserves the
+        // legacy settings, which is what a provider outside that backend wants.
+        guardian: None,
+        supports_experimental_context: false,
         slug: slug.to_string(),
         display_name: display_name.to_string(),
         description: Some(description.to_string()),
