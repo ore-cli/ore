@@ -47,7 +47,12 @@ package(codex-core) & test(=suite::unified_exec::unified_exec_formats_large_outp
 # Substring, not `=`: test_case parameterises the first into catalog_override,
 # empty_override and legacy_fallback, and an exact filter matches none of them.
 package(codex-core) & test(suite::guardian_review::guardian_denial_rejects_tool_call_with_rationale)
-package(codex-core) & test(=suite::guardian_subagent_authorization::guardian_subagent_review_preserves_late_root_user_authorization)
+# Substring, not `=`: rust-v0.154.0 parameterised this, and an exact filter
+# matches none of its cases. Same shape as the compact_resume_fork entry above,
+# which is the second time upstream has parameterised a test this file pins --
+# known_failing_check catches it precisely because an exact filter that matches
+# nothing still reports success.
+package(codex-core) & test(suite::guardian_subagent_authorization::guardian_subagent_review_preserves_late_root_user_authorization)
 
 # --- codex-git-attribution ---------------------------------------------
 package(codex-git-attribution) & test(=tests::policy_resolution_retries_after_auth_refresh)
