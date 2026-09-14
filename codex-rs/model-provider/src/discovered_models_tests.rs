@@ -688,11 +688,10 @@ async fn a_catalog_pinned_in_config_is_not_second_guessed() {
     assert_eq!(catalog.models, pinned.models);
 }
 
-/// The upstream models client already fetches a full catalog for a first-party
-/// credential, so discovery must stay out of its way -- one `/models` request
-/// per listing, not two.
+/// This provider resolves to the ambient ChatGPT auth; reading that as
+/// first-party served the bundled catalog instead of the gateway's list.
 #[tokio::test]
-async fn a_codex_backend_credential_is_not_asked_twice() {
+async fn a_signed_in_user_still_gets_the_gateways_model_list() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/models"))
@@ -714,7 +713,7 @@ async fn a_codex_backend_credential_is_not_asked_twice() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": [{"id": "gateway-only-model", "object": "model"}]
         })))
-        .expect(0)
+        .expect(1)
         .mount(&server)
         .await;
 
@@ -730,9 +729,10 @@ async fn a_codex_backend_credential_is_not_asked_twice() {
         .raw_model_catalog(RefreshStrategy::Online, factory())
         .await;
 
-    assert!(
-        !catalog.models.is_empty(),
-        "the upstream catalog still has to reach the picker"
+    assert_eq!(
+        slugs(&catalog.models),
+        vec!["gateway-only-model"],
+        "the gateway's own list must decide the picker, signed in or not"
     );
 }
 
