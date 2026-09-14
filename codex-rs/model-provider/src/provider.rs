@@ -1323,7 +1323,8 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
                         models: remote_models.clone(),
                     }),
             )
-            .expect(1)
+            // The catalog refresh, then discovery; both must carry the token.
+            .expect(2)
             .mount(&server)
             .await;
 
