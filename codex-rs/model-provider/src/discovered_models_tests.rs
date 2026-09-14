@@ -35,6 +35,7 @@ fn discovered(id: &str) -> DiscoveredModel {
     DiscoveredModel {
         id: id.to_string(),
         display_name: None,
+        context_window: None,
     }
 }
 
@@ -161,6 +162,7 @@ fn a_discovered_slug_the_catalog_does_not_know_is_still_selectable() {
         &[DiscoveredModel {
             id: "qwen3-coder-480b".to_string(),
             display_name: Some("Qwen3 Coder 480B".to_string()),
+            context_window: None,
         }],
     );
 
@@ -921,4 +923,104 @@ async fn an_explicit_refresh_retries_after_a_failure() {
         2,
         "an explicit Online refresh is the user asking again and must re-probe"
     );
+}
+
+#[test]
+fn a_synthesized_model_takes_the_context_window_the_gateway_published() {
+    // Without this the window is inherited from whichever model happens to sort
+    // first in the static catalog, so a 204k gateway model was handed an
+    // OpenAI-shaped 400k budget and the first oversized turn was rejected by the
+    // provider instead of compacted by us.
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[DiscoveredModel {
+            id: "Qwen3.8-27B".to_string(),
+            display_name: None,
+            context_window: Some(204_800),
+        }],
+    );
+
+    let synthesized = &merged[0];
+    assert_eq!(synthesized.slug, "Qwen3.8-27B");
+    assert_eq!(synthesized.context_window, Some(204_800));
+    assert_eq!(synthesized.max_context_window, Some(204_800));
+    assert_eq!(
+        synthesized.resolved_context_window(),
+        Some(204_800),
+        "the published budget must win over the template's"
+    );
+    assert_eq!(
+        synthesized.auto_compact_token_limit, None,
+        "an absolute limit derived from the template's window would compact at the wrong point"
+    );
+}
+
+#[test]
+fn a_synthesized_model_without_a_published_window_still_borrows_one() {
+    // The pre-existing fallback: a gateway that publishes no budget is no worse
+    // off than before, and must not end up with no window at all.
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[discovered("mystery-model")],
+    );
+
+    assert_eq!(merged[0].context_window, Some(400_000));
+}
+
+#[test]
+fn a_curated_slug_ignores_the_window_the_gateway_published() {
+    // Existence comes from the gateway, metadata from the catalog. A gateway
+    // that misreports a known model must not be able to resize it.
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[DiscoveredModel {
+            id: "gpt-5.3-codex".to_string(),
+            display_name: None,
+            context_window: Some(8_192),
+        }],
+    );
+
+    assert_eq!(merged[0].context_window, Some(400_000));
+}
+
+#[test]
+fn the_published_window_is_read_from_either_spelling() {
+    let payload: DiscoveryPayload = serde_json::from_str(
+        r#"{"data":[
+             {"id":"litellm-style","max_input_tokens":204800},
+             {"id":"openrouter-style","context_length":131072},
+             {"id":"no-window"}
+           ]}"#,
+    )
+    .expect("parses");
+    let models = payload.into_models();
+
+    assert_eq!(models[0].context_window, Some(204_800));
+    assert_eq!(models[1].context_window, Some(131_072));
+    assert_eq!(models[2].context_window, None);
+}
+
+#[test]
+fn a_non_positive_published_window_is_discarded() {
+    // Taking a zero would drive the derived auto-compaction threshold to zero.
+    let payload: DiscoveryPayload =
+        serde_json::from_str(r#"{"data":[{"id":"broken","max_input_tokens":0}]}"#).expect("parses");
+
+    assert_eq!(payload.into_models()[0].context_window, None);
+}
+
+#[test]
+fn an_unknown_entry_field_does_not_cost_the_whole_list() {
+    // LiteLLM decorates entries with `mode`, `owned_by` and `created`; a strict
+    // parser would reject the list and fall back to the static catalog.
+    let payload: DiscoveryPayload = serde_json::from_str(
+        r#"{"data":[{"id":"Qwen3.8-27B","object":"model","created":1677610602,
+             "owned_by":"openai","mode":"chat","max_input_tokens":204800}]}"#,
+    )
+    .expect("parses");
+    let models = payload.into_models();
+
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].id, "Qwen3.8-27B");
+    assert_eq!(models[0].context_window, Some(204_800));
 }
