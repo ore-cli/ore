@@ -76,6 +76,25 @@ const DISCOVERY_PATH: &str = "/models";
 /// that cannot answer in this long is treated as having no list at all.
 const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Shaped like `codex_ollama`'s connection error: problem, fix, consequence.
+///
+/// Unlike that one it warns instead of aborting. `--oss` can abort because a
+/// missing local server leaves nothing to run; `/models` is optional, and a
+/// gateway that does not implement it answers 404 on a healthy setup.
+const DISCOVERY_FAILED_MESSAGE: &str = concat!(
+    "Could not read the model list from this provider. ",
+    "Check that its base_url is reachable and that the credential in its env_key can list models. ",
+    "Falling back to the models in the bundled catalog.",
+);
+
+/// Split from [`DISCOVERY_FAILED_MESSAGE`] because the remediation differs: the
+/// endpoint answered, so the endpoint is not what to go and look at.
+const EMPTY_LIST_MESSAGE: &str = concat!(
+    "This provider's model list is empty, so it reported serving no models at all. ",
+    "Check that the gateway has models configured and that this credential may see them. ",
+    "Falling back to the models in the bundled catalog.",
+);
+
 /// One entry from a provider's model list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DiscoveredModel {
@@ -84,6 +103,10 @@ pub(crate) struct DiscoveredModel {
     pub(crate) id: String,
     /// Anthropic publishes a human label; OpenAI-compatible lists do not.
     pub(crate) display_name: Option<String>,
+    /// Advertised input budget, if the list carried one. Consulted only for a
+    /// slug the static catalog does not know; a known slug keeps its curated
+    /// metadata.
+    pub(crate) context_window: Option<i64>,
 }
 
 /// Why a discovery attempt produced no list.
@@ -216,17 +239,17 @@ impl ProviderModelListDiscovery {
         );
 
         let response = client
-            .get(url)
+            .get(url.clone())
             .headers(headers)
             .send()
             .await
-            .map_err(|err| DiscoveryError::new(format!("request failed: {err}")))?;
+            .map_err(|err| DiscoveryError::new(format!("GET {url} failed: {err}")))?;
 
         let status = response.status();
         if !status.is_success() {
             // A gateway that does not implement the list endpoint answers 404
             // here. That is expected, not exceptional.
-            return Err(DiscoveryError::new(format!("status {status}")));
+            return Err(DiscoveryError::new(format!("GET {url} returned {status}")));
         }
 
         response
@@ -284,6 +307,15 @@ struct DiscoveryEntry {
     /// `"model"` in OpenAI-compatible entries.
     #[serde(default)]
     object: Option<String>,
+    /// Context-window spellings, read in declaration order.
+    ///
+    /// Separate fields rather than serde aliases on one: aliases make a list
+    /// carrying both spellings a duplicate-field error, losing the entire list
+    /// over a redundancy.
+    #[serde(default)]
+    max_input_tokens: Option<i64>,
+    #[serde(default)]
+    context_length: Option<i64>,
 }
 
 impl DiscoveryPayload {
@@ -336,7 +368,17 @@ impl DiscoveryEntry {
             .display_name
             .map(|name| name.trim().to_string())
             .filter(|name| !name.is_empty());
-        Some(DiscoveredModel { id, display_name })
+        // A non-positive budget is a gateway bug, not a 0-token model. Taking
+        // it would drive the derived auto-compaction threshold to zero.
+        let context_window = self
+            .max_input_tokens
+            .or(self.context_length)
+            .filter(|tokens| *tokens > 0);
+        Some(DiscoveredModel {
+            id,
+            display_name,
+            context_window,
+        })
     }
 }
 
@@ -440,6 +482,19 @@ fn synthesize_model_info(
         },
         None => model_info_from_slug(&discovered.id),
     };
+    let (context_window, max_context_window, auto_compact_token_limit) =
+        match discovered.context_window {
+            // `auto_compact_token_limit` must be dropped, not carried over: it
+            // is an absolute token count derived from the TEMPLATE's window, so
+            // pairing it with a different window compacts at the wrong point.
+            // `None` makes core re-derive it at 90% of the real budget.
+            Some(window) => (Some(window), Some(window), None),
+            None => (
+                base.context_window,
+                base.max_context_window,
+                base.auto_compact_token_limit,
+            ),
+        };
     ModelInfo {
         slug: discovered.id.clone(),
         display_name: discovered
@@ -453,6 +508,9 @@ fn synthesize_model_info(
         supported_in_api: true,
         priority,
         upgrade: None,
+        context_window,
+        max_context_window,
+        auto_compact_token_limit,
         ..base
     }
 }
@@ -552,11 +610,13 @@ impl DiscoveringModelsManager {
                 ModelsResponse { models: merged }
             }
             Ok(_) => {
-                warn!("provider listed no models; keeping the static catalog");
+                warn!("{EMPTY_LIST_MESSAGE}");
                 self.forget_merged(static_models).await
             }
             Err(err) => {
-                warn!("model discovery failed ({err}); keeping the static catalog");
+                // Remediation in the message, transport detail in a field --
+                // the split `codex_ollama`'s probe uses.
+                warn!(error = %err, "{DISCOVERY_FAILED_MESSAGE}");
                 self.forget_merged(static_models).await
             }
         }
