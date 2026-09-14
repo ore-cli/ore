@@ -36,11 +36,18 @@ errors.
 
 At session start each provider is asked `GET <base_url>/models`. That list
 decides which models the picker offers; the bundled catalog supplies the context
-window, reasoning support and the other facts known about each id. An id absent
-from the bundled catalog is still selectable and inherits the provider's default
-model as its template. When the request fails, times out, or answers with
-something other than a model list, the picker falls back to the bundled catalog
-alone.
+window, reasoning support and the other facts known about each id.
+
+An id absent from the bundled catalog is still selectable and inherits the
+provider's default model as its template. If the list published a context window
+for it -- `max_input_tokens` or `context_length`, both optional -- that number is
+used instead of the template's, and auto-compaction sizes against it. An id the
+bundled catalog does know keeps its curated window, so a gateway cannot resize a
+model Ore already understands.
+
+When the request fails, times out, or answers with something other than a model
+list, the picker falls back to the bundled catalog alone and the reason is
+logged.
 
 Discovery runs on all four wire APIs. It is skipped for the first-party OpenAI
 path, for the Amazon Bedrock providers, and whenever `model_catalog_json` pins a
@@ -67,6 +74,26 @@ under a single flattened name joined with `__`, so an MCP tool reads as
 For Claude models served through an OpenAI-compatible gateway, Ore places
 Anthropic-style `cache_control` prompt markers automatically. If the gateway
 rejects them, the turn is retried once without markers.
+
+## Gateway example
+
+An aggregating gateway -- LiteLLM, OpenRouter, an internal proxy -- is an
+ordinary `chat` provider. Its `/models` list is what the picker offers, so the
+models come from the gateway's own configuration rather than from this file:
+
+```toml
+model = "Qwen3.8-27B"
+model_provider = "gateway"
+
+[model_providers.gateway]
+name = "LiteLLM"
+base_url = "https://litellm.example.com/v1"
+wire_api = "chat"
+env_key = "LITELLM_API_KEY"
+```
+
+Set `model` to an id exactly as the gateway lists it, including any namespace
+(`anthropic/claude-sonnet-4-6`) -- that string is what goes on the wire.
 
 ## Anthropic
 
