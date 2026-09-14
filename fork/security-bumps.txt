@@ -1,0 +1,18 @@
+# Third-party crates the fork moves OFF upstream's pin for a security advisory.
+#
+# assemble.sh's lock pass runs `cargo update -p <crate>` for each name here,
+# after `cargo update --workspace`. That takes the newest release inside the
+# range codex-rs/Cargo.toml already allows, so nothing here can change a
+# dependency's semver range -- if a fix needs a range change, it does not belong
+# in this file.
+#
+# Self-retiring: once upstream's own lock pins at or past the fixed version the
+# line is a no-op, so a stale entry costs nothing and removing it is tidying
+# rather than maintenance.
+#
+# One crate name per line. Record the advisory and the condition for removal.
+
+# RUSTSEC-2026-0285: rustls <0.23.45 accepted TLS 1.3 handshake messages across
+# encryption-level boundaries. Upstream pins 0.23.36 at rust-v0.154.0.
+# Remove when upstream's lock reaches >=0.23.45.
+rustls
