@@ -667,6 +667,25 @@ grep -q "^version = \"$FORK_VERSION\"$" "$WORKTREE/codex-rs/Cargo.toml" \
 # explicitly rejected. MODULE.bazel.lock / pnpm-lock.yaml stay upstream's.
 ( cd "$WORKTREE/codex-rs" && cargo "+$TOOLCHAIN" update --workspace ) \
   >>"$PASSES_LOG" 2>&1 || fail_pass "cargo update --workspace"
+
+# The one sanctioned exception to "upstream's third-party pins stand": crates
+# named in fork/security-bumps.txt are moved to the newest release the existing
+# semver range already admits. Scoped with -p, so a bump cannot cascade into a
+# general re-resolve the way generate-lockfile would.
+_bumps="$WORKTREE/fork/security-bumps.txt"
+if [[ -f "$_bumps" ]]; then
+  while read -r _crate _; do
+    _crate="${_crate%%#*}"
+    [[ -z "$_crate" ]] && continue
+    # The list is fork-owned, but it reaches a command line: refuse anything
+    # that is not a crate name rather than pass it through.
+    [[ "$_crate" =~ ^[A-Za-z0-9_-]+$ ]] \
+      || fail_pass "security-bumps.txt: '$_crate' is not a crate name"
+    echo "security bump: cargo update -p $_crate" >>"$PASSES_LOG"
+    ( cd "$WORKTREE/codex-rs" && cargo "+$TOOLCHAIN" update -p "$_crate" ) \
+      >>"$PASSES_LOG" 2>&1 || fail_pass "cargo update -p $_crate"
+  done < <(grep -v '^[[:space:]]*#' "$_bumps")
+fi
 if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   ( cd "$WORKTREE/codex-rs" && cargo "+$TOOLCHAIN" metadata --locked --format-version 1 >/dev/null ) \
     || fail_pass "cargo metadata --locked: regenerated lock is incomplete"
