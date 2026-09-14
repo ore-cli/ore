@@ -1,0 +1,14 @@
+# actionlint types `secrets` in a reusable workflow as exactly the names its
+# `on.workflow_call.secrets` block declares, and has no way to learn the ones an
+# environment supplies. ORE_TAG_SIGNING_KEY comes from the `tagging` environment,
+# so it is reported undefined at every reference.
+#
+# Declaring it under workflow_call.secrets instead would silence the same message
+# by changing behaviour: an unpassed call-secret resolves empty, which on the
+# autoland path could shadow the environment value and produce an unsigned tag
+# with no error. The lint is what is wrong here, so the lint is what is muted --
+# scoped to the one file and the one property.
+paths:
+  .github/workflows/ore-tag.yml:
+    ignore:
+      - 'property "ore_tag_signing_key" is not defined'
