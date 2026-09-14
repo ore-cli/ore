@@ -179,7 +179,14 @@ impl ProviderModelListDiscovery {
     /// catalog, which the upstream models client has already fetched in full
     /// -- with metadata this endpoint cannot see. Asking again would send a
     /// second request per listing and could only lose information.
+    ///
+    /// Only for a provider with no credential of its own:
+    /// `auth_manager_for_provider` passes the signed-in `AuthManager` through to
+    /// the rest, whose endpoint it says nothing about.
     async fn applies(&self) -> bool {
+        if carries_own_credential(self.provider.info()) {
+            return true;
+        }
         !self
             .provider
             .auth()
@@ -768,6 +775,10 @@ pub(crate) fn with_model_discovery(provider: SharedModelProvider) -> SharedModel
 ///
 /// Adding a wire is a variant in this `matches!`; the list shape and auth are
 /// already handled generically.
+fn carries_own_credential(info: &ModelProviderInfo) -> bool {
+    info.env_key.is_some() || info.experimental_bearer_token.is_some() || info.has_command_auth()
+}
+
 fn discovery_applies(info: &ModelProviderInfo) -> bool {
     if info.requires_openai_auth {
         return false;
