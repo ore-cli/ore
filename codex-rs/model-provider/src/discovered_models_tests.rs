@@ -55,6 +55,7 @@ fn static_entry(slug: &str, priority: i32) -> ModelInfo {
         context_window: Some(400_000),
         max_context_window: Some(400_000),
         used_fallback_model_metadata: false,
+        use_responses_lite: true,
         ..model_info_from_slug(slug)
     }
 }
@@ -1023,4 +1024,24 @@ fn an_unknown_entry_field_does_not_cost_the_whole_list() {
     assert_eq!(models.len(), 1);
     assert_eq!(models[0].id, "Qwen3.8-27B");
     assert_eq!(models[0].context_window, Some(204_800));
+}
+
+/// Responses-lite prefixes an `additional_tools` item only the Codex backend
+/// parses. vLLM 500s on it, and LiteLLM then cools the deployment down and
+/// serves 429 to everything, so a whole session fails on a healthy gateway.
+#[test]
+fn no_gateway_model_is_served_in_responses_lite_mode() {
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[discovered("gpt-5.3-codex"), discovered("Qwen3.8-27B")],
+    );
+
+    assert_eq!(merged.len(), 2);
+    for model in &merged {
+        assert!(
+            !model.use_responses_lite,
+            "{} would send additional_tools to a gateway",
+            model.slug
+        );
+    }
 }
