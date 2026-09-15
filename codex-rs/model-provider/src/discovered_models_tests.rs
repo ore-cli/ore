@@ -26,6 +26,7 @@ use wiremock::matchers::query_param_is_missing;
 
 use super::*;
 use crate::provider::create_model_provider;
+use codex_protocol::openai_models::ToolMode;
 
 fn factory() -> HttpClientFactory {
     HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault)
@@ -490,13 +491,14 @@ async fn an_openai_compatible_gateway_list_decides_which_models_are_offered() {
         vec![known.as_str(), "gateway-only-model"],
         "non-model entries are ignored and the gateway's list is the catalog"
     );
-    // Whole-struct equality but for the one field the merge is entitled to
-    // change: the bundled entry is an OpenAI model, so it arrives with
-    // responses-lite set, and no gateway can serve that mode.
+    // Whole-struct equality but for the fields the merge is entitled to clear:
+    // the bundled entry is an OpenAI model, so it arrives with responses-lite
+    // and a code-mode-only tool mode, neither of which a gateway can serve.
     assert_eq!(
         catalog.models.first(),
         Some(&ModelInfo {
             use_responses_lite: false,
+            tool_mode: None,
             ..known_model.clone()
         }),
         "a listed model keeps its catalog metadata"
@@ -1040,6 +1042,7 @@ fn no_gateway_model_is_served_in_responses_lite_mode() {
     // tests assert whole-struct equality against that fixture.
     let lite = ModelInfo {
         use_responses_lite: true,
+        tool_mode: Some(ToolMode::CodeModeOnly),
         ..static_entry("gpt-5.3-codex", 0)
     };
 
@@ -1055,6 +1058,11 @@ fn no_gateway_model_is_served_in_responses_lite_mode() {
         assert!(
             !model.use_responses_lite,
             "{} would send additional_tools to a gateway",
+            model.slug
+        );
+        assert_eq!(
+            model.tool_mode, None,
+            "{} keeps a code-mode-only tool mode a gateway host may not support",
             model.slug
         );
     }

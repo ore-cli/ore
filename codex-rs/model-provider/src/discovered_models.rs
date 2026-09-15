@@ -452,6 +452,7 @@ pub(crate) fn merge_catalog(
     // `discovery_applies` allows, so nothing reaching this merge is first-party.
     for model in &mut merged {
         model.use_responses_lite = false;
+        model.tool_mode = None;
     }
 
     // Stable so that models sharing a priority keep the order the provider
