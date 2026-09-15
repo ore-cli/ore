@@ -26,6 +26,7 @@ use wiremock::matchers::query_param_is_missing;
 
 use super::*;
 use crate::provider::create_model_provider;
+use codex_protocol::openai_models::ToolMode;
 
 fn factory() -> HttpClientFactory {
     HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault)
@@ -1040,6 +1041,7 @@ fn no_gateway_model_is_served_in_responses_lite_mode() {
     // tests assert whole-struct equality against that fixture.
     let lite = ModelInfo {
         use_responses_lite: true,
+        tool_mode: Some(ToolMode::CodeModeOnly),
         ..static_entry("gpt-5.3-codex", 0)
     };
 
@@ -1055,6 +1057,11 @@ fn no_gateway_model_is_served_in_responses_lite_mode() {
         assert!(
             !model.use_responses_lite,
             "{} would send additional_tools to a gateway",
+            model.slug
+        );
+        assert_eq!(
+            model.tool_mode, None,
+            "{} keeps a code-mode-only tool mode a gateway host may not support",
             model.slug
         );
     }
