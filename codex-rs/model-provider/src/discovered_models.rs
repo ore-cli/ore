@@ -444,6 +444,16 @@ pub(crate) fn merge_catalog(
         }
     }
 
+    // Responses-lite prefixes every request with an `additional_tools` input
+    // item, which only the Codex backend parses: vLLM answers
+    // `'AdditionalTools' object has no attribute 'get'` with a 500, and a
+    // gateway that cools a deployment down on repeated 500s then serves 429 to
+    // everything, retries included. Discovery runs only where
+    // `discovery_applies` allows, so nothing reaching this merge is first-party.
+    for model in &mut merged {
+        model.use_responses_lite = false;
+    }
+
     // Stable so that models sharing a priority keep the order the provider
     // listed them in.
     merged.sort_by_key(|model| model.priority);
