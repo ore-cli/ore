@@ -93,7 +93,10 @@ fn pretrust_startup_sync_uses_installed_git_with_hostile_path() {
             ])
             .current_dir(&workspace)
             .env(CHILD_HOME, &home)
-            .env(CURATED_PLUGINS_REPO_ENV_VAR, TEST_CURATED_PLUGINS_COORDINATES)
+            .env(
+                CURATED_PLUGINS_REPO_ENV_VAR,
+                TEST_CURATED_PLUGINS_COORDINATES,
+            )
             .env("PATH", &bin)
             .env("GIT_EXEC_PATH", &bin)
             .env("GIT_CONFIG_GLOBAL", &config)
