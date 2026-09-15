@@ -3,7 +3,7 @@ source: tui/src/history_cell/tests.rs
 expression: rendered
 ---
 ╭────────────────────────────────────────────────╮
-│ ✨ Update available! 1.154.2 -> 9.9.9          │
+│ ✨ Update available! 1.154.3 -> 9.9.9          │
 │ Run vp install -g @ore-cli/ore to update.      │
 │                                                │
 │ See full release notes:                        │
