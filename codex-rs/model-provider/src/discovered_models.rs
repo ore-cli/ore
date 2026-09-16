@@ -140,17 +140,41 @@ pub(crate) struct DiscoveredModel {
 /// Carries a message for the log line only: no caller branches on the cause,
 /// because every cause has the same consequence -- keep the static catalog.
 #[derive(Debug)]
-pub(crate) struct DiscoveryError(String);
+pub(crate) struct DiscoveryError {
+    message: String,
+    /// The endpoint exists and failed, as opposed to answering that it does
+    /// not exist. Worth asking again on the next listing.
+    transient: bool,
+}
 
 impl DiscoveryError {
     fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
+        Self {
+            message: message.into(),
+            transient: false,
+        }
     }
+
+    fn transient(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            transient: true,
+        }
+    }
+}
+
+/// What a probe produced. `complete` is false when the list was served but
+/// its metadata endpoint failed transiently, so the merge built from it is
+/// worth rebuilding on the next listing rather than kept for the session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Discovered {
+    pub(crate) models: Vec<DiscoveredModel>,
+    pub(crate) complete: bool,
 }
 
 impl fmt::Display for DiscoveryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.message)
     }
 }
 
@@ -173,7 +197,7 @@ pub(crate) trait ModelListDiscovery: fmt::Debug + Send + Sync {
     fn discover(
         &self,
         http_client_factory: HttpClientFactory,
-    ) -> DiscoveryFuture<'_, Result<Vec<DiscoveredModel>, DiscoveryError>>;
+    ) -> DiscoveryFuture<'_, Result<Discovered, DiscoveryError>>;
 }
 
 /// Discovers models by asking the provider itself.
@@ -224,7 +248,7 @@ impl ProviderModelListDiscovery {
     async fn fetch(
         &self,
         http_client_factory: HttpClientFactory,
-    ) -> Result<Vec<DiscoveredModel>, DiscoveryError> {
+    ) -> Result<Discovered, DiscoveryError> {
         // The whole attempt is bounded, not just the response: building a
         // route-aware client can itself block on proxy resolution, and a
         // command-auth provider shells out for a token.
@@ -236,7 +260,7 @@ impl ProviderModelListDiscovery {
     async fn fetch_unbounded(
         &self,
         http_client_factory: HttpClientFactory,
-    ) -> Result<Vec<DiscoveredModel>, DiscoveryError> {
+    ) -> Result<Discovered, DiscoveryError> {
         let api_provider: Provider =
             self.provider.api_provider().await.map_err(|err| {
                 DiscoveryError::new(format!("provider is not requestable: {err}"))
@@ -283,17 +307,26 @@ impl ProviderModelListDiscovery {
         );
         let info = info.map(InfoPayload::into_models);
         match (list.map(DiscoveryPayload::into_models), info) {
-            (Ok(list), Ok(info)) => Ok(enrich(list, info)),
+            (Ok(list), Ok(info)) => Ok(Discovered {
+                models: enrich(list, info),
+                complete: true,
+            }),
             (Ok(list), Err(err)) => {
                 // A gateway that does not serve the endpoint answers 404 on a
                 // healthy setup; the message matters when it usually does
                 // serve it, because the levels it declares silently vanish.
                 warn!(error = %err, "{INFO_FAILED_MESSAGE}");
-                Ok(list)
+                Ok(Discovered {
+                    models: list,
+                    complete: !err.transient,
+                })
             }
             (Err(err), Ok(info)) => {
                 warn!(error = %err, "{LIST_REPLACED_MESSAGE}");
-                Ok(info)
+                Ok(Discovered {
+                    models: info,
+                    complete: true,
+                })
             }
             (Err(list_err), Err(_)) => Err(list_err),
         }
@@ -310,13 +343,20 @@ async fn get_json<T: serde::de::DeserializeOwned>(
         .headers(headers.clone())
         .send()
         .await
-        .map_err(|err| DiscoveryError::new(format!("GET {url} failed: {err}")))?;
+        .map_err(|err| DiscoveryError::transient(format!("GET {url} failed: {err}")))?;
 
     let status = response.status();
     if !status.is_success() {
         // A gateway that does not implement an endpoint answers 404 here.
-        // That is expected, not exceptional.
-        return Err(DiscoveryError::new(format!("GET {url} returned {status}")));
+        // That is expected, not exceptional, and not worth asking again.
+        let message = format!("GET {url} returned {status}");
+        return Err(
+            if status.is_server_error() || matches!(status.as_u16(), 408 | 429) {
+                DiscoveryError::transient(message)
+            } else {
+                DiscoveryError::new(message)
+            },
+        );
     }
 
     response
@@ -354,7 +394,7 @@ impl ModelListDiscovery for ProviderModelListDiscovery {
     fn discover(
         &self,
         http_client_factory: HttpClientFactory,
-    ) -> DiscoveryFuture<'_, Result<Vec<DiscoveredModel>, DiscoveryError>> {
+    ) -> DiscoveryFuture<'_, Result<Discovered, DiscoveryError>> {
         Box::pin(self.fetch(http_client_factory))
     }
 }
@@ -760,6 +800,10 @@ pub(crate) struct DiscoveringModelsManager {
     /// start, because failure clears `merged` and `OnlineIfUncached` only
     /// short-circuits on a present value.
     probe_failed: RwLock<bool>,
+    /// Whether `merged` was built from a complete probe. An incomplete one is
+    /// still served -- `Offline` must not open a socket -- but does not
+    /// short-circuit `OnlineIfUncached`, so the next listing asks again.
+    merged_complete: RwLock<bool>,
     auth_manager: Option<Arc<AuthManager>>,
 }
 
@@ -774,6 +818,7 @@ impl DiscoveringModelsManager {
             discovery,
             merged: RwLock::new(None),
             probe_failed: RwLock::new(false),
+            merged_complete: RwLock::new(true),
             auth_manager,
         }
     }
@@ -799,7 +844,9 @@ impl DiscoveringModelsManager {
             }
             RefreshStrategy::OnlineIfUncached => {
                 let merged = self.merged.read().await.clone();
-                if let Some(merged) = merged {
+                if let Some(merged) = merged
+                    && *self.merged_complete.read().await
+                {
                     return ModelsResponse { models: merged };
                 }
                 // A FAILED probe is a cached answer too. Without this, an
@@ -828,13 +875,14 @@ impl DiscoveringModelsManager {
         }
 
         match self.discovery.discover(http_client_factory).await {
-            Ok(discovered) if !discovered.is_empty() => {
+            Ok(discovered) if !discovered.models.is_empty() => {
                 info!(
-                    discovered = discovered.len(),
+                    discovered = discovered.models.len(),
                     "provider model list discovered"
                 );
-                let merged = merge_catalog(static_models, &discovered);
-                self.remember_merged(merged.clone()).await;
+                let merged = merge_catalog(static_models, &discovered.models);
+                self.remember_merged(merged.clone(), discovered.complete)
+                    .await;
                 ModelsResponse { models: merged }
             }
             Ok(_) => {
@@ -861,8 +909,9 @@ impl DiscoveringModelsManager {
     /// until the next forced refresh -- 180s in the app-server, where a worker
     /// polls on that interval. A success is the strongest possible evidence the
     /// gateway is back.
-    async fn remember_merged(&self, merged: Vec<ModelInfo>) {
+    async fn remember_merged(&self, merged: Vec<ModelInfo>, complete: bool) {
         *self.probe_failed.write().await = false;
+        *self.merged_complete.write().await = complete;
         *self.merged.write().await = Some(merged);
     }
 
