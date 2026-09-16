@@ -86,6 +86,8 @@ fn all_slugs(models: &[ModelInfo]) -> Vec<&str> {
 #[derive(Debug, Clone)]
 enum FakeOutcome {
     Models(Vec<DiscoveredModel>),
+    /// The list came back but its metadata did not: worth asking again.
+    Incomplete(Vec<DiscoveredModel>),
     Failure,
 }
 
@@ -110,6 +112,13 @@ impl FakeDiscovery {
         })
     }
 
+    fn serving_incomplete(ids: &[&str]) -> Arc<Self> {
+        Arc::new(Self {
+            outcome: FakeOutcome::Incomplete(ids.iter().map(|id| discovered(id)).collect()),
+            calls: AtomicUsize::new(0),
+        })
+    }
+
     fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }
@@ -119,12 +128,19 @@ impl ModelListDiscovery for FakeDiscovery {
     fn discover(
         &self,
         _http_client_factory: HttpClientFactory,
-    ) -> DiscoveryFuture<'_, Result<Vec<DiscoveredModel>, DiscoveryError>> {
+    ) -> DiscoveryFuture<'_, Result<Discovered, DiscoveryError>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let outcome = self.outcome.clone();
         Box::pin(async move {
             match outcome {
-                FakeOutcome::Models(models) => Ok(models),
+                FakeOutcome::Models(models) => Ok(Discovered {
+                    models,
+                    complete: true,
+                }),
+                FakeOutcome::Incomplete(models) => Ok(Discovered {
+                    models,
+                    complete: false,
+                }),
                 FakeOutcome::Failure => Err(DiscoveryError::new("gateway said no")),
             }
         })
@@ -366,7 +382,7 @@ impl ModelListDiscovery for SequencedDiscovery {
     fn discover(
         &self,
         _http_client_factory: HttpClientFactory,
-    ) -> DiscoveryFuture<'_, Result<Vec<DiscoveredModel>, DiscoveryError>> {
+    ) -> DiscoveryFuture<'_, Result<Discovered, DiscoveryError>> {
         let outcome = self
             .outcomes
             .lock()
@@ -375,7 +391,14 @@ impl ModelListDiscovery for SequencedDiscovery {
             .unwrap_or(FakeOutcome::Failure);
         Box::pin(async move {
             match outcome {
-                FakeOutcome::Models(models) => Ok(models),
+                FakeOutcome::Models(models) => Ok(Discovered {
+                    models,
+                    complete: true,
+                }),
+                FakeOutcome::Incomplete(models) => Ok(Discovered {
+                    models,
+                    complete: false,
+                }),
                 FakeOutcome::Failure => Err(DiscoveryError::new("gateway said no")),
             }
         })
@@ -1438,4 +1461,124 @@ fn folding_the_separator_does_not_invent_a_match() {
         &[discovered("openrouter/anthropic/claude-sonnet-9.9")],
     );
     assert!(efforts(&merged[0]).is_empty());
+}
+
+#[tokio::test]
+async fn an_incomplete_probe_is_asked_again_on_the_next_uncached_listing() {
+    let discovery = FakeDiscovery::serving_incomplete(&["gateway-model"]);
+    let manager = manager_over(vec![static_entry("gpt-5.3-codex", 0)], discovery.clone());
+
+    for _ in 0..2 {
+        let catalog = manager
+            .raw_model_catalog(RefreshStrategy::OnlineIfUncached, factory())
+            .await;
+        assert_eq!(slugs(&catalog.models), vec!["gateway-model"]);
+    }
+
+    assert_eq!(
+        discovery.calls(),
+        2,
+        "a merge missing its metadata must not pin the session"
+    );
+}
+
+#[tokio::test]
+async fn an_offline_listing_still_serves_an_incomplete_merge() {
+    let discovery = FakeDiscovery::serving_incomplete(&["gateway-model"]);
+    let manager = manager_over(vec![static_entry("gpt-5.3-codex", 0)], discovery.clone());
+
+    manager
+        .raw_model_catalog(RefreshStrategy::Online, factory())
+        .await;
+    let offline = manager
+        .raw_model_catalog(RefreshStrategy::Offline, factory())
+        .await;
+
+    assert_eq!(slugs(&offline.models), vec!["gateway-model"]);
+    assert_eq!(discovery.calls(), 1, "Offline must not open a socket");
+}
+
+#[tokio::test]
+async fn a_transient_model_info_failure_is_retried_and_then_enriches() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [{"id": "Qwen3.8-27B", "object": "model"}]
+        })))
+        .expect(2)
+        .mount(&server)
+        .await;
+    // First answer: the endpoint exists and fails. Second: it works.
+    Mock::given(method("GET"))
+        .and(path("/model/info"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/model/info"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [{"model_name": "Qwen3.8-27B", "model_info": {
+                "reasoning_effort_levels": ["low", "xhigh"],
+                "default_reasoning_effort": "xhigh"}}]
+        })))
+        .mount(&server)
+        .await;
+
+    let provider = create_model_provider(
+        gateway_provider_info(&server.uri()),
+        /*auth_manager*/ None,
+    );
+    let manager = provider.models_manager_without_cache(/*config_model_catalog*/ None);
+
+    let first = manager
+        .raw_model_catalog(RefreshStrategy::OnlineIfUncached, factory())
+        .await;
+    assert_eq!(slugs(&first.models), vec!["Qwen3.8-27B"]);
+    assert!(
+        efforts(&first.models[0]).is_empty(),
+        "nothing invented on failure"
+    );
+
+    let second = manager
+        .raw_model_catalog(RefreshStrategy::OnlineIfUncached, factory())
+        .await;
+    assert_eq!(
+        efforts(&second.models[0]),
+        vec![ReasoningEffort::Low, ReasoningEffort::XHigh],
+        "the uncached listing asked again and picked the levels up"
+    );
+}
+
+#[tokio::test]
+async fn a_gateway_without_model_info_is_not_asked_again() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [{"id": "gateway-model", "object": "model"}]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/model/info"))
+        .respond_with(ResponseTemplate::new(404))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let provider = create_model_provider(
+        gateway_provider_info(&server.uri()),
+        /*auth_manager*/ None,
+    );
+    let manager = provider.models_manager_without_cache(/*config_model_catalog*/ None);
+
+    for _ in 0..2 {
+        let catalog = manager
+            .raw_model_catalog(RefreshStrategy::OnlineIfUncached, factory())
+            .await;
+        assert_eq!(slugs(&catalog.models), vec!["gateway-model"]);
+    }
 }
