@@ -305,7 +305,7 @@ fn anthropic_model(
     }
 }
 
-fn static_model_catalog() -> ModelsResponse {
+pub(crate) fn static_model_catalog() -> ModelsResponse {
     ModelsResponse {
         models: vec![
             anthropic_model(
