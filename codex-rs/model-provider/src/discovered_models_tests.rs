@@ -37,6 +37,8 @@ fn discovered(id: &str) -> DiscoveredModel {
         id: id.to_string(),
         display_name: None,
         context_window: None,
+        reasoning_levels: None,
+        default_reasoning_level: None,
     }
 }
 
@@ -164,6 +166,8 @@ fn a_discovered_slug_the_catalog_does_not_know_is_still_selectable() {
             id: "qwen3-coder-480b".to_string(),
             display_name: Some("Qwen3 Coder 480B".to_string()),
             context_window: None,
+            reasoning_levels: None,
+            default_reasoning_level: None,
         }],
     );
 
@@ -945,6 +949,8 @@ fn a_synthesized_model_takes_the_context_window_the_gateway_published() {
             id: "Qwen3.8-27B".to_string(),
             display_name: None,
             context_window: Some(204_800),
+            reasoning_levels: None,
+            default_reasoning_level: None,
         }],
     );
 
@@ -985,6 +991,8 @@ fn a_curated_slug_ignores_the_window_the_gateway_published() {
             id: "gpt-5.3-codex".to_string(),
             display_name: None,
             context_window: Some(8_192),
+            reasoning_levels: None,
+            default_reasoning_level: None,
         }],
     );
 
@@ -1066,4 +1074,368 @@ fn no_gateway_model_is_served_in_responses_lite_mode() {
             model.slug
         );
     }
+}
+
+#[test]
+fn reasoning_levels_a_gateway_declares_reach_a_synthesized_model() {
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[DiscoveredModel {
+            id: "Qwen3.8-27B".to_string(),
+            display_name: None,
+            context_window: None,
+            reasoning_levels: Some(vec![
+                ReasoningEffort::Low,
+                ReasoningEffort::Medium,
+                ReasoningEffort::XHigh,
+            ]),
+            default_reasoning_level: Some(ReasoningEffort::XHigh),
+        }],
+    );
+
+    let synthesized = &merged[0];
+    let efforts: Vec<_> = synthesized
+        .supported_reasoning_levels
+        .iter()
+        .map(|preset| preset.effort.clone())
+        .collect();
+    assert_eq!(
+        efforts,
+        vec![
+            ReasoningEffort::Low,
+            ReasoningEffort::Medium,
+            ReasoningEffort::XHigh
+        ],
+        "exactly the declared set, in the declared order -- no `high` invented"
+    );
+    assert_eq!(
+        synthesized.default_reasoning_level,
+        Some(ReasoningEffort::XHigh)
+    );
+}
+
+#[test]
+fn a_synthesized_model_without_declared_levels_offers_none() {
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[discovered("mystery-model")],
+    );
+
+    assert!(merged[0].supported_reasoning_levels.is_empty());
+    assert_eq!(merged[0].default_reasoning_level, None);
+}
+
+#[test]
+fn a_curated_slug_ignores_the_levels_the_gateway_declares() {
+    let known = static_entry("gpt-5.3-codex", 0);
+    let merged = merge_catalog(
+        vec![known.clone()],
+        &[DiscoveredModel {
+            id: "gpt-5.3-codex".to_string(),
+            display_name: None,
+            context_window: None,
+            reasoning_levels: Some(vec![ReasoningEffort::Low]),
+            default_reasoning_level: Some(ReasoningEffort::Low),
+        }],
+    );
+
+    assert_eq!(
+        merged[0].supported_reasoning_levels,
+        known.supported_reasoning_levels
+    );
+    assert_eq!(
+        merged[0].default_reasoning_level,
+        known.default_reasoning_level
+    );
+}
+
+#[test]
+fn model_info_is_read_into_declared_levels() {
+    let payload: InfoPayload = serde_json::from_str(
+        r#"{"data":[
+             {"model_name":"Qwen3.8-27B","model_info":{
+                "max_input_tokens":204800,
+                "reasoning_effort_levels":["low","medium","xhigh"],
+                "default_reasoning_effort":"xhigh"}},
+             {"model_name":"no-levels","model_info":{"max_input_tokens":8192}},
+             {"model_name":"stated-none","model_info":{"reasoning_effort_levels":[]}},
+             {"model_name":"odd-default","model_info":{
+                "reasoning_effort_levels":["low"],
+                "default_reasoning_effort":"high"}},
+             {"model_name":"vendor-level","model_info":{
+                "reasoning_effort_levels":["deep",""]}}
+           ]}"#,
+    )
+    .expect("parses");
+    let models = payload.into_models();
+
+    assert_eq!(models[0].id, "Qwen3.8-27B");
+    assert_eq!(models[0].context_window, Some(204_800));
+    assert_eq!(
+        models[0].reasoning_levels,
+        Some(vec![
+            ReasoningEffort::Low,
+            ReasoningEffort::Medium,
+            ReasoningEffort::XHigh
+        ])
+    );
+    assert_eq!(
+        models[0].default_reasoning_level,
+        Some(ReasoningEffort::XHigh)
+    );
+    assert_eq!(models[1].reasoning_levels, None, "absent is not stated");
+    assert_eq!(models[2].reasoning_levels, Some(vec![]), "empty is stated");
+    assert_eq!(
+        models[3].default_reasoning_level, None,
+        "a default outside the declared set is dropped, not sent"
+    );
+    assert_eq!(
+        models[4].reasoning_levels,
+        Some(vec![ReasoningEffort::Custom("deep".to_string())]),
+        "an unknown effort is kept verbatim and an empty one is skipped"
+    );
+}
+
+#[tokio::test]
+async fn a_gateway_without_a_models_endpoint_is_listed_from_model_info() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/models"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("Not Found"))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/model/info"))
+        .and(header("authorization", "Bearer gateway-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [
+                {"model_name": "info-only-model", "model_info": {"max_input_tokens": 32000}},
+                {"model_name": "another", "model_info": {}}
+            ]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let provider = create_model_provider(
+        gateway_provider_info(&server.uri()),
+        /*auth_manager*/ None,
+    );
+    let catalog = provider
+        .models_manager_without_cache(/*config_model_catalog*/ None)
+        .raw_model_catalog(RefreshStrategy::Online, factory())
+        .await;
+
+    assert_eq!(slugs(&catalog.models), vec!["info-only-model", "another"]);
+    assert_eq!(catalog.models[0].context_window, Some(32_000));
+}
+
+#[tokio::test]
+async fn model_info_enriches_a_list_the_gateway_already_served() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [{"id": "Qwen3.8-27B", "object": "model"}]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/model/info"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [
+                {"model_name": "Qwen3.8-27B", "model_info": {
+                    "max_input_tokens": 204800,
+                    "reasoning_effort_levels": ["low", "medium", "xhigh"],
+                    "default_reasoning_effort": "xhigh"}},
+                {"model_name": "not-in-the-list", "model_info": {}}
+            ]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let provider = create_model_provider(
+        gateway_provider_info(&server.uri()),
+        /*auth_manager*/ None,
+    );
+    let catalog = provider
+        .models_manager_without_cache(/*config_model_catalog*/ None)
+        .raw_model_catalog(RefreshStrategy::Online, factory())
+        .await;
+
+    assert_eq!(
+        slugs(&catalog.models),
+        vec!["Qwen3.8-27B"],
+        "/models decides membership; /model/info does not add to it"
+    );
+    let qwen = &catalog.models[0];
+    assert_eq!(qwen.context_window, Some(204_800));
+    let efforts: Vec<_> = qwen
+        .supported_reasoning_levels
+        .iter()
+        .map(|preset| preset.effort.clone())
+        .collect();
+    assert_eq!(
+        efforts,
+        vec![
+            ReasoningEffort::Low,
+            ReasoningEffort::Medium,
+            ReasoningEffort::XHigh
+        ]
+    );
+    assert_eq!(qwen.default_reasoning_level, Some(ReasoningEffort::XHigh));
+}
+
+fn efforts(model: &ModelInfo) -> Vec<ReasoningEffort> {
+    model
+        .supported_reasoning_levels
+        .iter()
+        .map(|preset| preset.effort.clone())
+        .collect()
+}
+
+#[test]
+fn a_claude_id_on_an_openai_wire_borrows_the_anthropic_catalogs_levels() {
+    // The static catalog here is the OpenAI-shaped one an OpenAI-compatible
+    // provider carries; nothing in it matches a Claude id.
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[
+            discovered("openrouter/anthropic/claude-sonnet-5"),
+            discovered("openrouter/anthropic/claude-haiku-4-5"),
+        ],
+    );
+
+    let sonnet = &merged[0];
+    assert_eq!(
+        efforts(sonnet),
+        vec![
+            ReasoningEffort::Low,
+            ReasoningEffort::Medium,
+            ReasoningEffort::High,
+            ReasoningEffort::XHigh,
+            ReasoningEffort::Max,
+        ],
+        "the levels the anthropic wire would serve for this slug"
+    );
+    assert_eq!(sonnet.default_reasoning_level, Some(ReasoningEffort::High));
+    assert!(
+        efforts(&merged[1]).is_empty(),
+        "haiku has no curated levels; borrowing must not invent any"
+    );
+}
+
+#[test]
+fn levels_the_gateway_declares_outrank_the_sibling_catalog() {
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[DiscoveredModel {
+            id: "openrouter/anthropic/claude-sonnet-5".to_string(),
+            display_name: None,
+            context_window: None,
+            reasoning_levels: Some(vec![ReasoningEffort::Low]),
+            default_reasoning_level: Some(ReasoningEffort::Low),
+        }],
+    );
+
+    assert_eq!(efforts(&merged[0]), vec![ReasoningEffort::Low]);
+    assert_eq!(
+        merged[0].default_reasoning_level,
+        Some(ReasoningEffort::Low)
+    );
+}
+
+#[test]
+fn an_id_no_catalog_knows_still_gets_no_levels() {
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[discovered("Qwen3.5-9B")],
+    );
+    assert!(efforts(&merged[0]).is_empty());
+    assert_eq!(merged[0].default_reasoning_level, None);
+}
+
+#[test]
+fn enrich_fills_from_model_info_without_changing_membership() {
+    let list = vec![
+        discovered("a"),
+        DiscoveredModel {
+            context_window: Some(1_000),
+            ..discovered("b")
+        },
+    ];
+    let info = vec![
+        DiscoveredModel {
+            id: "a".to_string(),
+            display_name: None,
+            context_window: Some(64_000),
+            reasoning_levels: Some(vec![ReasoningEffort::Low]),
+            default_reasoning_level: Some(ReasoningEffort::Low),
+        },
+        DiscoveredModel {
+            context_window: Some(2_000),
+            ..discovered("b")
+        },
+        discovered("only-in-info"),
+    ];
+
+    let merged = enrich(list, info);
+
+    assert_eq!(
+        merged.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+        vec!["a", "b"]
+    );
+    assert_eq!(merged[0].context_window, Some(64_000));
+    assert_eq!(merged[0].reasoning_levels, Some(vec![ReasoningEffort::Low]));
+    assert_eq!(
+        merged[0].default_reasoning_level,
+        Some(ReasoningEffort::Low)
+    );
+    assert_eq!(
+        merged[1].context_window,
+        Some(1_000),
+        "the list's own value is not overwritten"
+    );
+}
+
+#[test]
+fn a_version_written_with_dots_still_matches_a_catalog_that_uses_dashes() {
+    // OpenRouter spells the version `4.6`; ore's Anthropic catalog spells it
+    // `4-6`. Both spellings, and the dashed one, must reach the same entry.
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[
+            discovered("openrouter/anthropic/claude-sonnet-4.6"),
+            discovered("openrouter/anthropic/claude-sonnet-4-6"),
+            discovered("claude-opus-4.8"),
+        ],
+    );
+
+    let sonnet = vec![
+        ReasoningEffort::Low,
+        ReasoningEffort::Medium,
+        ReasoningEffort::High,
+        ReasoningEffort::Max,
+    ];
+    let opus = vec![
+        ReasoningEffort::Low,
+        ReasoningEffort::Medium,
+        ReasoningEffort::High,
+        ReasoningEffort::XHigh,
+        ReasoningEffort::Max,
+    ];
+    assert_eq!(efforts(&merged[0]), sonnet, "dotted spelling");
+    assert_eq!(efforts(&merged[1]), sonnet, "dashed spelling");
+    assert_eq!(efforts(&merged[2]), opus, "dotted, no namespace");
+}
+
+#[test]
+fn folding_the_separator_does_not_invent_a_match() {
+    let merged = merge_catalog(
+        vec![static_entry("gpt-5.3-codex", 0)],
+        &[discovered("openrouter/anthropic/claude-sonnet-9.9")],
+    );
+    assert!(efforts(&merged[0]).is_empty());
 }

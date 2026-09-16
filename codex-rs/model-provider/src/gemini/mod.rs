@@ -305,7 +305,7 @@ fn gemini_model(
     }
 }
 
-fn static_model_catalog() -> ModelsResponse {
+pub(crate) fn static_model_catalog() -> ModelsResponse {
     ModelsResponse {
         models: vec![
             gemini_model(

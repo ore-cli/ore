@@ -19,6 +19,7 @@
 //! unchanged. A stale picker is a mild annoyance; an empty picker is a client
 //! that cannot start a conversation at all.
 
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::future::Future;
@@ -32,6 +33,7 @@ use codex_api::Provider;
 use codex_api::SharedAuthProvider;
 use codex_api::TransportError;
 use codex_http_client::ClientRouteClass;
+use codex_http_client::HttpClient;
 use codex_http_client::HttpClientFactory;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
@@ -52,6 +54,8 @@ use codex_protocol::error::Result as CoreResult;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelVisibility;
 use codex_protocol::openai_models::ModelsResponse;
+use codex_protocol::openai_models::ReasoningEffort;
+use codex_protocol::openai_models::ReasoningEffortPreset;
 use http::HeaderName;
 use serde::Deserialize;
 use tokio::sync::RwLock;
@@ -72,6 +76,11 @@ use crate::provider::SharedModelProvider;
 /// Both wires expose the list at `{base_url}/models`.
 const DISCOVERY_PATH: &str = "/models";
 
+/// LiteLLM's per-deployment metadata. Read alongside the list: it is the only
+/// place a gateway states which reasoning efforts a model accepts, and it is a
+/// usable list on its own where `/models` is not served.
+const INFO_PATH: &str = "/model/info";
+
 /// Discovery is a startup-blocking side quest, not the request path: a gateway
 /// that cannot answer in this long is treated as having no list at all.
 const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -85,6 +94,17 @@ const DISCOVERY_FAILED_MESSAGE: &str = concat!(
     "Could not read the model list from this provider. ",
     "Check that its base_url is reachable and that the credential in its env_key can list models. ",
     "Falling back to the models in the bundled catalog.",
+);
+
+const INFO_FAILED_MESSAGE: &str = concat!(
+    "Could not read this provider's model metadata, so any reasoning levels or ",
+    "context windows it declares will not be applied this session. ",
+    "Check that its base_url serves /model/info; a gateway without it is fine.",
+);
+
+const LIST_REPLACED_MESSAGE: &str = concat!(
+    "This provider does not serve /models; listing its models from /model/info ",
+    "instead.",
 );
 
 /// Split from [`DISCOVERY_FAILED_MESSAGE`] because the remediation differs: the
@@ -107,6 +127,12 @@ pub(crate) struct DiscoveredModel {
     /// slug the static catalog does not know; a known slug keeps its curated
     /// metadata.
     pub(crate) context_window: Option<i64>,
+    /// The efforts the gateway says this model accepts. `None` is "not stated";
+    /// `Some(vec![])` is "stated: none". Synthesis never infers a level the
+    /// gateway did not list -- vLLM rejects `high` on a model that takes
+    /// `xhigh`, so a guessed level is a 400 on the first turn.
+    pub(crate) reasoning_levels: Option<Vec<ReasoningEffort>>,
+    pub(crate) default_reasoning_level: Option<ReasoningEffort>,
 }
 
 /// Why a discovery attempt produced no list.
@@ -215,7 +241,8 @@ impl ProviderModelListDiscovery {
             self.provider.api_provider().await.map_err(|err| {
                 DiscoveryError::new(format!("provider is not requestable: {err}"))
             })?;
-        let url = api_provider.url_for_path(DISCOVERY_PATH);
+        let list_url = api_provider.url_for_path(DISCOVERY_PATH);
+        let info_url = api_provider.url_for_path(INFO_PATH);
 
         let mut headers = api_provider.headers.clone();
         let auth: SharedAuthProvider = self
@@ -229,10 +256,13 @@ impl ProviderModelListDiscovery {
                 .map_err(|err| DiscoveryError::new(format!("credential not resolvable: {err}")))?,
         );
 
-        let client =
-            create_client_for_route_async(http_client_factory, url.clone(), ClientRouteClass::Api)
-                .await
-                .map_err(|err| DiscoveryError::new(format!("no http client: {err}")))?;
+        let client = create_client_for_route_async(
+            http_client_factory,
+            list_url.clone(),
+            ClientRouteClass::Api,
+        )
+        .await
+        .map_err(|err| DiscoveryError::new(format!("no http client: {err}")))?;
         // ore: route clients are pooled, and this one can be built before the
         // app-server has learned who the client is, so its baked-in default
         // headers may still say `codex_cli_rs` while an editor is driving. Read
@@ -245,26 +275,75 @@ impl ProviderModelListDiscovery {
             codex_login::default_client::originator().header_value,
         );
 
-        let response = client
-            .get(url.clone())
-            .headers(headers)
-            .send()
-            .await
-            .map_err(|err| DiscoveryError::new(format!("GET {url} failed: {err}")))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            // A gateway that does not implement the list endpoint answers 404
-            // here. That is expected, not exceptional.
-            return Err(DiscoveryError::new(format!("GET {url} returned {status}")));
+        // Both requests share the one discovery timeout, so they run together
+        // rather than in sequence.
+        let (list, info) = tokio::join!(
+            get_json::<DiscoveryPayload>(&client, &list_url, &headers),
+            get_json::<InfoPayload>(&client, &info_url, &headers),
+        );
+        let info = info.map(InfoPayload::into_models);
+        match (list.map(DiscoveryPayload::into_models), info) {
+            (Ok(list), Ok(info)) => Ok(enrich(list, info)),
+            (Ok(list), Err(err)) => {
+                // A gateway that does not serve the endpoint answers 404 on a
+                // healthy setup; the message matters when it usually does
+                // serve it, because the levels it declares silently vanish.
+                warn!(error = %err, "{INFO_FAILED_MESSAGE}");
+                Ok(list)
+            }
+            (Err(err), Ok(info)) => {
+                warn!(error = %err, "{LIST_REPLACED_MESSAGE}");
+                Ok(info)
+            }
+            (Err(list_err), Err(_)) => Err(list_err),
         }
-
-        response
-            .json::<DiscoveryPayload>()
-            .await
-            .map(DiscoveryPayload::into_models)
-            .map_err(|err| DiscoveryError::new(format!("unreadable model list: {err}")))
     }
+}
+
+async fn get_json<T: serde::de::DeserializeOwned>(
+    client: &HttpClient,
+    url: &str,
+    headers: &http::HeaderMap,
+) -> Result<T, DiscoveryError> {
+    let response = client
+        .get(url.to_string())
+        .headers(headers.clone())
+        .send()
+        .await
+        .map_err(|err| DiscoveryError::new(format!("GET {url} failed: {err}")))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        // A gateway that does not implement an endpoint answers 404 here.
+        // That is expected, not exceptional.
+        return Err(DiscoveryError::new(format!("GET {url} returned {status}")));
+    }
+
+    response
+        .json::<T>()
+        .await
+        .map_err(|err| DiscoveryError::new(format!("unreadable model list: {err}")))
+}
+
+/// Fills in what `/model/info` states for ids the list already served, and
+/// leaves the list's own membership untouched.
+fn enrich(list: Vec<DiscoveredModel>, info: Vec<DiscoveredModel>) -> Vec<DiscoveredModel> {
+    let mut by_id: HashMap<String, DiscoveredModel> = info
+        .into_iter()
+        .map(|model| (model.id.clone(), model))
+        .collect();
+    list.into_iter()
+        .map(|mut model| {
+            if let Some(extra) = by_id.remove(&model.id) {
+                model.context_window = model.context_window.or(extra.context_window);
+                model.reasoning_levels = model.reasoning_levels.or(extra.reasoning_levels);
+                model.default_reasoning_level = model
+                    .default_reasoning_level
+                    .or(extra.default_reasoning_level);
+            }
+            model
+        })
+        .collect()
 }
 
 impl ModelListDiscovery for ProviderModelListDiscovery {
@@ -385,7 +464,96 @@ impl DiscoveryEntry {
             id,
             display_name,
             context_window,
+            reasoning_levels: None,
+            default_reasoning_level: None,
         })
+    }
+}
+
+/// LiteLLM's `/model/info`: `data[].model_name` plus a nested `model_info`.
+#[derive(Debug, Default, Deserialize)]
+struct InfoPayload {
+    #[serde(default)]
+    data: Vec<InfoEntry>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct InfoEntry {
+    #[serde(default)]
+    model_name: Option<String>,
+    #[serde(default)]
+    model_info: InfoFields,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct InfoFields {
+    #[serde(default)]
+    max_input_tokens: Option<i64>,
+    #[serde(default)]
+    reasoning_effort_levels: Option<Vec<String>>,
+    #[serde(default)]
+    default_reasoning_effort: Option<String>,
+}
+
+impl InfoPayload {
+    fn into_models(self) -> Vec<DiscoveredModel> {
+        self.data
+            .into_iter()
+            .filter_map(InfoEntry::into_model)
+            .collect()
+    }
+}
+
+impl InfoEntry {
+    fn into_model(self) -> Option<DiscoveredModel> {
+        let id = self.model_name?.trim().to_string();
+        if id.is_empty() {
+            return None;
+        }
+        let fields = self.model_info;
+        let reasoning_levels = fields.reasoning_effort_levels.map(|levels| {
+            levels
+                .iter()
+                .filter_map(|level| level.trim().parse::<ReasoningEffort>().ok())
+                .collect::<Vec<_>>()
+        });
+        // A default the gateway did not also list is a gateway inconsistency;
+        // sending it would be a guess.
+        let default_reasoning_level = fields
+            .default_reasoning_effort
+            .and_then(|level| level.trim().parse::<ReasoningEffort>().ok())
+            .filter(|level| {
+                reasoning_levels
+                    .as_ref()
+                    .is_some_and(|levels| levels.contains(level))
+            });
+        Some(DiscoveredModel {
+            id,
+            display_name: None,
+            context_window: fields.max_input_tokens.filter(|tokens| *tokens > 0),
+            reasoning_levels,
+            default_reasoning_level,
+        })
+    }
+}
+
+fn preset_for(effort: ReasoningEffort) -> ReasoningEffortPreset {
+    let description = match &effort {
+        ReasoningEffort::None => "No reasoning",
+        ReasoningEffort::Minimal => "Minimal reasoning",
+        ReasoningEffort::Low => "Fastest, least thorough",
+        ReasoningEffort::Medium => "Balances speed and depth",
+        ReasoningEffort::High => "Thorough reasoning",
+        ReasoningEffort::XHigh => "Best for coding and agentic work",
+        ReasoningEffort::Max => "Maximum depth, slowest",
+        ReasoningEffort::Ultra => "Highest effort the model offers",
+        ReasoningEffort::Persistent => "Persistent reasoning",
+        ReasoningEffort::Custom(name) => name.as_str(),
+    }
+    .to_string();
+    ReasoningEffortPreset {
+        effort,
+        description,
     }
 }
 
@@ -437,6 +605,7 @@ pub(crate) fn merge_catalog(
                 merged.push(synthesize_model_info(
                     model,
                     static_models.first(),
+                    sibling_metadata_for(&model.id),
                     next_priority,
                 ));
                 next_priority = next_priority.saturating_add(1);
@@ -470,8 +639,33 @@ fn static_metadata_for<'a>(id: &str, static_models: &'a [ModelInfo]) -> Option<&
     if let Some(exact) = static_models.iter().find(|model| model.slug == id) {
         return Some(exact);
     }
-    let (_, suffix) = id.rsplit_once('/')?;
-    static_models.iter().find(|model| model.slug == suffix)
+    let suffix = id.rsplit_once('/').map_or(id, |(_, suffix)| suffix);
+    if let Some(exact) = static_models.iter().find(|model| model.slug == suffix) {
+        return Some(exact);
+    }
+    // Vendors disagree on the version separator for the same model:
+    // Anthropic and ore's catalog write `claude-sonnet-4-6`, OpenRouter writes
+    // `claude-sonnet-4.6`; Google's catalog keeps the dot. Compare with both
+    // folded to one form so the spelling does not decide whether a model is
+    // recognised.
+    let folded = suffix.replace('.', "-");
+    static_models
+        .iter()
+        .find(|model| model.slug.replace('.', "-") == folded)
+}
+
+/// Ore's own catalogs for the other wires. A Claude or Gemini id reached
+/// through an OpenAI-compatible gateway is still that model, and its curated
+/// reasoning levels are the same ones the native wire would serve; measured
+/// through LiteLLM on both the direct and the OpenRouter route, every level
+/// the Anthropic catalog lists is accepted on the chat and responses wires.
+fn sibling_metadata_for(id: &str) -> Option<ModelInfo> {
+    let siblings = crate::anthropic::static_model_catalog()
+        .models
+        .into_iter()
+        .chain(crate::gemini::static_model_catalog().models);
+    let siblings: Vec<ModelInfo> = siblings.collect();
+    static_metadata_for(id, &siblings).cloned()
 }
 
 /// Builds a selectable entry for a model the static catalog has never heard of.
@@ -490,6 +684,7 @@ fn static_metadata_for<'a>(id: &str, static_models: &'a [ModelInfo]) -> Option<&
 fn synthesize_model_info(
     discovered: &DiscoveredModel,
     template: Option<&ModelInfo>,
+    sibling: Option<ModelInfo>,
     priority: i32,
 ) -> ModelInfo {
     let base = match template {
@@ -513,6 +708,21 @@ fn synthesize_model_info(
                 base.auto_compact_token_limit,
             ),
         };
+    // What the gateway states for this deployment outranks what ore knows
+    // about the model in general; a sibling catalog fills in only when the
+    // gateway said nothing.
+    let (supported_reasoning_levels, default_reasoning_level) =
+        match (&discovered.reasoning_levels, &sibling) {
+            (Some(levels), _) => (
+                levels.iter().cloned().map(preset_for).collect(),
+                discovered.default_reasoning_level.clone(),
+            ),
+            (None, Some(sibling)) => (
+                sibling.supported_reasoning_levels.clone(),
+                sibling.default_reasoning_level.clone(),
+            ),
+            (None, None) => (Vec::new(), None),
+        };
     ModelInfo {
         slug: discovered.id.clone(),
         display_name: discovered
@@ -520,8 +730,8 @@ fn synthesize_model_info(
             .clone()
             .unwrap_or_else(|| discovered.id.clone()),
         description: None,
-        default_reasoning_level: None,
-        supported_reasoning_levels: Vec::new(),
+        default_reasoning_level,
+        supported_reasoning_levels,
         visibility: ModelVisibility::List,
         supported_in_api: true,
         priority,
