@@ -1,0 +1,18 @@
+---
+source: tui/src/chatwidget/tests/status_and_layout.rs
+expression: rendered
+---
+"                                                            "
+"• Agent answer arriving                                     "
+"                                                            "
+"                                                            "
+"› pick a number                                             "
+"                                                            "
+"                                                            "
+"                                                            "
+" voice ● listening              ctrl+x mute     /voice stop "
+"   mic ▁▁▁▁▁▁  ore ▁▁▁▁▁▁                                   "
+"                                                            "
+"› Ask Ore to do anything                                    "
+"                                                            "
+"  gpt-5.6-sol default · /tmp/project                        "

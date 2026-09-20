@@ -509,7 +509,7 @@ def audit(root: Path, manifest: Manifest) -> int:
             ),
         ),
         ("npm-package", re.compile(r"@openai/codex")),
-        ("product-name", re.compile(r"\bCodex\b")),
+        ("product-name", re.compile(r"(?:\b|(?<=\\n))Codex\b")),
     ]
     findings: list[str] = []
     for rel in iter_files(root, manifest.engine):

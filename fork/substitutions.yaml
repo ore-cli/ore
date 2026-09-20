@@ -841,6 +841,17 @@ categories:
       pattern: '(?P<lead>(?:install_bin|package_dir|current) / (?:"bin" / )?)"codex"'
       replace: '\g<lead>"ore"'
 
+    - name: install-sh-test-managed-bin-in-release-path
+      note: >
+        rust-v0.155.0 added a test that deletes the managed binary through one f-string,
+        `.../releases/{release_name}/bin/codex`, to exercise the guard against an updater
+        that is still running. Same entrypoint move as above; the path is a single literal
+        this time, so the component-shaped rule cannot see it.
+      files: [scripts/install/test_install_sh.py]
+      rust_literals_only: false
+      pattern: '(?<=\{release_name\}/bin/)codex(?=")'
+      replace: '${bin}'
+
     - name: ui-bare-product-name
       note: >
         Rust literals/comments only; the auth fence and wire identifiers are skipped wholesale above.
@@ -850,6 +861,9 @@ categories:
         it is COPIED: the prompt files themselves are skipped above, but test fixtures embed the
         same text, and a fixture that says "You are ore" while the prompt says "You are Codex" is a
         test that fails for the right reason in the most confusing possible way.
+        `\b` alone misses the word after a `\n` escape inside a literal: in `\n\nCodex now uses`
+        the character before the C is the `n` of the escape. rust-v0.155.0's model-migration copy
+        reached a user that way, so the escape counts as a boundary too.
       globs: ["codex-rs/**/*.rs", "codex-rs/**/*.js", "codex-rs/**/*.toml", "codex-rs/**/*.txt", "codex-cli/**/*.js", "codex-cli/**/*.json", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/install/*"]
       exclude: ["codex-rs/tui/src/pets/*"]
       # `(?<!OpenAI\.)` and the artifact suffixes protect names that identify
@@ -857,7 +871,7 @@ categories:
       # Codex.dmg / Codex-latest-x64.dmg download URLs, and the Codex/Logs
       # directory. Rebranding those does not rename anything -- it produces a
       # package name, a URL and a path that match no installation that exists.
-      pattern: '(?<!You are )(?<!OpenAI\.)(?<!X-OpenAI-Internal-)(?<!/Volumes/)\bCodex\b(?! (?:backend|app(?![a-z-])|App|extension|Extension|[Cc]loud))(?!\.dmg)(?!\.app)(?!-latest)(?!/Logs)'
+      pattern: '(?<!You are )(?<!OpenAI\.)(?<!X-OpenAI-Internal-)(?<!/Volumes/)(?:\b|(?<=\\n))Codex\b(?! (?:backend|app(?![a-z-])|App|extension|Extension|[Cc]loud))(?!\.dmg)(?!\.app)(?!-latest)(?!/Logs)'
       replace: '${product_name}'
 
     - name: article-before-product-name
@@ -884,16 +898,61 @@ categories:
       pattern: 'Modifier::UNDERLINED; 10\]'
       replace: 'Modifier::UNDERLINED; 8]'
 
-    - name: migration-rewrite-target-fixture
+    - name: voice-strip-meter-label
       note: >
-        external-agent-migration/src/rewrite.rs maps external-agent terms to the
-        product name (rebranded to "ore" by ui-bare-product-name), and this fixture
-        holds the expected rewritten AGENTS.md bytes. Between \n escapes the
-        escape's own "n" is a word character, so ui-bare-product-name's \bCodex\b
-        never fires on the middle occurrences; this rule covers exactly that shape.
-      files: [codex-rs/external-agent-migration/src/service_tests/general/repo_import.rs]
-      pattern: '(?<=\\n)Codex(?=\\n)'
-      replace: '${product_name}'
+        rust-v0.155.0 added a voice strip under the composer: a "mic" meter and,
+        for the model's audio, a second one labelled with the bare command --
+        `"  codex ".dim()`. No subcommand or flag follows, so every command rule
+        is blind to it and the audit reports it as [bare-command]. Anchored on
+        what follows the word in every copy: a space, then a meter-bar glyph, a
+        closing quote, or the end of the literal. Both of the last two are needed:
+        the engine pre-filters a file by searching the whole text, where the quote
+        is visible, and then substitutes inside each literal's inner text, where
+        only the end anchor is. That is also the shape of the two inline snapshots
+        and the starts_with/ends_with fixtures, so the assertions follow the
+        label. Both renders trim trailing cells (rows() and the row dump both
+        trim_end), so the snapshots need only the label swapped, not re-padding.
+        Optional until rust-v0.155.0 is the series base: the strip does not exist
+        earlier.
+      files:
+        - codex-rs/tui/src/bottom_pane/voice_strip.rs
+        - codex-rs/tui/src/bottom_pane/voice_strip_tests.rs
+        - codex-rs/tui/src/chatwidget/realtime/recording_controls_tests.rs
+      pattern: '(?<![\w./-])codex(?= (?:[▁▂▃▄▅▆▇█]|"|\Z))'
+      replace: '${bin}'
+      optional: true
+
+    - name: voice-strip-meter-label-contains-probe
+      note: >
+        The same tests probe the rendered strip with contains("codex"): two
+        positive (the narrow render, and a count of lines carrying the label)
+        and two negative (the strip must be gone after a thread switch and while
+        stopping). No space adjoins the word, so the audit does not flag them,
+        but once the label is `ore` the positive ones fail. Rewritten to the
+        label as it renders, spaces included, rather than the bare word: "ore"
+        is a substring of more, before and restore, and a negative
+        contains("ore") against a popup would fail on any of them.
+        Optional for the same reason as voice-strip-meter-label.
+      files:
+        - codex-rs/tui/src/bottom_pane/voice_strip_tests.rs
+        - codex-rs/tui/src/chatwidget/realtime/recording_controls_tests.rs
+      rust_literals_only: false
+      pattern: 'contains\("codex"\)'
+      replace: 'contains(" ${bin} ")'
+      optional: true
+
+    - name: reconnect-notice-fits-after-rebrand
+      note: >
+        rust-v0.155.0's active-reconnect test filters the rendered notices and pins them with
+        an inline snapshot. Upstream's "older than your Codex CLI" fills the row, so " v2.1.0."
+        wraps onto a line the filter drops and the snapshot ends at "CLI". With both names four
+        characters shorter the version fits on the row, the filter keeps it, and the substituted
+        snapshot no longer matches. insta cannot rewrite an inline snapshot from a test run, so
+        the test's copy is completed here.
+      files: [codex-rs/tui/src/app/tests/active_reconnect_tests.rs]
+      rust_literals_only: false
+      pattern: '(?<=older than your ${product_name} CLI)\n(?="###)'
+      replace: ' v2.1.0.\n'
 
   # ------------------------------------------------------------------------ URLs
   urls:

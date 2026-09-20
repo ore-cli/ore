@@ -1,6 +1,6 @@
 # fork/verify/known-failing — upstream tests that legitimately go red under the
 # fork's seams (series commits telemetry-analytics-off, telemetry-feedback-off,
-# telemetry-statsig-strip, telemetry-defaults-none).
+# telemetry-statsig-strip, telemetry-defaults-none, entrypoint-ship-ore).
 #
 # Format: one nextest filterset expression per line ('#' comments, blank lines
 # ignored).  Consumers OR the expressions together, e.g. to exclude them from
@@ -19,7 +19,9 @@
 #       when analytics is off, user BYO OTLP collectors included, so tests that
 #       await their own /metrics endpoint time out;
 #   (3) feedback force-off — `Config.feedback_enabled` is `false`, so the
-#       `/feedback` TUI command and the `feedback/upload` RPC report disabled.
+#       `/feedback` TUI command and the `feedback/upload` RPC report disabled;
+#   (4) entrypoint-ship-ore — the daemon's managed binary is named `ore`, so a
+#       fixture that installs a `codex` is never found.
 #
 # NOT in this list, deliberately (verified to keep passing):
 # * mcp-server lib.rs default-analytics assertions and app-server
@@ -495,3 +497,14 @@ package(codex-cli) & test(interactive_worktree_start_and_fork_bind_owner_before_
 # starts. The entry excludes a test whose subject the fork satisfies by not
 # reaching the code at all, which is worth knowing if upstream ever reworks it.
 package(codex-cli) & test(feedback_with_logs_does_not_execute_path_helpers)
+
+# --- (4) entrypoint-ship-ore -----------------------------------------------
+# managed_install::managed_codex_file_name() is "ore" on the series, the name
+# install.sh links at current/ore. rust-v0.155.0 added a manual-update test whose
+# fixture installs releases/<v>/codex behind the `current` symlink and expects the
+# updater to resolve it, so the update never reaches its installer script:
+#   panicked at update_loop_tests.rs:416: installer did not start
+# Passes on a pristine rust-v0.155.0 checkout, and at the series tip with
+# managed_install.rs restored to upstream's; fails at the tip otherwise.
+# since: rust-v0.155.0
+package(codex-app-server-daemon) & test(manual_update_restarts_managed_daemon_with_automatic_updates_disabled)

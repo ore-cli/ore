@@ -1,0 +1,6 @@
+---
+source: tui/src/app/agents_overview_tests.rs
+expression: "rendered.lines().take(2).collect::<Vec<_>>().join(\"\\n\")"
+---
+  Service v0.152.1 < Ore CLI v0.153.0
+  0 need input   0 working   0 ready
