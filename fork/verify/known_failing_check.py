@@ -14,7 +14,13 @@ codex-rs as source text.  It cannot prove the filterset selects the test, but it
 does catch the case that actually happens -- upstream renames a test and the
 entry silently stops covering anything.
 
-Exit codes: 0 ok, 1 fail, 2 could-not-run.
+A comment line `# since: rust-vX.Y.Z` applies to the entry that follows it: the
+test arrives with that upstream tag. On a tree whose fork/UPSTREAM base is older
+the entry is reported pending, not dead -- and the test must still be absent
+there, or the directive is wrong. Without it an entry for a test the next tag
+introduces could only ever travel on a staging branch.
+
+Exit codes: 0 ok, 1 fail, 2 could-not-run, 3 pending.
 """
 
 from __future__ import annotations
@@ -23,10 +29,26 @@ import argparse
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 # test(foo), test(=exact::path), test(~substring)
 TEST_ARG = re.compile(r"test\(\s*([=~]?)([^)]+?)\s*\)")
+SINCE = re.compile(r"^#\s*since:\s*(rust-v\d+\.\d+\.\d+)\s*$")
+STABLE_TAG = re.compile(r"^rust-v(\d+)\.(\d+)\.(\d+)$")
+
+
+def tag_key(tag: str | None) -> tuple[int, int, int] | None:
+    m = STABLE_TAG.match(tag or "")
+    return (int(m[1]), int(m[2]), int(m[3])) if m else None
+
+
+def base_tag(root: Path) -> str | None:
+    try:
+        with open(root / "fork" / "UPSTREAM", "rb") as fh:
+            return tomllib.load(fh).get("tag")
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
 
 
 def grep(root: Path, needle: str) -> bool:
@@ -65,12 +87,20 @@ def parameterised(root: Path, needle: str) -> bool:
     return "test_case" in hit.stdout
 
 
-def entries(path: Path) -> list[tuple[int, str]]:
+def entries(path: Path) -> list[tuple[int, str, str | None]]:
     out = []
+    since: str | None = None
     for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         s = line.strip()
-        if s and not s.startswith("#"):
-            out.append((n, s))
+        if not s:
+            continue
+        if s.startswith("#"):
+            m = SINCE.match(s)
+            if m:
+                since = m[1]
+            continue
+        out.append((n, s, since))
+        since = None
     return out
 
 
@@ -98,9 +128,14 @@ def main() -> int:
         print(f"skip: no known-failing listing, or {src} is missing", file=sys.stderr)
         return 2
 
+    base = base_tag(root)
+    base_key = tag_key(base)
     dead: list[str] = []
+    pending: list[str] = []
     checked = 0
-    for listing, lineno, expr in ((l, n, e) for l in listings for n, e in entries(l)):
+    for listing, lineno, expr, since in (
+        (l, n, e, s) for l in listings for n, e, s in entries(l)
+    ):
         names = TEST_ARG.findall(expr)
         if not names:
             # A package()-only entry excludes a whole crate; nothing to resolve.
@@ -120,7 +155,21 @@ def main() -> int:
             candidates = [needle]
             if "_" in needle:
                 candidates.append(needle.replace("_", " "))
-            if not any(grep(root, c) for c in candidates):
+            exists = any(grep(root, c) for c in candidates)
+            since_key = tag_key(since)
+            if since_key and base_key and base_key < since_key:
+                if exists:
+                    dead.append(
+                        f"{listing.name}:{lineno}: {needle!r} already exists at {base}, "
+                        f"so `# since: {since}` is wrong — {expr}"
+                    )
+                else:
+                    pending.append(
+                        f"{listing.name}:{lineno}: {needle!r} arrives with {since}; "
+                        f"this tree's base is {base} — {expr}"
+                    )
+                continue
+            if not exists:
                 dead.append(
                     f"{listing.name}:{lineno}: no test named {needle!r} exists — {expr}"
                 )
@@ -158,6 +207,14 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+    if pending:
+        for p in pending:
+            print(f"pending: {p}")
+        print(
+            f"ok: {checked - len(pending)} known-failing test name(s) exist in codex-rs, "
+            f"{len(pending)} pending a later base"
+        )
+        return 3
     print(f"ok: all {checked} known-failing test name(s) still exist in codex-rs")
     return 0
 
