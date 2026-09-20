@@ -98,6 +98,11 @@ engine:
     # un-rebranded prompt, so rewriting them makes the tests disagree with the
     # very text they assert against. Nothing else in the file is brand text.
     - codex-rs/core/src/guardian/tests.rs
+    # rust-v0.155.0 moved that prompt's text out of guardian/prompt.rs into its
+    # own crate, and the policy follows it. guardian-v2's extension test expects
+    # the request body the crate composes, so its one literal is a copy as well.
+    - codex-rs/guardian-context/**/*.rs
+    - codex-rs/ext/guardian-v2/src/async_scorer/extension_tests.rs
     - codex-rs/tui/prompt_for_init_command.md
     # A five-line README for a crate ore vendors and does not modify. Every
     # "Codex" in it names OpenAI's first-party product, and its issue-tracker
@@ -953,6 +958,30 @@ categories:
       rust_literals_only: false
       pattern: '(?<=older than your ${product_name} CLI)\n(?="###)'
       replace: ' v2.1.0.\n'
+
+    - name: app-server-daemon-cli-test-managed-bin
+      note: >
+        rust-v0.155.0 added cli/tests/app_server_daemon.rs, which stages a managed
+        standalone install for the daemon to start: releases/<v>/bin/codex behind a
+        `current` symlink. The daemon looks for the shipped entrypoint, bin/ore, and
+        without it every managed start fails before the test's own assertions run.
+      files: [codex-rs/cli/tests/app_server_daemon.rs]
+      rust_literals_only: false
+      pattern: '\.join\("bin/codex"\)'
+      replace: '.join("bin/${bin}")'
+
+    - name: app-server-daemon-update-loop-test-managed-bin
+      note: >
+        The daemon's update-loop tests stage the same install in both layouts and let
+        their fake installer write the next release: `releases/<v>/codex` behind
+        `current` (legacy), `current/bin/codex` (packaged), and
+        `'{root}/releases/{next}/bin/codex'` inside the installer script. Each is
+        resolved through managed_codex_bin(), which names the entrypoint ore. The
+        `echo codex 1.1.0` version banner stays: the parser reads the second word.
+      files: [codex-rs/app-server-daemon/src/update_loop_tests.rs]
+      rust_literals_only: false
+      pattern: '(?P<lead>\.join\("(?:current/)?(?:bin/)?|/bin/)codex(?=[''"])'
+      replace: '\g<lead>${bin}'
 
   # ------------------------------------------------------------------------ URLs
   urls:
