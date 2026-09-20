@@ -1,0 +1,5 @@
+---
+source: tui/src/app/user_verification_tests.rs
+expression: rendered
+---
+⚠ The local Ore binary could not complete user verification.
