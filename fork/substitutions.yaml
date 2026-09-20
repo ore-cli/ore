@@ -895,6 +895,49 @@ categories:
       pattern: '(?<=\\n)Codex(?=\\n)'
       replace: '${product_name}'
 
+    - name: voice-strip-meter-label
+      note: >
+        rust-v0.155.0 added a voice strip under the composer: a "mic" meter and,
+        for the model's audio, a second one labelled with the bare command --
+        `"  codex ".dim()`. No subcommand or flag follows, so every command rule
+        is blind to it and the audit reports it as [bare-command]. Anchored on
+        what follows the word in every copy: a space, then a meter-bar glyph, a
+        closing quote, or the end of the literal. Both of the last two are needed:
+        the engine pre-filters a file by searching the whole text, where the quote
+        is visible, and then substitutes inside each literal's inner text, where
+        only the end anchor is. That is also the shape of the two inline snapshots
+        and the starts_with/ends_with fixtures, so the assertions follow the
+        label. Both renders trim trailing cells (rows() and the row dump both
+        trim_end), so the snapshots need only the label swapped, not re-padding.
+        Optional until rust-v0.155.0 is the series base: the strip does not exist
+        earlier.
+      files:
+        - codex-rs/tui/src/bottom_pane/voice_strip.rs
+        - codex-rs/tui/src/bottom_pane/voice_strip_tests.rs
+        - codex-rs/tui/src/chatwidget/realtime/recording_controls_tests.rs
+      pattern: '(?<![\w./-])codex(?= (?:[▁▂▃▄▅▆▇█]|"|\Z))'
+      replace: '${bin}'
+      optional: true
+
+    - name: voice-strip-meter-label-contains-probe
+      note: >
+        The same tests probe the rendered strip with contains("codex"): two
+        positive (the narrow render, and a count of lines carrying the label)
+        and two negative (the strip must be gone after a thread switch and while
+        stopping). No space adjoins the word, so the audit does not flag them,
+        but once the label is `ore` the positive ones fail. Rewritten to the
+        label as it renders, spaces included, rather than the bare word: "ore"
+        is a substring of more, before and restore, and a negative
+        contains("ore") against a popup would fail on any of them.
+        Optional for the same reason as voice-strip-meter-label.
+      files:
+        - codex-rs/tui/src/bottom_pane/voice_strip_tests.rs
+        - codex-rs/tui/src/chatwidget/realtime/recording_controls_tests.rs
+      rust_literals_only: false
+      pattern: 'contains\("codex"\)'
+      replace: 'contains(" ${bin} ")'
+      optional: true
+
   # ------------------------------------------------------------------------ URLs
   urls:
     - name: github-repo-url
