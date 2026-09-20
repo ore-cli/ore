@@ -43,6 +43,7 @@ decide:
   - api.chatgpt.com/v1/analytics                       # API-key turn-cost worker (150s loop in app-server)
   - chatgpt.com/oauth/codex                            # CIMD client metadata handed to third-party MCP OAuth servers
   - github.com/openai/                                 # any OTHER new openai coordinate: flag it (specific keeps/kills above win)
+  - api.github.com/repos/openai/                       # same guard on the API host (the bare-host keep below is shorter and loses)
 
 # KEEP — provider traffic and the ChatGPT sign-in surface (byte-identical by
 # the auth-fence policy), plus inert hosts that dominate test fixtures and
@@ -68,3 +69,7 @@ keep:
   - docs.github.com
   - modelcontextprotocol.io
   - mozilla.org
+  - api.github.com/                                    # bare host only: network-proxy's credential-injection test builds a request to it
+  - 172.32.2.3                                         # credential-broker fixture: a public-range address the broker must not treat as local
+  - api.chatgpt-staging.com                            # core client_tests fixture in the is-an-openai-host table
+  - api.stripe.com                                     # credential-broker fixtures: the configured third-party provider host

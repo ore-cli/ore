@@ -17,6 +17,7 @@ while the identifiers a patch anchors on do not.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import re
 import subprocess
@@ -239,7 +240,20 @@ def classify(url: str, egress: dict[str, list[str]]) -> str:
         return "fixture"  # format! placeholder — path fragments classify these
     if host in _FIXTURE_HOSTS or host.rsplit(".", 1)[-1] in _FIXTURE_TLDS:
         return "fixture"
+    if _non_routable(host):
+        return "fixture"
     return "unclassified"
+
+
+def _non_routable(host: str) -> bool:
+    # A loopback, RFC 1918, link-local or unspecified address reaches nothing
+    # past the machine or its LAN; in .rs sources these are the proxy and
+    # credential-broker fixtures (10.1.2.3, 172.16.2.3, 127.0.0.2, ...).
+    try:
+        ip = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified
 
 
 def rs_urls(repo: Path, commit: str) -> set[str]:
