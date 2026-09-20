@@ -11,15 +11,15 @@
 # now-unused `CHAT_WIRE_API_REMOVED_ERROR` const.  No other fenced file may
 # change at all, and no other hunk in this file may appear — auth flows,
 # header names, env keys, URLs, and every other line of lib.rs stay
-# byte-identical to upstream rust-v0.153.3.
+# byte-identical to the upstream base fork/UPSTREAM records.
 #
-# Hunk OFFSETS are regenerated when upstream inserts above them; the hunk
-# CONTENT is the contract and does not move. rust-v0.153.3 added one line
-# (AMAZON_BEDROCK_GPT_6_ASTRA_MODEL_ID) above all three hunks, shifting every
-# @@ header by exactly +1 and changing nothing else -- verified by diffing the
-# regenerated file against this one and confirming only @@ lines differed.
-# Regenerate the same way, and do not accept a regeneration that alters a
-# +, - or context line: that is a real fence change and needs a real review.
+# Hunk OFFSETS are not part of the contract: auth_fence.py drops the numbers
+# from every @@ header on both sides before comparing, because upstream moves
+# them whenever it inserts a line above a sanctioned hunk (+1 at rust-v0.153.3,
+# +3 at rust-v0.155.0) and re-recording them cost a sync each time. The
+# function context after the @@ and every +, - and context line still have to
+# match byte for byte; a regeneration that alters one of those is a real fence
+# change and needs a real review.
 diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-info/src/lib.rs
 --- a/codex-rs/model-provider-info/src/lib.rs
 +++ b/codex-rs/model-provider-info/src/lib.rs

@@ -9,7 +9,7 @@ regression is structurally impossible.
 
 Three layers:
   a. `git diff <fork/UPSTREAM commit> -- <fence paths>` (working tree), normalised
-     (index lines dropped), must equal fork/verify/allowed-fence.diff.
+     (index lines and @@ offsets dropped), must equal fork/verify/allowed-fence.diff.
   b. Wire literals OUTSIDE the fence must still appear verbatim at their home
      sites — a substitution rule or series commit rewriting one of them
      changes what the backend sees without touching a fenced file.
@@ -91,15 +91,26 @@ OUTSIDE_LITERALS = (
 )
 
 
+_HUNK_OFFSETS_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@")
+
+
+def _drop_offsets(line: str) -> str:
+    # The numbers move whenever upstream inserts a line above a sanctioned hunk;
+    # the function context after them and the hunk body are what is reviewed.
+    return _HUNK_OFFSETS_RE.sub("@@", line)
+
+
 def normalize_diff(text: str) -> list[str]:
     # `index <hash>..<hash> <mode>` lines churn with every rebase and carry no
     # review value; everything else in the diff is the contract.
-    return [ln for ln in text.splitlines() if not ln.startswith("index ")]
+    return [
+        _drop_offsets(ln) for ln in text.splitlines() if not ln.startswith("index ")
+    ]
 
 
 def load_allowed(path: Path) -> list[str]:
     return [
-        ln
+        _drop_offsets(ln)
         for ln in path.read_text(encoding="utf-8").splitlines()
         if ln and not ln.startswith("#")
     ]
