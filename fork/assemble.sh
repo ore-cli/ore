@@ -756,6 +756,16 @@ if [[ "$SKIP_HEAVY" -eq 0 ]]; then
     echo "### snapshot regen: snapshots rewritten; tests were red — ore-ci judges those" >>"$PASSES_LOG"
     warn "snapshot regen: tests failed during regeneration; ore-ci is the gate for that"
   fi
+  # insta records an inline-snapshot mismatch in a .pending-snap beside the
+  # source instead of rewriting the source, so INSTA_UPDATE=always leaves that
+  # test red and the file untracked, where `add -A` would commit it.
+  pending=$(cd "$WORKTREE" && find codex-rs -name '*.pending-snap' | sort)
+  if [[ -n "$pending" ]]; then
+    echo "### snapshot regen: inline snapshot(s) left pending -- the test fails ore-ci until the test's copy is substituted:" >>"$PASSES_LOG"
+    sed 's/^/  /' <<<"$pending" >>"$PASSES_LOG"
+    warn "snapshot regen: $(wc -l <<<"$pending" | tr -d ' ') inline snapshot(s) pending; see passes.md"
+    (cd "$WORKTREE" && xargs rm -f <<<"$pending")
+  fi
   end_pass
 else
   echo "### snapshot regen: SKIPPED (--skip-heavy)" >>"$PASSES_LOG"
