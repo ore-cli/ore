@@ -841,6 +841,17 @@ categories:
       pattern: '(?P<lead>(?:install_bin|package_dir|current) / (?:"bin" / )?)"codex"'
       replace: '\g<lead>"ore"'
 
+    - name: install-sh-test-managed-bin-in-release-path
+      note: >
+        rust-v0.155.0 added a test that deletes the managed binary through one f-string,
+        `.../releases/{release_name}/bin/codex`, to exercise the guard against an updater
+        that is still running. Same entrypoint move as above; the path is a single literal
+        this time, so the component-shaped rule cannot see it.
+      files: [scripts/install/test_install_sh.py]
+      rust_literals_only: false
+      pattern: '(?<=\{release_name\}/bin/)codex(?=")'
+      replace: '${bin}'
+
     - name: ui-bare-product-name
       note: >
         Rust literals/comments only; the auth fence and wire identifiers are skipped wholesale above.
