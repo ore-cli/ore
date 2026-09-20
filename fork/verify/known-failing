@@ -1,6 +1,6 @@
 # fork/verify/known-failing — upstream tests that legitimately go red under the
 # fork's seams (series commits telemetry-analytics-off, telemetry-feedback-off,
-# telemetry-statsig-strip, telemetry-defaults-none).
+# telemetry-statsig-strip, telemetry-defaults-none, daemon-autoupdate-off).
 #
 # Format: one nextest filterset expression per line ('#' comments, blank lines
 # ignored).  Consumers OR the expressions together, e.g. to exclude them from
@@ -19,7 +19,9 @@
 #       when analytics is off, user BYO OTLP collectors included, so tests that
 #       await their own /metrics endpoint time out;
 #   (3) feedback force-off — `Config.feedback_enabled` is `false`, so the
-#       `/feedback` TUI command and the `feedback/upload` RPC report disabled.
+#       `/feedback` TUI command and the `feedback/upload` RPC report disabled;
+#   (4) daemon-autoupdate-off — the hourly updater is never spawned, so a test
+#       that reads its pid record after `start` fails on that line.
 #
 # NOT in this list, deliberately (verified to keep passing):
 # * mcp-server lib.rs default-analytics assertions and app-server
@@ -75,6 +77,11 @@ package(codex-app-server) & test(account_switch_reloads_telemetry_collectors_and
 package(codex-app-server) & test(guardian_v2_low_risk_actions_skip_subsequent_reviews)
 package(codex-app-server) & test(guardian_v2_high_risk_actions_require_full_reviews)
 package(codex-app-server) & test(guardian_v2_threshold_score_requires_full_reviews)
+# rust-v0.155.0's action-budget test awaits the codex_guardian_v2_classification
+# analytics event instead (guardian_action_budget_tests.rs:165) and dies the same
+# way, "deadline has elapsed".
+# since: rust-v0.155.0
+package(codex-app-server) & test(oversized_async_action_requires_sync_review_and_later_scores_recover)
 # Two more guardian_v2 entries and one plugin-measurement entry were dropped at
 # rust-v0.150.1: upstream had renamed or removed those tests, so the expressions
 # matched nothing and had been excluding nothing. known_failing_check.py exists
@@ -495,3 +502,19 @@ package(codex-cli) & test(interactive_worktree_start_and_fork_bind_owner_before_
 # starts. The entry excludes a test whose subject the fork satisfies by not
 # reaching the code at all, which is worth knowing if upstream ever reworks it.
 package(codex-cli) & test(feedback_with_logs_does_not_execute_path_helpers)
+
+# --- (4) daemon-autoupdate-off ----------------------------------------------
+# rust-v0.155.0 added cli/tests/app_server_daemon.rs, whose fixture is a managed
+# standalone install (its entrypoint follows the rebrand; see the
+# app-server-daemon-*-test-managed-bin rules). Three of its tests read
+# app-server-updater.pid after `start` and expect the hourly updater the series
+# never spawns:
+#   let updater_pid = daemon.pid("app-server-updater.pid")?;
+# The daemon reports auto_update_enabled=false and leaves no updater record, so
+# each fails on that line; the file's other tests start without one and pass.
+# since: rust-v0.155.0
+package(codex-cli) & test(managed_starts_ensure_one_updater_and_recover_a_missing_one)
+# since: rust-v0.155.0
+package(codex-cli) & test(managed_start_keeps_updater_on_marker_mismatch_but_stops_it_for_pin)
+# since: rust-v0.155.0
+package(codex-cli) & test(restart_applies_saved_updater_preference)
