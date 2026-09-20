@@ -850,6 +850,9 @@ categories:
         it is COPIED: the prompt files themselves are skipped above, but test fixtures embed the
         same text, and a fixture that says "You are ore" while the prompt says "You are Codex" is a
         test that fails for the right reason in the most confusing possible way.
+        `\b` alone misses the word after a `\n` escape inside a literal: in `\n\nCodex now uses`
+        the character before the C is the `n` of the escape. rust-v0.155.0's model-migration copy
+        reached a user that way, so the escape counts as a boundary too.
       globs: ["codex-rs/**/*.rs", "codex-rs/**/*.js", "codex-rs/**/*.toml", "codex-rs/**/*.txt", "codex-cli/**/*.js", "codex-cli/**/*.json", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "scripts/install/*"]
       exclude: ["codex-rs/tui/src/pets/*"]
       # `(?<!OpenAI\.)` and the artifact suffixes protect names that identify
@@ -857,7 +860,7 @@ categories:
       # Codex.dmg / Codex-latest-x64.dmg download URLs, and the Codex/Logs
       # directory. Rebranding those does not rename anything -- it produces a
       # package name, a URL and a path that match no installation that exists.
-      pattern: '(?<!You are )(?<!OpenAI\.)(?<!X-OpenAI-Internal-)(?<!/Volumes/)\bCodex\b(?! (?:backend|app(?![a-z-])|App|extension|Extension|[Cc]loud))(?!\.dmg)(?!\.app)(?!-latest)(?!/Logs)'
+      pattern: '(?<!You are )(?<!OpenAI\.)(?<!X-OpenAI-Internal-)(?<!/Volumes/)(?:\b|(?<=\\n))Codex\b(?! (?:backend|app(?![a-z-])|App|extension|Extension|[Cc]loud))(?!\.dmg)(?!\.app)(?!-latest)(?!/Logs)'
       replace: '${product_name}'
 
     - name: article-before-product-name
@@ -883,17 +886,6 @@ categories:
       rust_literals_only: false
       pattern: 'Modifier::UNDERLINED; 10\]'
       replace: 'Modifier::UNDERLINED; 8]'
-
-    - name: migration-rewrite-target-fixture
-      note: >
-        external-agent-migration/src/rewrite.rs maps external-agent terms to the
-        product name (rebranded to "ore" by ui-bare-product-name), and this fixture
-        holds the expected rewritten AGENTS.md bytes. Between \n escapes the
-        escape's own "n" is a word character, so ui-bare-product-name's \bCodex\b
-        never fires on the middle occurrences; this rule covers exactly that shape.
-      files: [codex-rs/external-agent-migration/src/service_tests/general/repo_import.rs]
-      pattern: '(?<=\\n)Codex(?=\\n)'
-      replace: '${product_name}'
 
     - name: voice-strip-meter-label
       note: >
@@ -937,6 +929,19 @@ categories:
       pattern: 'contains\("codex"\)'
       replace: 'contains(" ${bin} ")'
       optional: true
+
+    - name: reconnect-notice-fits-after-rebrand
+      note: >
+        rust-v0.155.0's active-reconnect test filters the rendered notices and pins them with
+        an inline snapshot. Upstream's "older than your Codex CLI" fills the row, so " v2.1.0."
+        wraps onto a line the filter drops and the snapshot ends at "CLI". With both names four
+        characters shorter the version fits on the row, the filter keeps it, and the substituted
+        snapshot no longer matches. insta cannot rewrite an inline snapshot from a test run, so
+        the test's copy is completed here.
+      files: [codex-rs/tui/src/app/tests/active_reconnect_tests.rs]
+      rust_literals_only: false
+      pattern: '(?<=older than your ${product_name} CLI)\n(?="###)'
+      replace: ' v2.1.0.\n'
 
   # ------------------------------------------------------------------------ URLs
   urls:
