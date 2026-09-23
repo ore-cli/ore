@@ -73,6 +73,15 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 filter = 'package(codex-core) & test(detail_policies_apply_the_expected_budgets)'
 slow-timeout = { period = "45s", terminate-after = 2 }
 
+# ore: five compressed uploads of near-limit attachments against a mock server.
+# 23s wall on a warm laptop, identical on the series and on a clean
+# rust-v0.155.0 checkout, and past the 60s kill on a loaded 4-core runner:
+# terminated at 60.0s on main, on delta and on a re-run of main, and rescued
+# by a retry once. 60s x 2 = 120s is double the kill point that was reached.
+[[profile.default.overrides]]
+filter = 'package(codex-feedback) & test(feedback_upload_delivers_whole_files_or_marked_prefixes)'
+slow-timeout = { period = "60s", terminate-after = 2 }
+
 [[profile.default.overrides]]
 filter = 'package(codex-app-server-protocol) & (test(typescript_schema_fixtures_match_generated) | test(json_schema_fixtures_match_generated) | test(generate_ts_with_experimental_api_retains_experimental_entries) | test(generated_ts_optional_nullable_fields_only_in_params) | test(generate_json_filters_experimental_fields_and_methods))'
 test-group = 'app_server_protocol_codegen'
