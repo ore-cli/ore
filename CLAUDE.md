@@ -149,13 +149,21 @@ sync reads `origin/delta`, so a fix that lands there makes the next run heal
 itself with no further intervention. A stale substitution rule re-pointed at a
 file upstream moved is this kind — the rule is correct at either tag.
 
+Two fixes that used to be new-base-only now hold at both bases and go on
+`delta` too. A `known-failing` entry for a test the new tag introduces carries
+`# since: rust-v<new>` on the comment line above it; `known_failing_check.py`
+reports it pending, not dead, on a tree whose base is older, and requires the
+test to be absent there. And the auth fence compares hunks with their `@@`
+offsets dropped, so an upstream insertion above a sanctioned hunk no longer
+needs `allowed-fence.diff` re-recorded.
+
 A fix that is only valid at the NEW base goes on a staging branch —
 `delta-staging`, cut from `delta` — and `assemble.sh --delta delta-staging`
-rebases that onto the new tag. A `known-failing` entry is the usual case: it
-names a test that does not exist yet at the old base, so
-`known_failing_check.py` reports it dead and `delta`'s own CI goes red the moment
-you push. The entry is correct; it is just early. After the rebase it resolves,
-which is why it has to travel with the rebase rather than ahead of it.
+rebases that onto the new tag. A substitution rule for text the new tag adds
+is one case: `--apply` rejects a rule that matches nothing, so at the old base
+it is stale. Marking the rule `optional: true` lifts that at both bases; drop
+the flag once the sync lands, so a later upstream move of the text trips the
+stale-rule check again.
 
 ```bash
 git branch delta-staging delta          # repair work goes here
