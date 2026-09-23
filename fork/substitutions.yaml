@@ -917,15 +917,12 @@ categories:
         and the starts_with/ends_with fixtures, so the assertions follow the
         label. Both renders trim trailing cells (rows() and the row dump both
         trim_end), so the snapshots need only the label swapped, not re-padding.
-        Optional until rust-v0.155.0 is the series base: the strip does not exist
-        earlier.
       files:
         - codex-rs/tui/src/bottom_pane/voice_strip.rs
         - codex-rs/tui/src/bottom_pane/voice_strip_tests.rs
         - codex-rs/tui/src/chatwidget/realtime/recording_controls_tests.rs
       pattern: '(?<![\w./-])codex(?= (?:[▁▂▃▄▅▆▇█]|"|\Z))'
       replace: '${bin}'
-      optional: true
 
     - name: voice-strip-meter-label-contains-probe
       note: >
@@ -937,14 +934,12 @@ categories:
         label as it renders, spaces included, rather than the bare word: "ore"
         is a substring of more, before and restore, and a negative
         contains("ore") against a popup would fail on any of them.
-        Optional for the same reason as voice-strip-meter-label.
       files:
         - codex-rs/tui/src/bottom_pane/voice_strip_tests.rs
         - codex-rs/tui/src/chatwidget/realtime/recording_controls_tests.rs
       rust_literals_only: false
       pattern: 'contains\("codex"\)'
       replace: 'contains(" ${bin} ")'
-      optional: true
 
     - name: reconnect-notice-fits-after-rebrand
       note: >
