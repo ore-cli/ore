@@ -106,11 +106,17 @@ package(codex-http-client) & test(=route_aware_client_pool::tls_fallback_tests::
 package(codex-skills-extension) & test(=host_roots::tests::repo_ancestry_without_project_marker_does_not_walk_parents)
 
 # --- codex-tui ---------------------------------------------------------
+package(codex-tui) & test(=app::tests::app_server_thread_replacement_clears_previous_transcript_before_replay)
+package(codex-tui) & test(=app::tests::realtime_requests::buffered_voice_items_reconcile_captions_after_thread_switch)
+package(codex-tui) & test(=app::tests::realtime_requests::completed_voice_caption_survives_repeated_thread_replacement)
+package(codex-tui) & test(=app::tests::realtime_requests::replay_reconciles_only_matching_voice_captions_one_for_one)
+package(codex-tui) & test(=app::tests::realtime_requests::switching_threads_keeps_the_source_voice_partial_only_on_reattach)
 package(codex-tui) & test(=chatwidget::rendering::tests::initial_session_header_starts_at_the_top_of_the_viewport)
 package(codex-tui) & test(=history_cell::tests::pnpm_update_available_history_cell_snapshot)
 package(codex-tui) & test(=history_cell::tests::session_info_availability_nux_tooltip_snapshot)
 package(codex-tui) & test(=history_cell::tests::standalone_unix_update_available_history_cell_snapshot)
 package(codex-tui) & test(=history_cell::tests::standalone_windows_update_available_history_cell_snapshot)
+package(codex-tui) & test(=history_cell::tests::vite_plus_update_available_history_cell_snapshot)
 package(codex-tui) & test(=startup_draft::tests::startup_draft_clears_loading_status_when_starting_fresh)
 package(codex-tui) & test(=startup_draft::tests::startup_draft_renders_full_empty_and_multiline_composer_frames)
 package(codex-tui) & test(=startup_draft::tests::startup_draft_waits_for_onboarding_before_accepting_input)
@@ -132,6 +138,7 @@ package(codex-tui) & test(=status::tests::status_snapshot_truncates_halfwidth_ka
 package(codex-tui) & test(=status::tests::status_snapshot_truncates_in_narrow_terminal)
 package(codex-tui) & test(=status::tests::status_snapshot_uses_default_reasoning_when_config_empty)
 package(codex-tui) & test(=status::tests::status_snapshot_uses_generic_limit_labels_for_unsupported_windows)
+package(codex-tui) & test(=status::tests::status_uses_server_provider_id_and_auth_requirement)
 package(codex-tui) & test(=status::tests::transcript_overlay_remeasures_status_after_rate_limit_refresh)
 
 # --- codex-v8-poc ------------------------------------------------------
