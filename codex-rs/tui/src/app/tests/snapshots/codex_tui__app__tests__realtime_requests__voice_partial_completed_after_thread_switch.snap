@@ -3,7 +3,7 @@ source: tui/src/app/tests/realtime_requests.rs
 expression: "normalize_voice_snapshot_directory(&rendered, &app.config.cwd)"
 ---
 ╭────────────────────────────────────────╮
-│ >_ Ore (v1.155.0)                      │
+│ >_ Ore (v1.155.1)                      │
 │                                        │
 │ model:     gpt-test   /model to change │
 │ directory: /tmp/project                │
