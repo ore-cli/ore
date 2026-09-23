@@ -1,9 +1,10 @@
 ---
 source: tui/src/app/tests.rs
+assertion_line: 6350
 expression: rendered
 ---
 ╭────────────────────────────────────────╮
-│ >_ Ore (v1.155.0)                      │
+│ >_ OpenAI Codex (v0.0.0)               │
 │                                        │
 │ model:     gpt-test   /model to change │
 │ directory: <thread cwd>                │
