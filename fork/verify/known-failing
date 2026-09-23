@@ -1,6 +1,7 @@
 # fork/verify/known-failing — upstream tests that legitimately go red under the
 # fork's seams (series commits telemetry-analytics-off, telemetry-feedback-off,
-# telemetry-statsig-strip, telemetry-defaults-none, daemon-autoupdate-off).
+# telemetry-statsig-strip, telemetry-defaults-none, daemon-autoupdate-off,
+# entrypoint-ship-ore).
 #
 # Format: one nextest filterset expression per line ('#' comments, blank lines
 # ignored).  Consumers OR the expressions together, e.g. to exclude them from
@@ -22,6 +23,8 @@
 #       `/feedback` TUI command and the `feedback/upload` RPC report disabled;
 #   (4) daemon-autoupdate-off — the hourly updater is never spawned, so a test
 #       that reads its pid record after `start` fails on that line.
+#   (5) entrypoint-ship-ore, series only — the daemon looks for a managed binary
+#       named `ore`; the fixtures say `codex` until the assembly substitutes them.
 #
 # NOT in this list, deliberately (verified to keep passing):
 # * mcp-server lib.rs default-analytics assertions and app-server
@@ -518,3 +521,13 @@ package(codex-cli) & test(managed_starts_ensure_one_updater_and_recover_a_missin
 package(codex-cli) & test(managed_start_keeps_updater_on_marker_mismatch_but_stops_it_for_pin)
 # since: rust-v0.155.0
 package(codex-cli) & test(restart_applies_saved_updater_preference)
+
+# --- (5) entrypoint-ship-ore, on the series only --------------------------
+# Both stage a managed standalone install whose entrypoint is named codex, and
+# the daemon resolves the shipped name through managed_codex_bin(): "managed
+# standalone Codex install not found at .../current/ore". On main the
+# app-server-daemon-*-test-managed-bin rules rename the fixtures and both pass;
+# ore-ci on delta runs the series unsubstituted, where nothing does. Excluding
+# them on main costs nothing the candidate's own run has not already shown.
+package(codex-app-server-daemon) & test(manual_update_restarts_managed_daemon_with_automatic_updates_disabled)
+package(codex-cli) & test(managed_start_succeeds_when_updater_record_is_invalid)
