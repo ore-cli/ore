@@ -781,6 +781,55 @@ categories:
       pattern: '(?P<lead>(?:install_bin|package_dir|current) / (?:"bin" / )?)"codex"'
       replace: '\g<lead>"ore"'
 
+    - name: daemon-prepared-install-entrypoint-is-ore
+      note: >
+        rust-v0.156.0's prepare_install.rs seeds the daemon's own copy of the local
+        CLI package and names the package entrypoint `bin/codex` in four places:
+        the manifest check, the package validation, the unix `codex -> bin/codex`
+        alias it adds, and the alias it skips when hashing the tree. ore's package
+        declares `bin/ore` (targets.py executable_stem) and its installer's alias is
+        `ore`, which managed_install already expects, so without this a packaged
+        ore daemon refused its own package: "local Ore package is missing
+        bin/codex". The macOS CodexCLI.app branch is left alone: ore's package
+        builds no app bundle, so it is never taken.
+      files: [codex-rs/app-server-daemon/src/prepare_install.rs]
+      rust_literals_only: false
+      pattern: '"bin/codex(?P<exe>(?:\.exe)?)"'
+      replace: '"bin/${bin}\g<exe>"'
+
+    - name: daemon-prepared-install-alias-is-ore
+      note: >
+        The alias half of daemon-prepared-install-entrypoint-is-ore: the bare
+        `"codex"` passed to join() and Path::new() names the installer's alias.
+      files: [codex-rs/app-server-daemon/src/prepare_install.rs]
+      rust_literals_only: false
+      pattern: '(?<=\()"codex"(?=\))'
+      replace: '"${bin}"'
+
+    - name: daemon-package-test-fixtures-entrypoint-is-ore
+      note: >
+        The tests for that code stage a CLI package and a managed install whose
+        entrypoint is `bin/codex` (prepare_install_tests.rs, and the packaged
+        daemon flows in cli/tests/app_server_daemon.rs). Same move as
+        daemon-prepared-install-entrypoint-is-ore, for the fixtures. It subsumes
+        app-server-daemon-cli-test-managed-bin, which matched only that file's
+        `.join("bin/codex")` at rust-v0.155.0.
+      files:
+        - codex-rs/app-server-daemon/src/prepare_install_tests.rs
+        - codex-rs/cli/tests/app_server_daemon.rs
+      rust_literals_only: false
+      pattern: '(?<=["/])bin/codex(?=")'
+      replace: 'bin/${bin}'
+
+    - name: daemon-startup-test-managed-bin-is-ore
+      note: >
+        daemon_startup.rs joins the managed entrypoint's file name onto
+        current/bin, per platform; same move as the fixtures rule above.
+      files: [codex-rs/cli/tests/daemon_startup.rs]
+      rust_literals_only: false
+      pattern: '\{ "codex\.exe" \} else \{ "codex" \}'
+      replace: '{ "${bin}.exe" } else { "${bin}" }'
+
     - name: install-sh-test-bin-path-literals
       note: >
         rust-v0.161.0's daemon-install test spells two entrypoint paths as single
@@ -900,17 +949,6 @@ categories:
       rust_literals_only: false
       pattern: '(?<=older than your ${product_name} CLI)\n(?="###)'
       replace: ' v2.1.0.\n'
-
-    - name: app-server-daemon-cli-test-managed-bin
-      note: >
-        rust-v0.155.0 added cli/tests/app_server_daemon.rs, which stages a managed
-        standalone install for the daemon to start: releases/<v>/bin/codex behind a
-        `current` symlink. The daemon looks for the shipped entrypoint, bin/ore, and
-        without it every managed start fails before the test's own assertions run.
-      files: [codex-rs/cli/tests/app_server_daemon.rs]
-      rust_literals_only: false
-      pattern: '\.join\("bin/codex"\)'
-      replace: '.join("bin/${bin}")'
 
     - name: app-server-daemon-update-loop-test-managed-bin
       note: >
