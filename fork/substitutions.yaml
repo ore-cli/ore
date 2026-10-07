@@ -103,6 +103,11 @@ engine:
     # the request body the crate composes, so its one literal is a copy as well.
     - codex-rs/guardian-context/**/*.rs
     - codex-rs/ext/guardian-v2/src/async_scorer/extension_tests.rs
+    # Same reason, two more copies. app-server's guardian_v2 suite asserts the
+    # composed request text verbatim. core's guardian_review suite asserts the
+    # text stays out of the notify payload; rewritten, that check passes vacuously.
+    - codex-rs/app-server/tests/suite/v2/guardian_v2.rs
+    - codex-rs/core/tests/suite/guardian_review.rs
     - codex-rs/tui/prompt_for_init_command.md
     # A five-line README for a crate ore vendors and does not modify. Every
     # "Codex" in it names OpenAI's first-party product, and its issue-tracker
