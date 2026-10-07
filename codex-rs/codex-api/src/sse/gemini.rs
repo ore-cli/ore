@@ -61,6 +61,7 @@ pub(crate) fn spawn_gemini_stream(
     ResponseStream {
         rx_event,
         upstream_request_id,
+        interrupt: None,
     }
 }
 
@@ -495,7 +496,7 @@ async fn finish(
         let _ = tx_event
             .send(Err(ApiError::Retryable {
                 message: "gemini returned a malformed function call".to_string(),
-                delay: None,
+                retry_after: None,
             }))
             .await;
         return;
@@ -552,7 +553,7 @@ fn stream_error(value: &Value) -> ApiError {
     if status == "RESOURCE_EXHAUSTED" || status == "UNAVAILABLE" || code == 429 || code == 503 {
         return ApiError::Retryable {
             message,
-            delay: None,
+            retry_after: None,
         };
     }
 

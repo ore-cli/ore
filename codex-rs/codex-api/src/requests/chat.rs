@@ -15,6 +15,7 @@ use crate::requests::headers::subagent_header;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::models::plaintext_agent_message_content;
 use codex_protocol::protocol::SessionSource;
@@ -220,11 +221,9 @@ impl<'a> ChatRequestBuilder<'a> {
                                 text.push_str(t);
                                 items.push(json!({"type":"text","text": t}));
                             }
-                            ContentItem::InputImage { image_url, .. } => {
+                            ContentItem::InputImage { image, .. } => {
                                 needs_block_list = true;
-                                items.push(
-                                    json!({"type":"image_url","image_url": {"url": image_url}}),
-                                );
+                                items.push(chat_image_item(image));
                             }
                             ContentItem::InputAudio { audio_url, .. } => {
                                 needs_block_list = true;
@@ -483,9 +482,7 @@ fn tool_result_content(output: &FunctionCallOutputPayload) -> Value {
             FunctionCallOutputContentItem::InputText { text } => {
                 (!text.is_empty()).then(|| json!({"type":"text","text": text}))
             }
-            FunctionCallOutputContentItem::InputImage { image_url, .. } => {
-                Some(json!({"type":"image_url","image_url": {"url": image_url}}))
-            }
+            FunctionCallOutputContentItem::InputImage { image, .. } => Some(chat_image_item(image)),
             FunctionCallOutputContentItem::InputAudio { audio_url, .. } => {
                 Some(json!({"type":"input_audio","input_audio": {"data": audio_url}}))
             }
@@ -538,6 +535,17 @@ fn push_tool_call_message(messages: &mut Vec<Value>, tool_call: Value) {
         "content": null,
         "tool_calls": [tool_call],
     }));
+}
+
+fn chat_image_item(image: &ImageReference) -> Value {
+    match image {
+        ImageReference::Inline { image_url } => {
+            json!({"type":"image_url","image_url": {"url": image_url}})
+        }
+        ImageReference::File { file_id } => {
+            json!({"type":"text","text": format!("[image omitted: {file_id} is an OpenAI file reference this provider cannot fetch]")})
+        }
+    }
 }
 
 #[cfg(test)]
@@ -858,7 +866,9 @@ mod tests {
             id: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputImage {
-                image_url: "data:image/png;base64,AAAA".to_string(),
+                image: ImageReference::Inline {
+                    image_url: "data:image/png;base64,AAAA".to_string(),
+                },
                 detail: None,
             }],
             phase: None,

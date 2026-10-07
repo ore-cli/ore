@@ -37,6 +37,7 @@ use codex_http_client::HttpClient;
 use codex_http_client::HttpClientFactory;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
+use codex_login::default_client::ClientRedirectPolicy;
 use codex_login::default_client::create_client_for_route_async;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::WireApi;
@@ -284,6 +285,7 @@ impl ProviderModelListDiscovery {
             http_client_factory,
             list_url.clone(),
             ClientRouteClass::Api,
+            ClientRedirectPolicy::Default,
         )
         .await
         .map_err(|err| DiscoveryError::new(format!("no http client: {err}")))?;

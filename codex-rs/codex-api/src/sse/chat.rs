@@ -65,6 +65,7 @@ pub(crate) fn spawn_chat_stream(
     ResponseStream {
         rx_event,
         upstream_request_id,
+        interrupt: None,
     }
 }
 

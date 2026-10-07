@@ -163,10 +163,15 @@ impl ModelClientSession {
         let thinking = thinking_config(&facts, effort.as_ref());
 
         loop {
-            let client_setup = self.client.current_client_setup().await?;
-            let transport = self
+            let client_setup = self
                 .client
-                .build_api_transport(&client_setup.api_provider, GEMINI_STREAM_ROUTE)?;
+                .current_client_setup(super::ClientRouting::ConfiguredProvider)
+                .await?;
+            let transport = self.client.build_api_transport(
+                &client_setup.api_provider,
+                GEMINI_STREAM_ROUTE,
+                client_setup.redirect_policy,
+            )?;
             let request_auth_context = AuthRequestTelemetryContext::new(
                 client_setup.auth.as_ref().map(CodexAuth::auth_mode),
                 client_setup.api_auth.as_ref(),
@@ -215,6 +220,8 @@ impl ModelClientSession {
                         session_telemetry.clone(),
                         inference_trace_attempt,
                         Arc::clone(&self.client.state.provider),
+                        // These wires carry no Responses client_metadata for contributors to fill.
+                        Vec::new(),
                     );
                     return Ok(stream);
                 }

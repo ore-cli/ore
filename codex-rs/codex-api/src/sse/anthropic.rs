@@ -58,6 +58,7 @@ pub(crate) fn spawn_anthropic_stream(
     ResponseStream {
         rx_event,
         upstream_request_id,
+        interrupt: None,
     }
 }
 
@@ -505,7 +506,7 @@ fn stream_error(value: &Value) -> ApiError {
     if kind == "overloaded_error" {
         return ApiError::Retryable {
             message,
-            delay: None,
+            retry_after: None,
         };
     }
 
