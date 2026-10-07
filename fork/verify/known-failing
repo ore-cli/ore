@@ -524,3 +524,81 @@ package(codex-cli) & test(restart_applies_saved_updater_preference)
 # them on main costs nothing the candidate's own run has not already shown.
 package(codex-app-server-daemon) & test(manual_update_restarts_managed_daemon_with_automatic_updates_disabled)
 package(codex-cli) & test(managed_start_succeeds_when_updater_record_is_invalid)
+
+# ---------------------------------------------------------------- rust-v0.161.0
+# Each entry below passed on a pristine rust-v0.161.0 checkout and failed on the
+# candidate, on the line quoted with it.
+
+# --- (1) analytics force-off ------------------------------------------------
+# Each awaits an analytics POST the disabled client never sends:
+#   wait_for_matching_analytics_event(&server, .., |event| ..)
+# analytics.rs, compaction.rs, thread_archive.rs, selected_capability_stack.rs.
+package(codex-app-server) & test(usage_limit_window_reaches_turn_analytics)
+package(codex-app-server) & test(compaction_error_window_reaches_analytics)
+package(codex-app-server) & test(thread_archive_without_turns)
+package(codex-app-server) & test(selected_plugin_mcp_startup_respects_explicit_mentions)
+# imagegen_extension.rs: the terminal item arrives, then
+#   let event = wait_for_analytics_event(..)
+package(codex-app-server) & test(standalone_image_generation_failure_emits_terminal_item)
+# plugin_reconcile.rs: turn_hook_runs completes each turn, then
+#   wait_for_matching_analytics_event(server, .., |event|
+#       event["event_type"] == "codex_turn_event" ..)
+package(codex-app-server) & test(plugin_reconcile_syncs_bundles_and_reports_changes)
+# mcp_auth_elicitation.rs and plugins.rs mount /codex/analytics-events/events
+# with an expectation and start with analytics_enabled Some(true), which the
+# seam overrides.
+package(codex-core) & test(actual_turn_elicitation_analytics)
+package(codex-core) & test(shared_analytics_client_preserves_session_products)
+# cloud_skill_tests.rs: "timed out waiting for skill_invocation analytics".
+package(codex-core) & test(explicit_only_cloud_skill_is_hidden_but_can_be_invoked)
+package(codex-core) & test(yielded_skill_read_keeps_originating_turn_metadata)
+# Upstream captures an MCP result's `_meta` only while analytics is on
+# (core/src/tools/handlers/mcp.rs):
+#   let result_metadata_capture_allowed = invocation.session.services
+#       .analytics_events_client.is_enabled() && .. is_host_owned_apps);
+# so no executed call carries tool_result_metadata and these assertions see
+# Null. turn_start.rs is the demonstration: of its three cases, the one passing
+# analytics_enabled = Some(false) expects no metadata and passes on ore.
+package(codex-core) & test(code_mode_late_truncated_result_metadata_survives_waits)
+package(codex-core) & test(code_mode_result_metadata_follows_runtime_recording_enablement)
+package(codex-core) & test(code_mode_result_metadata_keeps_prepared_call_binding_across_runtime_refresh)
+package(codex-core) & test(direct_result_metadata_retained_budget_preserves_resource_access)
+package(codex-core) & test(result_metadata_preserves_results_within_request_budget)
+package(codex-app-server) & test(tool_call_metadata_stays_out_of_raw_response_item_notifications)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# Each configures `[otel] metrics_exporter = { otlp-http = .. }` against its own
+# mock collector and waits for an export; the seam nulls the exporter.
+# account.rs and auth_storage_originator.rs time out; daemon_telemetry.rs
+# asserts the request count:
+#   assert_eq!(requests.len(), expected_requests);
+package(codex-app-server) & test(login_account_chatgpt_device_code_succeeds_and_notifies)
+package(codex-app-server) & test(/^suite::v2::auth_storage_originator::/)
+package(codex-cli) & test(foreground_update_respects_consent_and_reports_unconfirmed)
+# worktree.rs's daemon sibling of interactive_worktree_start_and_fork_bind_owner_before_turn,
+# dying on the same wait:
+#   tokio::time::timeout(10s, metric_rx.recv()).await?
+#       .context("metrics export while the TUI is running")?;
+package(codex-cli) & test(daemon_worktree_start_and_fork_bind_owner_before_turn)
+
+# --- (3) feedback force-off -------------------------------------------------
+# feedback.rs expects the log-write warning that suggests /feedback. Upstream
+# picks LOG_WRITE_WARNING_WITHOUT_FEEDBACK when feedback is off
+# (app-server/src/log_write_warning.rs), so ore sends the shorter one.
+package(codex-app-server) & test(feedback_upload_includes_sqlite_flush_and_query_failures)
+# The TUI submission is refused by the config gate before it reaches the
+# thread lookup the test expects to fail:
+#   assert!(format!("{error:#}").contains("invalid thread id"));
+package(codex-tui) & test(feedback_submission_stages_logs_cleans_up_and_emits_error_history_cell)
+
+# --- (4) daemon-autoupdate-off ----------------------------------------------
+# cli/tests/app_server_daemon.rs, the same fixture as the rust-v0.155.0 group:
+#   Error: failed to read app-server-updater.pid
+package(codex-cli) & test(managed_daemon_restarts_from_deleted_working_directory)
+package(codex-cli) & test(managed_identity_survives_locale_and_timezone_changes)
+package(codex-cli) & test(packaged_daemon_explicit_replacement_migrates_running_legacy)
+package(codex-cli) & test(wall_clock_shift_keeps_server_and_updater_managed)
+# The migration itself succeeds on ore (see daemon-migration-entrypoint-is-ore);
+# the test then expects the migrated install's updater:
+#   assert_eq!(new_updater.is_starting_or_running().await.unwrap(), running);
+package(codex-app-server-daemon) & test(explicit_update_migrates_running_and_stopped_installations)
