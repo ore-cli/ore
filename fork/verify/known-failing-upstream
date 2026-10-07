@@ -142,3 +142,12 @@ package(codex-tui) & test(=status::tests::transcript_overlay_remeasures_status_a
 
 # --- codex-v8-poc ------------------------------------------------------
 package(codex-v8-poc) & test(=tests::sandbox_feature_matches_linked_v8)
+
+# --- codex-exec-server -------------------------------------------------
+# rust-v0.161.0's DenyFdPath case of the shell-snapshot replay matrix. Run on a
+# pristine rust-v0.161.0 in an ubuntu-24.04 container with bubblewrap and
+# unprivileged user namespaces, the setup ore-ci gives it, it fails exactly as
+# on the candidate: "deadline has elapsed" at 25.1s, while the four other cases
+# pass. ore-upstream-probe reports it passing only because that runner has no
+# usable bwrap and the test returns early with "skipping sandbox test".
+package(codex-exec-server) & test(=shell_snapshot::shell_snapshot_concurrent_replays_keep_independent_readers::blocked_descriptor_path)
