@@ -28,6 +28,12 @@
 # -- while covering nothing, which is the silent-green shape this file guards
 # against, reached by a route the check could not see. It can now.
 package(codex-core) & test(suite::hooks::async_hook_finishing_while_idle_waits_for_the_next_turn)
+# The code_mode case of the resource-messages scenario snapshots a resource
+# listing line too long to keep, so the snapshot stores its hash. Upstream's
+# committed hash is the one macOS computes; on ubuntu-24.04 a pristine
+# rust-v0.161.0 computes another, deterministically, and fails. The direct
+# case passes on both.
+package(codex-core) & test(suite::scenarios::mcp_resource_messages::mcp_resource_messages::code_mode)
 package(codex-core) & test(=suite::unified_exec::unified_exec_formats_large_output_summary)
 #
 # rust-v0.154.0. Demonstrated by ore-upstream-probe against a pristine checkout:
