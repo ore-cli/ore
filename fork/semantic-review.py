@@ -275,7 +275,9 @@ def rs_urls(repo: Path, commit: str) -> set[str]:
 _TEST_PATH_RE = re.compile(r"(^|/)tests?/|_tests?\.rs$|(^|/)test_support")
 
 
-def only_in_test_code(repo: Path, commit: str, url: str, blobs: dict[str, list[str]]) -> bool:
+def only_in_test_code(
+    repo: Path, commit: str, url: str, blobs: dict[str, list[str]]
+) -> bool:
     """True when every occurrence of `url` is test code, so it cannot ship.
 
     Test code is a test file (a tests/ directory, *_test(s).rs, test_support) or
@@ -295,7 +297,9 @@ def only_in_test_code(repo: Path, commit: str, url: str, blobs: dict[str, list[s
             continue
         if path not in blobs:
             blobs[path] = run_git(repo, "show", f"{commit}:{path}").splitlines()
-        if not any(l.strip() == "#[cfg(test)]" for l in blobs[path][: int(lineno) - 1]):
+        if not any(
+            line.strip() == "#[cfg(test)]" for line in blobs[path][: int(lineno) - 1]
+        ):
             return False
     return True
 
