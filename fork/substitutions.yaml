@@ -840,9 +840,11 @@ categories:
 
     - name: daemon-startup-test-managed-bin-is-ore
       note: >
-        daemon_startup.rs joins the managed entrypoint's file name onto
-        current/bin, per platform; same move as the fixtures rule above.
-      files: [codex-rs/cli/tests/daemon_startup.rs]
+        daemon_startup.rs and worktree.rs join the managed entrypoint's file
+        name onto current/bin, per platform; same move as the fixtures rule
+        above. Without it worktree.rs's daemon permutation stages `codex` and the
+        daemon reports "daemon executable not found at .../current/bin/ore".
+      files: [codex-rs/cli/tests/daemon_startup.rs, codex-rs/cli/tests/worktree.rs]
       rust_literals_only: false
       pattern: '\{ "codex\.exe" \} else \{ "codex" \}'
       replace: '{ "${bin}.exe" } else { "${bin}" }'
