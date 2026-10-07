@@ -1445,7 +1445,9 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
                         models: remote_models.clone(),
                     }),
             )
-            .expect(2)
+            // ore: each enabled run is upstream's catalog refresh plus ore's
+            // gateway discovery, both carrying the token, for two auth variants.
+            .expect(4)
             .mount(&server)
             .await;
 

@@ -737,7 +737,9 @@ async fn a_signed_in_user_still_gets_the_gateways_model_list() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "models": []
         })))
-        .expect(1)
+        // Upstream refreshes this catalog for an API-key provider only when its
+        // own api_key_model_discovery is on; the gateway listing is what is tested.
+        .expect(0..=1)
         .mount(&server)
         .await;
     // Discovery sends no `client_version`, so this mock matches its request and
