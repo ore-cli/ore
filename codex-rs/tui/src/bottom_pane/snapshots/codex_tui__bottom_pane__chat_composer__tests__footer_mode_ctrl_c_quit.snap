@@ -3,11 +3,11 @@ source: tui/src/bottom_pane/chat_composer.rs
 expression: terminal.backend()
 ---
 "                                                                                                    "
-"› Ask Ore to do anything                                                                            "
+"› Ask Codex to do anything                                                                          "
 "                                                                                                    "
 "                                                                                                    "
 "                                                                                                    "
 "                                                                                                    "
 "                                                                                                    "
 "                                                                                                    "
-"  ctrl + c again to quit                                                                            "
+"  ⌃c again to quit                                                                                  "

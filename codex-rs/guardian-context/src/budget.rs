@@ -5,6 +5,7 @@
 use std::io::Write;
 
 use codex_protocol::models::ContentItem;
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::TruncationPolicy;
 
@@ -97,8 +98,17 @@ impl SectionCost {
             ContentItem::InputText { text } | ContentItem::OutputText { text } => {
                 self.text_bytes = self.text_bytes.saturating_add(text.len());
             }
-            ContentItem::InputImage { image_url, .. } => {
+            ContentItem::InputImage {
+                image: ImageReference::Inline { image_url },
+                ..
+            } => {
                 self.image_bytes = self.image_bytes.saturating_add(image_url.len());
+                self.image_count = self.image_count.saturating_add(1);
+            }
+            ContentItem::InputImage {
+                image: ImageReference::File { .. },
+                ..
+            } => {
                 self.image_count = self.image_count.saturating_add(1);
             }
             ContentItem::InputAudio { audio_url } => {
@@ -135,13 +145,14 @@ impl ComposedContext {
 
     /// Stable section names and numeric costs; never exposes evidence in diagnostics.
     pub fn section_costs(&self) -> impl Iterator<Item = (&'static str, SectionCost)> + '_ {
-        self.sections.iter().map(|section| {
+        let mut costs: Vec<(&'static str, SectionCost)> = Vec::new();
+        for section in &self.sections {
             let cost = match &section.delivery {
                 SectionDelivery::UserContent(content) => content
                     .iter()
                     .map(|item| &item.content)
                     .fold(SectionCost::default(), SectionCost::add_content),
-                SectionDelivery::Message(message) => match message.as_ref() {
+                SectionDelivery::Message(message) => match &message.content.item {
                     ResponseItem::Message { content, .. } => content
                         .iter()
                         .fold(SectionCost::default(), SectionCost::add_content),
@@ -151,8 +162,19 @@ impl ComposedContext {
                     },
                 },
             };
-            (section.id, cost)
-        })
+            // Native messages split a transcript into adjacent deliveries, but
+            // telemetry must still report one total for the logical section.
+            if let Some((id, total)) = costs.last_mut()
+                && *id == section.id
+            {
+                total.text_bytes = total.text_bytes.saturating_add(cost.text_bytes);
+                total.image_bytes = total.image_bytes.saturating_add(cost.image_bytes);
+                total.image_count = total.image_count.saturating_add(cost.image_count);
+            } else {
+                costs.push((section.id, cost));
+            }
+        }
+        costs.into_iter()
     }
 }
 
@@ -192,7 +214,7 @@ pub(super) fn section_tokens(section: &SectionOutput) -> usize {
             .iter()
             .map(|item| content_tokens(&item.content))
             .fold(content_framing_tokens(content.len()), usize::saturating_add),
-        SectionDelivery::Message(message) => estimate_input_tokens(message),
+        SectionDelivery::Message(message) => estimate_input_tokens(&message.content.item),
     }
 }
 
@@ -206,13 +228,16 @@ pub(super) fn content_framing_tokens(item_count: usize) -> usize {
 
 fn adjusted_tokens(mut bytes: usize, content: &[ContentItem]) -> usize {
     for item in content {
-        if let ContentItem::InputImage { image_url, .. } = item {
-            let payload = ByteCount::measure(|counter| serde_json::to_writer(counter, image_url));
-            if payload == usize::MAX {
-                return usize::MAX;
+        if let ContentItem::InputImage { image, .. } = item {
+            if let ImageReference::Inline { image_url } = image {
+                let payload =
+                    ByteCount::measure(|counter| serde_json::to_writer(counter, image_url));
+                if payload == usize::MAX {
+                    return usize::MAX;
+                }
+                bytes = bytes.saturating_sub(payload.saturating_sub(2));
             }
             bytes = bytes
-                .saturating_sub(payload.saturating_sub(2))
                 .saturating_add(TruncationPolicy::Tokens(IMAGE_TOKEN_RESERVATION).byte_budget());
         }
     }

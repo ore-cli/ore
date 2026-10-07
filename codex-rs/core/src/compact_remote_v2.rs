@@ -24,7 +24,7 @@ use crate::responses_metadata::CodexResponsesMetadata;
 use crate::responses_metadata::CompactionTurnMetadata;
 use crate::responses_retry::ResponsesStreamRequest;
 use crate::responses_retry::ResponsesStreamRetryState;
-use crate::responses_retry::handle_retryable_response_stream_error;
+use crate::responses_retry::handle_response_stream_error;
 use crate::session::RequestEffortUsage;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
@@ -45,11 +45,12 @@ use codex_protocol::items::ContextCompactionItem;
 use codex_protocol::items::TurnItem;
 use codex_protocol::models::AgentMessageInputContent;
 use codex_protocol::models::ContentItem;
+#[cfg(test)]
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::TokenUsage;
 use codex_protocol::protocol::TruncationPolicy;
-use codex_protocol::protocol::TurnStartedEvent;
 use codex_rollout_trace::CompactionCheckpointTracePayload;
 use codex_rollout_trace::InferenceTraceContext;
 use codex_utils_output_truncation::approx_token_count;
@@ -111,14 +112,7 @@ pub(crate) async fn run_remote_compact_task(
     let step_context = sess
         .capture_step_context(Arc::clone(&turn_context), &CancellationToken::new())
         .await?;
-    let start_event = EventMsg::TurnStarted(TurnStartedEvent {
-        turn_id: turn_context.sub_id.clone(),
-        trace_id: turn_context.trace_id.clone(),
-        started_at: turn_context.turn_timing_state.started_at_unix_secs().await,
-        model_context_window: turn_context.model_context_window(),
-        collaboration_mode_kind: turn_context.mode(),
-    });
-    sess.send_event(&turn_context, start_event).await;
+    sess.emit_turn_started(&turn_context).await;
 
     let compaction_metadata = CompactionTurnMetadata::new(
         CompactionTrigger::Manual,
@@ -205,7 +199,12 @@ async fn run_remote_compact_task_inner(
         .await;
     match result {
         Ok(()) => Ok(()),
-        Err(err) if matches!(err.details(), CodexErrorDetails::TurnAborted) => Err(err),
+        Err(err)
+            if matches!(err.details(), CodexErrorDetails::TurnAborted)
+                || matches!(phase, CompactionPhase::PostTurn) =>
+        {
+            Err(err)
+        }
         Err(err) => {
             sess.track_turn_codex_error(turn_context, &err);
             // Pre-turn failures are reported by run_turn after preserving the incoming prompt.
@@ -294,6 +293,7 @@ async fn run_remote_compact_task_inner_impl(
         }
     };
     let RemoteCompactV2Attempt {
+        input_goal_ids,
         trace_input_history,
         prompt_input,
         prompt_input_metadata,
@@ -303,7 +303,7 @@ async fn run_remote_compact_task_inner_impl(
         owned_client_session: _owned_client_session,
     } = attempt;
     if let Some(token_usage) = token_usage {
-        sess.record_rollout_budget_usage(&token_usage)?;
+        sess.record_rollout_budget_usage(&token_usage).await?;
         analytics_details.active_context_tokens_before = Some(token_usage.input_tokens);
         analytics_details.compaction_summary_tokens = Some(token_usage.output_tokens);
         analytics_details.cached_input_tokens = Some(token_usage.cached_input_tokens);
@@ -343,16 +343,32 @@ async fn run_remote_compact_task_inner_impl(
             replacement_history: &replacement_history,
         });
     }
+    let reviewer_compaction_hash = if crate::context::GuardianContextMode::from_history(
+        sess.conversation_history_snapshot().await.as_ref(),
+    ) == crate::context::GuardianContextMode::Legacy
+        && let Some(review_turn) = sess.turn_context_for_sub_id(&turn_context.sub_id).await
+    {
+        // Previous-model compaction must remain compatible with the continuing turn's
+        // reviewer, including model changes accepted while compaction was running.
+        let mut review_context = crate::guardian::GuardianReviewContext::from(&review_turn);
+        review_context.model_info = review_turn.capture_current_model_info();
+        let (_, reviewer) = crate::guardian::resolve_review_model(sess, &review_context).await;
+        reviewer.comp_hash.clone()
+    } else {
+        None
+    };
     sess.replace_compacted_history(
         new_history,
         reference_context_item,
         world_state_baseline,
         CompactedHistoryMetadata {
+            input_goal_ids,
             message: String::new(),
             window_number: new_window_number,
             window_ids: new_window_ids,
             compaction_response_id: Some(compaction_response_id),
             compaction_model_hash: compaction_turn_context.model_info().comp_hash.clone(),
+            reviewer_compaction_hash,
         },
     )
     .await;
@@ -407,15 +423,14 @@ async fn run_remote_compaction_request_v2(
 
         match result {
             Ok(compaction_output) => return Ok(compaction_output),
-            Err(err) if !err.is_retryable() => return Err(err),
             Err(err) => {
-                handle_retryable_response_stream_error(
+                handle_response_stream_error(
                     &mut retry_state,
                     max_retries,
                     err,
                     client_session,
                     sess,
-                    turn_context,
+                    step_context,
                     ResponsesStreamRequest::RemoteCompactionV2,
                 )
                 .await?;
@@ -558,6 +573,7 @@ fn is_retained_for_remote_compaction_v2(
                 content.first(),
                 Some(AgentMessageInputContent::InputText { text })
                     if text.starts_with("Message Type: MESSAGE\n")
+                        || text.starts_with("Message Type: CHANNEL_POST\n")
             );
         let is_completion = matches!(
             content.first(),
@@ -760,6 +776,9 @@ fn truncate_message_text_to_token_budget(
     }
 
     set_annotated_content(&mut envelope.item, truncated_content)?;
+    if let Some(metadata) = &mut envelope.metadata {
+        metadata.mark_retained_sources_incomplete();
+    }
     Some(envelope)
 }
 
@@ -828,6 +847,7 @@ mod tests {
         drop(tx_event);
         ResponseStream {
             rx_event,
+            interrupt: None,
             consumer_dropped: CancellationToken::new(),
         }
     }
@@ -989,11 +1009,15 @@ mod tests {
                     text: "user".to_string(),
                 },
                 ContentItem::InputImage {
-                    image_url: "data:image/png;base64,abc".to_string(),
+                    image: ImageReference::Inline {
+                        image_url: "data:image/png;base64,abc".to_string(),
+                    },
                     detail: None,
                 },
                 ContentItem::InputImage {
-                    image_url: "data:image/png;base64,def".to_string(),
+                    image: ImageReference::Inline {
+                        image_url: "data:image/png;base64,def".to_string(),
+                    },
                     detail: None,
                 },
             ],
@@ -1055,7 +1079,9 @@ mod tests {
                     text: "abcdef".to_string(),
                 },
                 ContentItem::InputImage {
-                    image_url: "data:image/png;base64,abc".to_string(),
+                    image: ImageReference::Inline {
+                        image_url: "data:image/png;base64,abc".to_string(),
+                    },
                     detail: None,
                 },
                 ContentItem::OutputText {
@@ -1065,7 +1091,9 @@ mod tests {
                     text: "discarded after the text budget is exhausted".to_string(),
                 },
                 ContentItem::InputImage {
-                    image_url: "data:image/png;base64,def".to_string(),
+                    image: ImageReference::Inline {
+                        image_url: "data:image/png;base64,def".to_string(),
+                    },
                     detail: None,
                 },
             ],
@@ -1085,7 +1113,31 @@ mod tests {
             ),
         };
 
-        let truncated = truncate_without_metadata(vec![item], /*max_tokens*/ 3);
+        let source = codex_history::RetainedSource {
+            id: codex_history::RetainedSourceId {
+                message_id: "original".to_owned(),
+                turn_id: "parent".to_owned(),
+                role: codex_history::RetainedSourceRole::User,
+            },
+            revision: codex_protocol::ResponseItemId::from_server("revision-1".to_owned()),
+            complete: true,
+        };
+        let mut metadata = CodexHarnessMetadata {
+            retained_source: Some(source.clone()),
+            guardian_sources: vec![source],
+            ..Default::default()
+        };
+        let truncated = truncate_message_text_to_token_budget(
+            ResponseItemEnvelope {
+                item,
+                metadata: Some(metadata.clone()),
+            },
+            /*max_tokens*/ 3,
+        )
+        .unwrap();
+        metadata.mark_retained_sources_incomplete();
+        assert_eq!(truncated.metadata, Some(metadata));
+        let truncated = vec![truncated.item];
 
         assert_eq!(
             truncated,
@@ -1097,14 +1149,18 @@ mod tests {
                         text: "abcdef".to_string(),
                     },
                     ContentItem::InputImage {
-                        image_url: "data:image/png;base64,abc".to_string(),
+                        image: ImageReference::Inline {
+                            image_url: "data:image/png;base64,abc".to_string()
+                        },
                         detail: None,
                     },
                     ContentItem::OutputText {
                         text: "uv…1 tokens truncated…yz".to_string(),
                     },
                     ContentItem::InputImage {
-                        image_url: "data:image/png;base64,def".to_string(),
+                        image: ImageReference::Inline {
+                            image_url: "data:image/png;base64,def".to_string()
+                        },
                         detail: None,
                     },
                 ],
@@ -1131,7 +1187,9 @@ mod tests {
             id: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputImage {
-                image_url: "data:image/png;base64,abc".to_string(),
+                image: ImageReference::Inline {
+                    image_url: "data:image/png;base64,abc".to_string(),
+                },
                 detail: None,
             }],
             phase: None,
@@ -1155,7 +1213,9 @@ mod tests {
             id: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputImage {
-                image_url: "data:image/png;base64,abc".to_string(),
+                image: ImageReference::Inline {
+                    image_url: "data:image/png;base64,abc".to_string(),
+                },
                 detail: None,
             }],
             phase: None,

@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::Weak;
 
+use codex_history::ResponseItemEnvelope;
 use codex_protocol::items::TurnItem;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
@@ -17,16 +17,14 @@ use codex_tools::TurnItemEmissionFuture;
 use codex_tools::TurnItemEmitter;
 use codex_utils_string::to_ascii_json_string;
 
-use crate::sandboxing::SandboxPermissions;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
-use crate::tools::handlers::apply_granted_turn_permissions;
 use crate::tools::lifecycle::extension_tool_call_source;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExecutor;
-use crate::turn_metadata::McpTurnMetadataContext;
+use crate::turn_metadata::ExecutionMetadata;
 
 pub(crate) struct ExtensionToolAdapter(
     Arc<dyn for<'call> codex_tools::ToolExecutor<ExtensionToolCall<'call>>>,
@@ -65,7 +63,22 @@ impl ToolExecutor<ToolInvocation> for ExtensionToolAdapter {
     where
         ToolInvocation: 'a,
     {
-        Box::pin(async move { self.0.handle(to_extension_call(&invocation).await).await })
+        Box::pin(async move {
+            let environment_accessors = invocation.step_context.environments();
+            let environments = environment_accessors
+                .iter()
+                .map(|(environment, fs)| {
+                    ToolEnvironment::new(
+                        environment.selection.environment_id.clone(),
+                        environment.cwd().clone(),
+                        fs,
+                    )
+                })
+                .collect();
+            self.0
+                .handle(to_extension_call(&invocation, environments).await)
+                .await
+        })
     }
 }
 
@@ -163,44 +176,29 @@ impl TurnItemEmitter for CoreTurnItemEmitter {
     }
 }
 
-async fn to_extension_call(invocation: &ToolInvocation) -> ExtensionToolCall<'_> {
-    let conversation_history =
-        ConversationHistory::new(invocation.session.clone_history().await.into_raw_items());
+async fn to_extension_call<'a>(
+    invocation: &ToolInvocation,
+    environments: Vec<ToolEnvironment<'a>>,
+) -> ExtensionToolCall<'a> {
+    let history = invocation
+        .session
+        .clone_history()
+        .await
+        .into_shared_annotated_items();
+    let conversation_history = ConversationHistory::new_deferred(move || {
+        Arc::unwrap_or_clone(history)
+            .into_iter()
+            .map(ResponseItemEnvelope::into_item)
+            .collect()
+    });
     let settings = &invocation.step_context.settings;
     let codex_turn_metadata = invocation
         .turn
         .turn_metadata_state
-        .current_meta_value_for_mcp_request(McpTurnMetadataContext {
-            model: settings.model_info.slug.as_str(),
-            reasoning_effort: settings.effective_reasoning_effort(),
-            node_repl_disabled: settings.model_info.node_repl_disabled,
-        })
+        .current_meta_value_for_mcp_request(ExecutionMetadata::from_settings(
+            &invocation.step_context.settings,
+        ))
         .and_then(|metadata| to_ascii_json_string(&metadata).ok());
-    let mut environments = Vec::new();
-    for environment in invocation.step_context.environments.turn_environments() {
-        // TODO(anp): Migrate extension ToolEnvironment and granted-permission lookup to PathUri
-        // so extensions can receive foreign environment cwd values.
-        let Ok(native_cwd) = environment.cwd().to_abs_path() else {
-            continue;
-        };
-        let additional_permissions = apply_granted_turn_permissions(
-            invocation.session.as_ref(),
-            environment,
-            environment.cwd(),
-            SandboxPermissions::UseDefault,
-            /*additional_permissions*/ None,
-        )
-        .await
-        .additional_permissions;
-        let file_system_sandbox_context = environment.sandbox_context(additional_permissions);
-        environments.push(ToolEnvironment {
-            _lifetime: PhantomData,
-            environment_id: environment.selection.environment_id.clone(),
-            cwd: native_cwd,
-            file_system: environment.environment.get_filesystem(),
-            file_system_sandbox_context,
-        });
-    }
     ExtensionToolCall {
         turn_id: invocation.turn.sub_id.clone(),
         call_id: invocation.call_id.clone(),
@@ -301,7 +299,7 @@ mod tests {
 
     struct CapturingExtensionExecutor {
         captured_call: Arc<Mutex<Option<codex_tools::ToolCall<'static>>>>,
-        captured_sandbox_cwds: Arc<Mutex<Vec<Option<PathUri>>>>,
+        captured_sandbox_cwds: Arc<Mutex<Vec<PathUri>>>,
     }
 
     impl<'call> codex_extension_api::ToolExecutor<codex_tools::ToolCall<'call>>
@@ -353,7 +351,7 @@ mod tests {
             *self.captured_sandbox_cwds.lock().await = call
                 .environments
                 .iter()
-                .map(|environment| environment.file_system_sandbox_context.cwd.clone())
+                .map(|environment| environment.cwd.clone())
                 .collect();
             let call = codex_tools::ToolCall {
                 environments: Vec::new(),
@@ -432,9 +430,9 @@ mod tests {
         let model = turn.model_info().slug.clone();
         let truncation_policy = turn.model_info().truncation_policy.into();
         let expected_sandbox_cwds = turn
-            .environments
+            .initial_environments
             .turn_environments()
-            .map(|environment| Some(environment.cwd().clone()))
+            .map(|environment| environment.cwd().clone())
             .collect::<Vec<_>>();
         let history_item = ResponseItem::Message {
             id: None,

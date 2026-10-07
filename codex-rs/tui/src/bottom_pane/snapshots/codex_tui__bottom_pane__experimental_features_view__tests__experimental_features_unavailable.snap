@@ -5,10 +5,12 @@ expression: buffer_text(&buffer)
 
   Experimental features
   Checked features are configured on. Some experimental features take effect
-  only in new tasks or after restarting the Ore server.
+  only in new tasks or after restarting the Codex server.
   Server experiments unavailable. Reopen /experimental to retry; restart this
-  Ore client if requests remain unanswered.
+  Codex client if requests remain unanswered.
+
 
   No experimental features available for now
 
-  Press space to select or enter to save
+
+  space toggle · enter save · esc save/close

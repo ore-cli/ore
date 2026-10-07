@@ -146,10 +146,15 @@ impl ModelClientSession {
         self.client.prepare_response_items_for_request(&mut input);
 
         loop {
-            let client_setup = self.client.current_client_setup().await?;
-            let transport = self
+            let client_setup = self
                 .client
-                .build_api_transport(&client_setup.api_provider, CHAT_COMPLETIONS_ENDPOINT)?;
+                .current_client_setup(super::ClientRouting::ConfiguredProvider)
+                .await?;
+            let transport = self.client.build_api_transport(
+                &client_setup.api_provider,
+                CHAT_COMPLETIONS_ENDPOINT,
+                client_setup.redirect_policy,
+            )?;
             let request_auth_context = AuthRequestTelemetryContext::new(
                 client_setup.auth.as_ref().map(CodexAuth::auth_mode),
                 client_setup.api_auth.as_ref(),
@@ -197,6 +202,8 @@ impl ModelClientSession {
                         session_telemetry.clone(),
                         inference_trace_attempt,
                         Arc::clone(&self.client.state.provider),
+                        // These wires carry no Responses client_metadata for contributors to fill.
+                        Vec::new(),
                     );
                     return Ok(stream);
                 }
@@ -284,6 +291,7 @@ pub(super) fn resolve_chat_tool_calls(
     let codex_api::ResponseStream {
         mut rx_event,
         upstream_request_id,
+        interrupt,
     } = stream;
     let (tx, rx) = tokio::sync::mpsc::channel(RESPONSE_STREAM_CHANNEL_CAPACITY);
     tokio::spawn(async move {
@@ -302,6 +310,7 @@ pub(super) fn resolve_chat_tool_calls(
     codex_api::ResponseStream {
         rx_event: rx,
         upstream_request_id,
+        interrupt,
     }
 }
 
@@ -410,6 +419,7 @@ mod tests {
             url: None,
             headers: None,
             body: body.map(str::to_string),
+            retry_after: None,
         })
     }
 

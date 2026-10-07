@@ -1,5 +1,6 @@
 ---
 source: tui/src/app/user_verification_tests.rs
+assertion_line: 275
 expression: rendered
 ---
-⚠ The local Ore binary could not complete user verification.
+⚠ The local Codex binary could not complete user verification.

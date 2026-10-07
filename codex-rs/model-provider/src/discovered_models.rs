@@ -26,6 +26,8 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use codex_api::ApiError;
@@ -37,6 +39,7 @@ use codex_http_client::HttpClient;
 use codex_http_client::HttpClientFactory;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
+use codex_login::default_client::ClientRedirectPolicy;
 use codex_login::default_client::create_client_for_route_async;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::WireApi;
@@ -284,6 +287,7 @@ impl ProviderModelListDiscovery {
             http_client_factory,
             list_url.clone(),
             ClientRouteClass::Api,
+            ClientRedirectPolicy::Default,
         )
         .await
         .map_err(|err| DiscoveryError::new(format!("no http client: {err}")))?;
@@ -804,6 +808,10 @@ pub(crate) struct DiscoveringModelsManager {
     /// still served -- `Offline` must not open a socket -- but does not
     /// short-circuit `OnlineIfUncached`, so the next listing asks again.
     merged_complete: RwLock<bool>,
+    /// Upstream's `api_key_model_discovery` opt-out. Starts enabled because this
+    /// layer predates the switch; a session that turns it off gets the static
+    /// catalog, as upstream's own discovery does.
+    discovery_enabled: AtomicBool,
     auth_manager: Option<Arc<AuthManager>>,
 }
 
@@ -819,6 +827,7 @@ impl DiscoveringModelsManager {
             merged: RwLock::new(None),
             probe_failed: RwLock::new(false),
             merged_complete: RwLock::new(true),
+            discovery_enabled: AtomicBool::new(true),
             auth_manager,
         }
     }
@@ -833,6 +842,11 @@ impl DiscoveringModelsManager {
             .raw_model_catalog(refresh_strategy, http_client_factory.clone())
             .await
             .models;
+        if !self.discovery_enabled.load(Ordering::SeqCst) {
+            return ModelsResponse {
+                models: static_models,
+            };
+        }
 
         match refresh_strategy {
             // Offline is a promise to the caller that nothing will be sent, and
@@ -933,6 +947,11 @@ impl DiscoveringModelsManager {
 }
 
 impl ModelsManager for DiscoveringModelsManager {
+    fn set_api_key_model_discovery_enabled(&self, enabled: bool) {
+        self.discovery_enabled.store(enabled, Ordering::SeqCst);
+        self.inner.set_api_key_model_discovery_enabled(enabled);
+    }
+
     /// Resolves metadata from the STATIC catalog when the merged one has dropped
     /// the model.
     ///
@@ -988,16 +1007,16 @@ impl ModelsManager for DiscoveringModelsManager {
             // while the inner manager is awaited.
             let merged = self.merged.read().await.clone();
             match merged {
-                Some(merged) => merged,
-                None => self.inner.get_remote_models().await,
+                Some(merged) if self.discovery_enabled.load(Ordering::SeqCst) => merged,
+                _ => self.inner.get_remote_models().await,
             }
         })
     }
 
     fn try_get_remote_models(&self) -> Result<Vec<ModelInfo>, TryLockError> {
         match self.merged.try_read()?.clone() {
-            Some(merged) => Ok(merged),
-            None => self.inner.try_get_remote_models(),
+            Some(merged) if self.discovery_enabled.load(Ordering::SeqCst) => Ok(merged),
+            _ => self.inner.try_get_remote_models(),
         }
     }
 

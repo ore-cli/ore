@@ -14,6 +14,7 @@ use std::cell::Cell;
 use codex_ansi_escape::ansi_escape_line;
 
 use crate::ascii_animation::AsciiAnimation;
+use crate::empty_state_animation::Presentation;
 use crate::key_hint::KeyBindingListExt;
 use crate::onboarding::keys;
 use crate::onboarding::onboarding_screen::KeyboardHandler;
@@ -32,7 +33,8 @@ pub(crate) struct WelcomeWidget {
     pub is_logged_in: bool,
     animation: AsciiAnimation,
     animations_enabled: bool,
-    animations_suppressed: Cell<bool>,
+    presentation: Cell<Presentation>,
+    focused: Cell<bool>,
     layout_area: Cell<Option<Rect>>,
 }
 
@@ -71,7 +73,8 @@ impl WelcomeWidget {
             is_logged_in,
             animation: AsciiAnimation::new(request_frame),
             animations_enabled,
-            animations_suppressed: Cell::new(false),
+            presentation: Cell::new(Presentation::Animated),
+            focused: Cell::new(/*value*/ true),
             layout_area: Cell::new(None),
         }
     }
@@ -80,22 +83,33 @@ impl WelcomeWidget {
         self.layout_area.set(Some(area));
     }
 
-    pub(crate) fn set_animations_suppressed(&self, suppressed: bool) {
-        self.animations_suppressed.set(suppressed);
+    pub(crate) fn set_presentation(&self, presentation: Presentation) {
+        self.presentation.set(presentation);
+    }
+
+    /// An unfocused terminal keeps the crystal on its current frame instead of
+    /// spinning it, as upstream holds its logo still when faded.
+    pub(crate) fn set_focused(&self, focused: bool) {
+        self.focused.set(focused);
+    }
+
+    fn crystal_shown(&self) -> bool {
+        self.animations_enabled && self.presentation.get() != Presentation::Hidden
     }
 }
 
 impl WidgetRef for &WelcomeWidget {
     fn render_ref(&self, area: Rect, buf: &mut Buffer) {
         Clear.render(area, buf);
-        if self.animations_enabled && !self.animations_suppressed.get() {
+        if self.crystal_shown() && self.focused.get() {
             self.animation.schedule_next_frame();
         }
 
         let layout_area = self.layout_area.get().unwrap_or(area);
         // Pick the largest crystal that leaves room for the text and the next
         // step; `None` means even the small one would be clipped, so skip it.
-        let variants = (self.animations_enabled && !self.animations_suppressed.get())
+        let variants = self
+            .crystal_shown()
             .then(|| {
                 crate::frames::variants_for_area(
                     layout_area.width,
@@ -296,7 +310,8 @@ mod tests {
                 /*variant_idx*/ 0,
             ),
             animations_enabled: true,
-            animations_suppressed: Cell::new(false),
+            presentation: Cell::new(Presentation::Animated),
+            focused: Cell::new(/*value*/ true),
             layout_area: Cell::new(None),
         };
 
@@ -320,7 +335,8 @@ mod tests {
                 /*variant_idx*/ 0,
             ),
             animations_enabled: true,
-            animations_suppressed: Cell::new(false),
+            presentation: Cell::new(Presentation::Animated),
+            focused: Cell::new(/*value*/ true),
             layout_area: Cell::new(None),
         };
 

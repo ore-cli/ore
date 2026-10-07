@@ -14,6 +14,7 @@ use codex_protocol::protocol::McpStartupUpdateEvent;
 use codex_protocol::protocol::RawResponseItemEvent;
 use codex_protocol::protocol::TurnAbortReason;
 use codex_protocol::protocol::TurnAbortedEvent;
+use futures::FutureExt;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
@@ -53,6 +54,7 @@ async fn forward_events_filters_private_events_before_blocked_send_is_cancelled(
                 turn_id: Some("turn-1".to_string()),
                 started_at: None,
                 reason: TurnAbortReason::Interrupted,
+                error: None,
                 completed_at: None,
                 duration_ms: None,
             }),
@@ -146,6 +148,7 @@ async fn forward_ops_preserves_submission_trace_context() {
     let submission = Submission {
         id: "sub-1".to_string(),
         op: Op::Interrupt,
+        turn_extension_init: None,
         trace: Some(codex_protocol::protocol::W3cTraceContext {
             traceparent: Some(
                 "00-1234567890abcdef1234567890abcdef-1234567890abcdef-01".to_string(),
@@ -154,6 +157,7 @@ async fn forward_ops_preserves_submission_trace_context() {
         }),
         parent_turn_id: Some("parent-turn".to_string()),
         root_turn_id: Some("root-turn".to_string()),
+        residency_guard: None,
     };
     tx_ops.send(submission).await.unwrap();
     drop(tx_ops);
@@ -189,7 +193,7 @@ async fn run_codex_thread_interactive_respects_pre_cancelled_spawn() {
     config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
     let cancel_token = CancellationToken::new();
     cancel_token.cancel();
-    let parent_environments = parent_ctx.environments.clone();
+    let parent_environments = parent_ctx.initial_environments.clone();
 
     let result = timeout(
         Duration::from_secs(/*secs*/ 1),
@@ -215,6 +219,86 @@ async fn run_codex_thread_interactive_respects_pre_cancelled_spawn() {
         result,
         Err(err) if matches!(err.details(), CodexErrorDetails::TurnAborted)
     ));
+}
+
+#[tokio::test]
+async fn delegate_start_analytics_honors_child_opt_out_with_enabled_parent() {
+    use codex_analytics::AnalyticsEventsClient;
+    use codex_login::CodexAuth;
+    use wiremock::Mock;
+    use wiremock::MockServer;
+    use wiremock::ResponseTemplate;
+    use wiremock::matchers::path;
+
+    let server = MockServer::start().await;
+    Mock::given(path("/codex/analytics-events/events"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&server)
+        .await;
+    let client = AnalyticsEventsClient::new(
+        AuthManager::from_auth_for_testing(CodexAuth::create_dummy_chatgpt_auth_for_testing()),
+        server.uri(),
+        /*analytics_enabled*/ Some(true),
+    );
+    let (mut parent_session, parent_ctx, _rx_events) =
+        crate::session::tests::make_session_and_context_with_rx().await;
+    Arc::get_mut(&mut parent_session)
+        .expect("parent session should be uniquely owned")
+        .services
+        .analytics_events_client = client.clone();
+    parent_session
+        .set_app_server_client_info(
+            Some("codex-test".to_string()),
+            Some("1.0.0".to_string()),
+            /*mcp_elicitations_auto_deny*/ false,
+        )
+        .await
+        .expect("set parent client metadata");
+
+    let mut expected_events = Vec::new();
+    for analytics_enabled in [false, true] {
+        let mut config = parent_ctx.config.as_ref().clone();
+        config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
+        config.analytics_enabled = Some(analytics_enabled);
+        let (session, io) = run_codex_thread_interactive(
+            config,
+            Arc::clone(&parent_session.services.auth_manager),
+            Arc::clone(&parent_session.services.models_manager),
+            Arc::clone(&parent_session),
+            Arc::clone(&parent_ctx),
+            parent_ctx.initial_environments.clone(),
+            CancellationToken::new(),
+            SubAgentSource::Review,
+            codex_extension_api::SessionIsolation::Inherit,
+            /*initial_history*/ None,
+            crate::session::GitEnrichmentPolicy::Fresh,
+            codex_sandboxing::WindowsSandboxProxySettingsMode::Reconcile,
+        )
+        .await
+        .expect("delegate session should start");
+        if analytics_enabled {
+            expected_events.push(serde_json::json!([
+                "codex_thread_initialized",
+                session.thread_id().to_string(),
+            ]));
+        }
+        io.shutdown_and_wait()
+            .await
+            .expect("delegate session should shut down");
+    }
+    client.flush().await;
+    let events = server
+        .received_requests()
+        .await
+        .expect("analytics requests")
+        .into_iter()
+        .flat_map(|request| {
+            let payload: Value = serde_json::from_slice(&request.body).expect("analytics payload");
+            payload["events"].as_array().expect("events array").clone()
+        })
+        .map(|event| serde_json::json!([event["event_type"], event["event_params"]["thread_id"]]))
+        .collect::<Vec<_>>();
+    assert_eq!(events, expected_events);
 }
 
 #[tokio::test]
@@ -258,7 +342,7 @@ async fn delegate_isolation_does_not_depend_on_attribution() {
             Arc::clone(&parent_session.services.models_manager),
             Arc::clone(&parent_session),
             Arc::clone(&parent_ctx),
-            parent_ctx.environments.clone(),
+            parent_ctx.initial_environments.clone(),
             CancellationToken::new(),
             subagent_source,
             isolation,
@@ -294,7 +378,7 @@ async fn run_codex_thread_interactive_rejects_approval_policy_that_can_prompt() 
         crate::session::tests::make_session_and_context_with_rx().await;
     let mut config = parent_ctx.config.as_ref().clone();
     config.permissions.approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
-    let parent_environments = parent_ctx.environments.clone();
+    let parent_environments = parent_ctx.initial_environments.clone();
 
     let result = run_codex_thread_interactive(
         config,
@@ -321,4 +405,36 @@ async fn run_codex_thread_interactive_rejects_approval_policy_that_can_prompt() 
                     if message == "Ore delegates require approval policy `never`"
             )
     ));
+}
+
+/// Private delegates participate in tree shutdown even though they are not manager-visible.
+#[tokio::test]
+async fn tree_shutdown_waits_for_private_delegate() {
+    let (parent, context, _events) =
+        crate::session::tests::make_session_and_context_with_rx().await;
+    let mut config = context.config.as_ref().clone();
+    config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
+    let (_, io) = run_codex_thread_interactive(
+        config,
+        Arc::clone(&parent.services.auth_manager),
+        Arc::clone(&parent.services.models_manager),
+        Arc::clone(&parent),
+        Arc::clone(&context),
+        context.initial_environments.clone(),
+        CancellationToken::new(),
+        SubAgentSource::Review,
+        codex_extension_api::SessionIsolation::Isolated,
+        /*initial_history*/ None,
+        crate::session::GitEnrichmentPolicy::Fresh,
+        codex_sandboxing::WindowsSandboxProxySettingsMode::Reconcile,
+    )
+    .await
+    .expect("start private delegate");
+
+    let shutdown = parent.services.local_agent_runtime.request_shutdown();
+    timeout(Duration::from_secs(/*secs*/ 10), shutdown.wait())
+        .await
+        .expect("tree shutdown should wait for the private delegate")
+        .expect("private delegate should shut down cleanly");
+    assert!(io.session_loop_termination.now_or_never().is_some());
 }

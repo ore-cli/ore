@@ -16,6 +16,7 @@ use codex_protocol::ResponseItemId;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::ReasoningItemContent;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::models::plaintext_agent_message_content;
@@ -562,7 +563,7 @@ fn input_blocks(content: &[ContentItem], dropped: &mut Dropped) -> Vec<Value> {
                     blocks.push(json!({"type": "text", "text": text}));
                 }
             }
-            ContentItem::InputImage { image_url, .. } => blocks.push(image_block(image_url)),
+            ContentItem::InputImage { image, .. } => blocks.push(image_reference_block(image)),
             ContentItem::InputAudio { .. } => {
                 dropped.audio += 1;
                 blocks.push(json!({"type": "text", "text": AUDIO_PLACEHOLDER}));
@@ -570,6 +571,15 @@ fn input_blocks(content: &[ContentItem], dropped: &mut Dropped) -> Vec<Value> {
         }
     }
     blocks
+}
+
+fn image_reference_block(image: &ImageReference) -> Value {
+    match image {
+        ImageReference::Inline { image_url } => image_block(image_url),
+        ImageReference::File { file_id } => {
+            json!({"type": "text", "text": format!("[image omitted: {file_id} is an OpenAI file reference this provider cannot fetch]")})
+        }
+    }
 }
 
 fn image_block(image_url: &str) -> Value {
@@ -631,8 +641,8 @@ fn tool_result_content(output: &FunctionCallOutputPayload, dropped: &mut Dropped
                         blocks.push(json!({"type": "text", "text": text}));
                     }
                 }
-                FunctionCallOutputContentItem::InputImage { image_url, .. } => {
-                    blocks.push(image_block(image_url));
+                FunctionCallOutputContentItem::InputImage { image, .. } => {
+                    blocks.push(image_reference_block(image));
                 }
                 FunctionCallOutputContentItem::InputAudio { .. } => {
                     dropped.audio += 1;
@@ -1357,7 +1367,9 @@ mod tests {
         let input = [message(
             "user",
             vec![ContentItem::InputImage {
-                image_url: PNG_DATA_URL.to_string(),
+                image: ImageReference::Inline {
+                    image_url: PNG_DATA_URL.to_string(),
+                },
                 detail: None,
             }],
         )];
@@ -1375,7 +1387,9 @@ mod tests {
         let messages = messages_of(&[message(
             "user",
             vec![ContentItem::InputImage {
-                image_url: "https://example.com/cat.png".to_string(),
+                image: ImageReference::Inline {
+                    image_url: "https://example.com/cat.png".to_string(),
+                },
                 detail: None,
             }],
         )]);

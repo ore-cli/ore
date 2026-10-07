@@ -39,6 +39,31 @@ fn strict_config_rejects_unknown_config_override() -> Result<()> {
 }
 
 #[test]
+fn mcp_list_reports_invalid_keybinding_reason() -> Result<()> {
+    for bindings in ["'backslash'", "['backslash']"] {
+        let codex_home = TempDir::new()?;
+        std::fs::write(
+            codex_home.path().join("config.toml"),
+            format!("[tui.keymap.editor]\ninsert_newline = {bindings}\n"),
+        )?;
+
+        let output = codex_command(codex_home.path())?
+            .current_dir(codex_home.path())
+            .args(["mcp", "list"])
+            .assert()
+            .failure()
+            .get_output()
+            .stderr
+            .clone();
+        let output = String::from_utf8(output)?;
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(output);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn interactive_validates_config_before_requiring_terminal() -> Result<()> {
     let cases: &[(&[&str], &str, &str, &str)] = &[
         (&[], "config.toml", "model = [", "Error loading config.toml"),
@@ -133,7 +158,7 @@ fn strict_config_is_not_supported_for_cloud_command() -> Result<()> {
 async fn features_enable_writes_feature_flag_to_config() -> Result<()> {
     let codex_home = TempDir::new()?;
 
-    for feature in ["unified_exec", "transcript_v2"] {
+    for feature in ["unified_exec", "shell_tool"] {
         let mut cmd = codex_command(codex_home.path())?;
         cmd.args(["features", "enable", feature])
             .assert()
@@ -218,7 +243,7 @@ async fn features_list_honors_cloud_managed_feature_requirements() -> Result<()>
     let chatgpt_base_url = format!("{}/backend-api", server.uri());
     let codex_home = TempDir::new()?;
     let user_config = format!(
-        "cli_auth_credentials_store = \"file\"\nchatgpt_base_url = \"{chatgpt_base_url}\"\n\n[features]\nfast_mode = true\n"
+        "cli_auth_credentials_store = \"file\"\nchatgpt_base_url = \"{chatgpt_base_url}\"\n\n[features]\nfast_mode = true\nin_app_voice = true\n"
     );
     std::fs::write(codex_home.path().join("config.toml"), &user_config)?;
 
@@ -258,7 +283,7 @@ async fn features_list_honors_cloud_managed_feature_requirements() -> Result<()>
                 "enterprise_managed": [{
                     "id": "managed-feature-requirements",
                     "name": "Managed feature requirements",
-                    "contents": "[features]\nfast_mode = false\n",
+                    "contents": "[features]\nfast_mode = false\nin_app_voice = false\n",
                 }],
             },
         })))
@@ -290,11 +315,108 @@ async fn features_list_honors_cloud_managed_feature_requirements() -> Result<()>
         fast_mode.split_whitespace().collect::<Vec<_>>(),
         ["fast_mode", "stable", "false"]
     );
+    let in_app_voice = stdout
+        .lines()
+        .find(|line| line.starts_with("in_app_voice "))
+        .context("feature list should include in_app_voice")?;
+    insta::assert_snapshot!(
+        in_app_voice.split_whitespace().collect::<Vec<_>>().join(" "),
+        @"in_app_voice stable false"
+    );
     assert_eq!(
         std::fs::read_to_string(codex_home.path().join("config.toml"))?,
         user_config
     );
     server.verify().await;
 
+    Ok(())
+}
+
+#[test]
+fn remote_start_rejects_add_dir_before_connecting() -> Result<()> {
+    let home = TempDir::new()?;
+    let output = codex_command(home.path())?
+        .env("TERM", "xterm-256color")
+        .args(["--remote", "ws://127.0.0.1:1", "--add-dir", "remote-extra"])
+        .assert()
+        .failure()
+        .get_output()
+        .stderr
+        .clone();
+    insta::assert_snapshot!(String::from_utf8(output)?);
+    Ok(())
+}
+
+#[test]
+fn remote_start_rejects_writable_root_overrides_before_connecting() -> Result<()> {
+    for config_override in [
+        "sandbox_workspace_write.writable_roots=[\"./extra\"]",
+        "sandbox_workspace_write={writable_roots=[\"./extra\"],network_access=true}",
+    ] {
+        let home = TempDir::new()?;
+        let output = codex_command(home.path())?
+            .env("TERM", "xterm-256color")
+            .args(["--remote", "ws://127.0.0.1:1", "-c", config_override])
+            .assert()
+            .failure()
+            .get_output()
+            .stderr
+            .clone();
+        let output = String::from_utf8(output)?;
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(output, @"Error: sandbox_workspace_write.writable_roots overrides are not supported with --remote. Configure additional workspace roots on the server.");
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn remote_start_allows_network_access_overrides_before_requiring_terminal() -> Result<()> {
+    for config_override in [
+        "sandbox_workspace_write.network_access=true",
+        "sandbox_workspace_write={network_access=true}",
+    ] {
+        let home = TempDir::new()?;
+        codex_command(home.path())?
+            .env("TERM", "xterm-256color")
+            .args(["--remote", "ws://127.0.0.1:1", "-c", config_override])
+            .assert()
+            .failure()
+            .stderr(contains("stdin is not a terminal"));
+    }
+    Ok(())
+}
+
+#[test]
+fn no_daemon_rejects_agents_and_explicit_remote_targets() -> Result<()> {
+    for args in [
+        "--no-daemon agents",
+        "agents --no-daemon",
+        "--no-daemon queue --thread example --message hello",
+        "--no-daemon --remote ws://localhost:9999 agents",
+        "--no-daemon --remote ws://localhost:9999",
+        "--no-daemon --remote ws://localhost:9999 archive example",
+        "--no-daemon --remote ws://localhost:9999 unarchive example",
+        "--no-daemon --remote ws://localhost:9999 delete --force 123e4567-e89b-12d3-a456-426614174000",
+        "--no-daemon --remote ws://localhost:9999 queue --thread example --message hello",
+        "--remote ws://localhost:9999 resume --no-daemon --last",
+        "--no-daemon fork --remote ws://localhost:9999 session-name",
+    ] {
+        let args = args.split_whitespace().collect::<Vec<_>>();
+        let home = TempDir::new()?;
+        let expected = if args.contains(&"agents") {
+            "--no-daemon cannot be used with ore agents."
+        } else if args.contains(&"queue") && !args.contains(&"--remote") {
+            "--no-daemon cannot be used with ore queue."
+        } else {
+            "--no-daemon cannot be used with --remote."
+        };
+        codex_command(home.path())?
+            .args(args)
+            .assert()
+            .failure()
+            .stderr(contains(expected));
+        assert!(!home.path().join("app-server-daemon").exists());
+    }
     Ok(())
 }

@@ -77,7 +77,6 @@ package(codex-app-server) & test(account_switch_reloads_telemetry_collectors_and
 # guardian_v2: every test routes through guardian_v2_routes_tool_approvals,
 # which awaits a codex.guardian_v2.classification metric on its own /metrics
 # endpoint (suite/v2/guardian_v2.rs:354).
-package(codex-app-server) & test(guardian_v2_low_risk_actions_skip_subsequent_reviews)
 package(codex-app-server) & test(guardian_v2_high_risk_actions_require_full_reviews)
 package(codex-app-server) & test(guardian_v2_threshold_score_requires_full_reviews)
 # rust-v0.155.0's action-budget test awaits the codex_guardian_v2_classification
@@ -97,8 +96,6 @@ package(codex-app-server) & test(oversized_async_action_requires_sync_review_and
 # Same file, same helper, same /metrics timeout, so the cause is unchanged and
 # they belong here rather than in a new group. The plugin-measurement entry is
 # still gone.
-package(codex-app-server) & test(resumed_thread_ignores_persisted_guardian_score)
-package(codex-app-server) & test(forked_thread_ignores_persisted_guardian_score)
 # Moved here from cause (4) after ore-upstream-probe ran them on a pristine
 # rust-v0.152.0 on ubuntu-24.04: all seven cases passed, so upstream is not the
 # reason. They route through the same helper as everything else in this group and
@@ -161,7 +158,6 @@ package(codex-core) & test(explicit_plugin_skill_invocation_tracks_remote_plugin
 package(codex-core) & test(implicit_plugin_skill_invocation_tracks_remote_plugin_id)
 # tests/suite/skills_extension.rs — wait_for_analytics_events at :1037, :1062,
 # :1337, :1873.
-package(codex-core) & test(explicit_only_orchestrator_skill_is_hidden_but_can_be_invoked)
 package(codex-core) & test(executor_skill_invocation_is_environment_scoped_and_deduplicated)
 package(codex-core) & test(production_turn_uses_provider_host_catalog_and_core_snapshot_injection)
 # tests/suite/request_plugin_install.rs :840 — the wait lives in the shared
@@ -183,7 +179,6 @@ package(codex-core) & test(endpoint_recommendation_hydrates_install_identity_aft
 package(codex-app-server) & test(turn_start_with_empty_input_runs_model_request)
 package(codex-app-server) & test(direct_input_to_multi_agent_v2_subagent_is_rejected)
 package(codex-app-server) & test(turn_start_emits_spawn_agent_item_with_model_metadata_v2)
-package(codex-app-server) & test(thread_archive_requires_materialized_rollout)
 package(codex-app-server) & test(history_notes_and_async_message_emit_control_tool_analytics)
 package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytics)
 
@@ -255,7 +250,6 @@ package(codex-exec-server) & test(shell_snapshot_v2_)
 # BEFORE the analytics seam, so it is neither cause (1) nor ours. Symptom is
 # `timeout waiting for event: Elapsed(())`. A sibling in the same file is already
 # excluded above for cause (1); this one is not that, despite the resemblance.
-package(codex-core) & test(snapshot_rollback_followup_turn_trims_context_updates)
 
 # ---------------------------------------------------------------- rust-v0.151.0
 
@@ -412,7 +406,6 @@ package(codex-app-server) & test(turn_steer_updates_client_metadata_on_follow_up
 #   .expect("parent turn analytics")   (guardian_v2.rs:1407)
 # for a codex_turn_event POST the analytics seam never sends. Hence FAIL rather
 # than the family's usual timeout.
-package(codex-app-server) & test(guardian_v2_required_model_bypasses_scoring_and_runs_full_reviews)
 
 # --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
 # suite/v2/turn_cost_otel.rs builds its own provider through

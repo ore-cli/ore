@@ -16,6 +16,8 @@ use codex_config::types::OtelConfig;
 use codex_config::types::OtelExporterKind;
 use codex_core::config::Config;
 use codex_core::config::ConfigBuilder;
+use codex_http_client::HttpClientFactory;
+use codex_http_client::OutboundProxyPolicy;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_otel::OtelExporter;
@@ -197,6 +199,7 @@ fn a_statsig_metrics_exporter_installs_no_otel_provider() {
         runtime_metrics: false,
         span_attributes: BTreeMap::new(),
         tracestate: BTreeMap::new(),
+        http_client_factory: HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
     };
 
     let provider = OtelProvider::try_new(&settings).expect("otel settings should resolve");

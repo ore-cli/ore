@@ -6,6 +6,6 @@ expression: normalize_snapshot_paths(rendered)
   └ rm -rf '/tmp/current-review'
 
 
-› Ask Ore to do anything
+› Ask Codex to do anything
 
-  gpt-5.6-sol default · /tmp/project
+  GPT-5.6-Sol default · /tmp/project

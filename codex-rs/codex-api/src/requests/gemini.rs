@@ -18,6 +18,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::ReasoningItemContent;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::models::plaintext_agent_message_content;
@@ -582,7 +583,7 @@ fn input_parts(content: &[ContentItem], dropped: &mut Dropped) -> Vec<Value> {
                     parts.push(json!({"text": text}));
                 }
             }
-            ContentItem::InputImage { image_url, .. } => parts.push(image_part(image_url)),
+            ContentItem::InputImage { image, .. } => parts.push(image_reference_part(image)),
             ContentItem::InputAudio { .. } => {
                 dropped.audio += 1;
                 parts.push(json!({"text": AUDIO_PLACEHOLDER}));
@@ -595,6 +596,15 @@ fn input_parts(content: &[ContentItem], dropped: &mut Dropped) -> Vec<Value> {
 /// `inlineData` is the only image part that takes bytes. The `fileData`
 /// alternative addresses the Files API, not arbitrary URLs, so a remote image
 /// degrades to text rather than a 400 on a URI the backend cannot fetch.
+fn image_reference_part(image: &ImageReference) -> Value {
+    match image {
+        ImageReference::Inline { image_url } => image_part(image_url),
+        ImageReference::File { file_id } => {
+            json!({"text": format!("[image omitted: {file_id} is an OpenAI file reference this provider cannot fetch]")})
+        }
+    }
+}
+
 fn image_part(image_url: &str) -> Value {
     if !image_url.starts_with("data:") {
         return json!({"text": format!("[image omitted: {image_url} is not inline data]")});
@@ -675,8 +685,8 @@ fn tool_result_media(output: &FunctionCallOutputPayload, dropped: &mut Dropped) 
     let mut parts = Vec::new();
     for item in output.content_items().unwrap_or_default() {
         match item {
-            FunctionCallOutputContentItem::InputImage { image_url, .. } => {
-                parts.push(image_part(image_url));
+            FunctionCallOutputContentItem::InputImage { image, .. } => {
+                parts.push(image_reference_part(image));
             }
             FunctionCallOutputContentItem::InputAudio { .. } => {
                 dropped.audio += 1;

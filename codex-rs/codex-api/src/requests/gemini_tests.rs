@@ -2,6 +2,7 @@ use super::*;
 use crate::provider::RetryConfig;
 use codex_protocol::ResponseItemId;
 use codex_protocol::models::FunctionCallOutputBody;
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::LocalShellAction;
 use codex_protocol::models::LocalShellExecAction;
 use codex_protocol::models::LocalShellStatus;
@@ -304,7 +305,9 @@ fn tool_result_images_ride_beside_the_response_part() {
                 text: "see below".to_string(),
             },
             FunctionCallOutputContentItem::InputImage {
-                image_url: PNG_DATA_URL.to_string(),
+                image: ImageReference::Inline {
+                    image_url: PNG_DATA_URL.to_string(),
+                },
                 detail: None,
             },
         ]),
@@ -598,7 +601,9 @@ fn an_inline_image_rides_as_inline_data() {
     let body = body_of(&[message(
         "user",
         vec![ContentItem::InputImage {
-            image_url: PNG_DATA_URL.to_string(),
+            image: ImageReference::Inline {
+                image_url: PNG_DATA_URL.to_string(),
+            },
             detail: None,
         }],
     )]);
@@ -616,7 +621,9 @@ fn a_remote_image_degrades_to_text() {
     let body = body_of(&[message(
         "user",
         vec![ContentItem::InputImage {
-            image_url: "https://example.com/cat.png".to_string(),
+            image: ImageReference::Inline {
+                image_url: "https://example.com/cat.png".to_string(),
+            },
             detail: None,
         }],
     )]);

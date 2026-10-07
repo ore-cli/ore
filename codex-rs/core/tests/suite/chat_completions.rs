@@ -54,6 +54,9 @@ fn chat_provider(server: &MockServer) -> ModelProviderInfo {
         auth: None,
         aws: None,
         wire_api: WireApi::Chat,
+        model_catalog_url: None,
+        gateway_oauth: None,
+        include_internal_metadata: false,
         query_params: None,
         http_headers: None,
         env_http_headers: None,
@@ -111,6 +114,7 @@ async fn stream_turn_with(
         "test_originator".to_string(),
         config.model_verbosity,
         /*content_item_kinds_enabled*/ false,
+        /*reasoning_effort_override_enabled*/ false,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
         /*beta_features_header*/ None,
@@ -120,6 +124,8 @@ async fn stream_turn_with(
             .enabled(Feature::ConcurrentReasoningSummaries),
         /*attestation_provider*/ None,
         config.http_client_factory(),
+        config.workspace_routing_context(),
+        Vec::new(),
     );
     let thread = thread_id.to_string();
     let turn_metadata = responses_metadata(

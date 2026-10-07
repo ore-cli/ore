@@ -74,6 +74,43 @@ fn restricted_sandbox_requires_exec_approval_on_request() {
 }
 
 #[test]
+fn windows_sandbox_selection_distinguishes_configured_and_executor_defaults() {
+    let cwd = PathUri::parse("file:///C:/workspace").expect("Windows path URI");
+    assert_eq!(
+        executor_windows_sandbox_level(
+            SandboxType::WindowsMxc,
+            codex_protocol::config_types::WindowsSandboxLevel::Disabled,
+            &cwd,
+        ),
+        codex_protocol::config_types::WindowsSandboxLevel::Disabled,
+    );
+    assert_eq!(
+        executor_windows_sandbox_selection(
+            SandboxType::WindowsMxc,
+            codex_protocol::config_types::WindowsSandboxLevel::Disabled,
+            &cwd,
+        ),
+        codex_file_system::WindowsSandboxSelection::Mxc,
+    );
+    assert_eq!(
+        configured_windows_sandbox_selection(
+            SandboxType::None,
+            codex_protocol::config_types::WindowsSandboxLevel::Disabled,
+            &cwd,
+        ),
+        codex_file_system::WindowsSandboxSelection::Disabled,
+    );
+    assert_eq!(
+        executor_windows_sandbox_selection(
+            SandboxType::None,
+            codex_protocol::config_types::WindowsSandboxLevel::Disabled,
+            &cwd,
+        ),
+        codex_file_system::WindowsSandboxSelection::RestrictedToken,
+    );
+}
+
+#[test]
 fn default_exec_approval_requirement_rejects_sandbox_prompt_when_granular_disables_it() {
     let policy = AskForApproval::Granular(GranularApprovalConfig {
         sandbox_approval: false,
@@ -126,6 +163,7 @@ fn additional_permissions_allow_bypass_sandbox_first_attempt_when_execpolicy_ski
                 proposed_execpolicy_amendment: None,
             },
             &FileSystemSandboxPolicy::default(),
+            /*already_approved*/ false,
         ),
         SandboxOverride::BypassSandboxFirstAttempt
     );
@@ -141,13 +179,14 @@ fn guardian_bypasses_sandbox_for_explicit_escalation_on_first_attempt() {
                 proposed_execpolicy_amendment: None,
             },
             &FileSystemSandboxPolicy::default(),
+            /*already_approved*/ true,
         ),
         SandboxOverride::BypassSandboxFirstAttempt
     );
 }
 
 #[test]
-fn deny_read_blocks_explicit_escalation_and_policy_bypass() {
+fn deny_read_preserves_the_sandbox_for_explicit_escalation_and_blocks_policy_bypass() {
     let file_system_policy = FileSystemSandboxPolicy::restricted(vec![FileSystemSandboxEntry {
         path: FileSystemPath::GlobPattern {
             pattern: "**/*.env".to_string(),
@@ -164,11 +203,16 @@ fn deny_read_blocks_explicit_escalation_and_policy_bypass() {
                 proposed_execpolicy_amendment: None,
             },
             &file_system_policy,
+            /*already_approved*/ true,
         ),
-        SandboxOverride::NoOverride,
-        "explicit escalation would drop deny-read filesystem policy, so keep the first attempt sandboxed",
+        SandboxOverride::EscalatedSandboxWithRestrictions,
+        "explicit escalation must widen the first attempt without dropping the sandbox",
     );
     assert!(!unsandboxed_execution_allowed(&file_system_policy));
+    assert!(matches!(
+        SandboxOverride::EscalatedSandboxWithRestrictions.ensure_native_sandbox(SandboxType::None),
+        Err(ToolError::Rejected(reason)) if reason.contains("requires an available filesystem sandbox"),
+    ));
     assert_eq!(
         sandbox_permissions_preserving_denied_reads(
             SandboxPermissions::RequireEscalated,
@@ -198,6 +242,7 @@ fn deny_read_blocks_explicit_escalation_and_policy_bypass() {
                 proposed_execpolicy_amendment: None,
             },
             &file_system_policy,
+            /*already_approved*/ true,
         ),
         SandboxOverride::NoOverride,
         "exec-policy allow rules would drop deny-read filesystem policy, so keep the first attempt sandboxed",
@@ -255,10 +300,10 @@ fn windows_sandbox_env_preserves_denied_reads_or_rejects_unsupported_backend() {
         manager: &manager,
         sandbox_cwd: &cwd_uri,
         workspace_roots: std::slice::from_ref(&cwd_uri),
-        codex_linux_sandbox_exe: None,
+        sandbox_exe: None,
         use_legacy_landlock: false,
+        windows_sandbox_type: SandboxType::WindowsRestrictedToken,
         windows_sandbox_level: codex_protocol::config_types::WindowsSandboxLevel::Elevated,
-        windows_sandbox_private_desktop: false,
         network_denial_cancellation_token: None,
         network_proxy: None,
     };
@@ -326,16 +371,17 @@ fn exec_server_env_keeps_command_native_and_carries_sandbox_context() {
         manager: &manager,
         sandbox_cwd: &cwd_uri,
         workspace_roots: std::slice::from_ref(&cwd_uri),
-        codex_linux_sandbox_exe: None,
+        sandbox_exe: None,
         use_legacy_landlock: false,
+        windows_sandbox_type: SandboxType::None,
         windows_sandbox_level: codex_protocol::config_types::WindowsSandboxLevel::Disabled,
-        windows_sandbox_private_desktop: false,
         network_denial_cancellation_token: None,
         network_proxy: None,
     };
     let managed_network = ManagedNetworkSandboxContext {
         loopback_ports: vec![43123],
         allow_local_binding: false,
+        ..Default::default()
     };
     let command = || SandboxCommand {
         program: "/bin/bash".into(),
@@ -367,17 +413,16 @@ fn exec_server_env_keeps_command_native_and_carries_sandbox_context() {
     assert_eq!(
         request.exec_server_sandbox,
         Some(codex_exec_server::FileSystemSandboxContext {
-            permissions: exec_server_permissions.clone().into(),
-            cwd: Some(cwd_uri.clone()),
+            permissions: exec_server_permissions.clone(),
+            cwd: cwd_uri.clone(),
             workspace_roots: vec![cwd_uri.clone()],
             user_home_dir: None,
             temporary_directories: None,
-            windows_sandbox_level: if cfg!(windows) {
-                codex_protocol::config_types::WindowsSandboxLevel::RestrictedToken
+            windows_sandbox_selection: if cfg!(windows) {
+                codex_file_system::WindowsSandboxSelection::RestrictedToken
             } else {
-                codex_protocol::config_types::WindowsSandboxLevel::Disabled
+                codex_file_system::WindowsSandboxSelection::Disabled
             },
-            windows_sandbox_private_desktop: false,
             windows_sandbox_proxy_settings_mode: None,
             use_legacy_landlock: false,
         })

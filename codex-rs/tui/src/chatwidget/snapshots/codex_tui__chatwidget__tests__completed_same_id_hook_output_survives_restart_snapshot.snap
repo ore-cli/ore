@@ -8,9 +8,9 @@ activity:
 "• Checking stop condition                                                       "
 "                                                                                "
 "                                                                                "
-"› Ask Ore to do anything                                                        "
+"› Ask Codex to do anything                                                      "
 "                                                                                "
-"  gpt-5.6-sol default · /tmp/project                                            "
+"  GPT-5.6-Sol default · /tmp/project                                            "
 history:
 • Hook stopped
   └ continue with more context

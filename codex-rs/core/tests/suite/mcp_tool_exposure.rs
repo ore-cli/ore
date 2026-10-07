@@ -35,7 +35,7 @@ use core_test_support::apps_test_server::SEARCH_CALENDAR_NAMESPACE;
 use core_test_support::apps_test_server::search_capable_apps_builder;
 use core_test_support::context_snapshot;
 use core_test_support::context_snapshot::ContextSnapshotOptions;
-use core_test_support::context_snapshot::ContextSnapshotRenderMode;
+use core_test_support::context_snapshot::SnapshotEntry;
 use core_test_support::responses;
 use core_test_support::responses::ResponsesRequest;
 use core_test_support::responses::ev_assistant_message;
@@ -59,16 +59,45 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::sync::Semaphore;
+use tracing::Subscriber;
+use tracing::span::Attributes;
+use tracing::span::Id;
+use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context as LayerContext;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use wiremock::Mock;
 use wiremock::Request;
 use wiremock::ResponseTemplate;
 use wiremock::matchers::body_partial_json;
 use wiremock::matchers::method;
 use wiremock::matchers::path_regex;
+
+#[derive(Clone, Default)]
+struct McpCacheCounters {
+    binding_captures: Arc<AtomicUsize>,
+    search_index_builds: Arc<AtomicUsize>,
+}
+
+impl<S: Subscriber> Layer<S> for McpCacheCounters {
+    fn on_new_span(&self, attributes: &Attributes<'_>, _id: &Id, _context: LayerContext<'_, S>) {
+        let metadata = attributes.metadata();
+        match (metadata.target(), metadata.name()) {
+            ("codex_mcp::connection_manager::tool_catalog", "capture_binding_with_metadata") => {
+                self.binding_captures.fetch_add(1, Ordering::SeqCst);
+            }
+            ("codex_core::tools::handlers::tool_search", "new") => {
+                self.search_index_builds.fetch_add(1, Ordering::SeqCst);
+            }
+            _ => {}
+        }
+    }
+}
 
 struct McpResourceClientCapture {
     client: Arc<Mutex<Option<McpResourceClient>>>,
@@ -161,7 +190,10 @@ impl McpServerContributor<Config> for AppsMcpServerContributor {
                     .expect("test Apps MCP server config should be valid"),
             );
             let contribution = if self.id == "hosted_plugin_runtime" {
-                McpServerContribution::HostedApps { config }
+                McpServerContribution::HostedApps {
+                    config,
+                    protocol_mode: None,
+                }
             } else {
                 McpServerContribution::Set {
                     name: CODEX_APPS_MCP_SERVER_NAME.to_string(),
@@ -204,9 +236,7 @@ fn format_labeled_requests_snapshot(
     context_snapshot::format_labeled_requests_snapshot(
         scenario,
         sections,
-        &ContextSnapshotOptions::default()
-            .strip_capability_instructions()
-            .render_mode(ContextSnapshotRenderMode::KindWithTextPrefix { max_chars: 96 }),
+        &ContextSnapshotOptions::default().rewrite_known_segments(),
     )
 }
 
@@ -384,8 +414,13 @@ async fn rapid_mcp_refreshes_coalesce_to_the_latest_config() -> Result<()> {
         .await?;
 
     contributor.block_next.store(true, Ordering::SeqCst);
-    test.codex
-        .refresh_runtime_config(config_with_mcp_marker(&test.config, "config-a"))
+    let current_config = test.codex.config().await;
+    let _ = test
+        .codex
+        .refresh_runtime_config(
+            current_config,
+            config_with_mcp_marker(&test.config, "config-a"),
+        )
         .await;
     tokio::time::timeout(Duration::from_secs(5), contributor.entered.acquire())
         .await
@@ -393,11 +428,21 @@ async fn rapid_mcp_refreshes_coalesce_to_the_latest_config() -> Result<()> {
         .expect("entered semaphore should remain open")
         .forget();
 
-    test.codex
-        .refresh_runtime_config(config_with_mcp_marker(&test.config, "config-b"))
+    let current_config = test.codex.config().await;
+    let _ = test
+        .codex
+        .refresh_runtime_config(
+            current_config,
+            config_with_mcp_marker(&test.config, "config-b"),
+        )
         .await;
-    test.codex
-        .refresh_runtime_config(config_with_mcp_marker(&test.config, "config-c"))
+    let current_config = test.codex.config().await;
+    let _ = test
+        .codex
+        .refresh_runtime_config(
+            current_config,
+            config_with_mcp_marker(&test.config, "config-c"),
+        )
         .await;
     contributor.release.add_permits(1);
 
@@ -496,10 +541,7 @@ async fn root_reconciliation_reuses_pending_apps_startup() -> Result<()> {
                 ),
                 shell_environment_policy: Default::default(),
                 windows_sandbox_level: WindowsSandboxLevel::from_config(&test.config),
-                windows_sandbox_private_desktop: test
-                    .config
-                    .permissions
-                    .windows_sandbox_private_desktop,
+                windows_sandbox_type: test.config.permissions.windows_sandbox_type,
                 use_legacy_landlock: test.config.features.use_legacy_landlock(),
                 exec_policy: None,
                 mcp_policy: None,
@@ -620,13 +662,17 @@ async fn timeout_refresh_replaces_pending_startup_and_reuses_ready_connection() 
         )
         .await?;
 
+    let current_config = test.codex.config().await;
     let mut refresh_config = test.config.clone();
     let mut servers = refresh_config.mcp_servers.get().clone();
     for config in servers.values_mut() {
         config.startup_timeout_sec = None;
     }
     refresh_config.mcp_servers.set(servers)?;
-    test.codex.refresh_mcp_config(refresh_config).await;
+    let _ = test
+        .codex
+        .refresh_mcp_config(current_config, refresh_config)
+        .await;
     // Publish without waiting for the held initialize to finish.
     let error = test
         .codex
@@ -834,6 +880,7 @@ async fn out_of_band_resource_read_reconciles_the_published_mcp_runtime() -> Res
         .expect("thread start should capture the MCP resource client");
     assert!(!resource_client.has_server("refreshed").await);
 
+    let current_config = test.codex.config().await;
     let mut refresh_config = test.config.clone();
     let user_config_path = refresh_config.codex_home.join("config.toml");
     let user_config: toml::Value = toml::from_str(&format!(
@@ -857,7 +904,10 @@ startup_timeout_sec = 0.1
     refresh_config.config_layer_stack = refresh_config
         .config_layer_stack
         .with_user_config(&user_config_path, user_config)?;
-    test.codex.refresh_runtime_config(refresh_config).await;
+    let _ = test
+        .codex
+        .refresh_runtime_config(current_config, refresh_config)
+        .await;
     test.codex.submit(Op::RefreshMcpServers).await?;
 
     let _ = test
@@ -1082,10 +1132,18 @@ async fn deferred_tool_world_state_is_disabled_by_default() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+// Keep spawned tasks on the thread with the scoped tracing subscriber.
+#[tokio::test(flavor = "current_thread")]
 async fn deferred_tool_world_state_tracks_initial_unchanged_and_removed_namespaces() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
+    let counters = McpCacheCounters::default();
+    // Keep concurrent tests without a subscriber from caching these callsites as disabled.
+    let _interest_cache_guard =
+        tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default());
+    let _tracing = tracing_subscriber::registry()
+        .with(counters.clone())
+        .set_default();
     let server = responses::start_mock_server().await;
     let apps_server = AppsTestServer::mount_searchable(&server).await?;
     let response = mount_sse_sequence(&server, completed_response_sequence(/*count*/ 3)).await;
@@ -1096,8 +1154,31 @@ async fn deferred_tool_world_state_tracks_initial_unchanged_and_removed_namespac
 
     test.submit_turn("inspect initially available deferred tools")
         .await?;
-    test.submit_turn("inspect unchanged deferred tools").await?;
+    let initial_captures = counters.binding_captures.load(Ordering::SeqCst);
+    let initial_index_builds = counters.search_index_builds.load(Ordering::SeqCst);
+    assert!(
+        initial_captures > 0,
+        "the initial turn must capture an MCP binding"
+    );
+    assert!(
+        initial_index_builds > 0,
+        "the initial turn must build the search index"
+    );
 
+    // Publish a new catalog revision with the same metadata from the ready client.
+    test.codex.refresh_codex_apps_tools().await?;
+    test.submit_turn("inspect unchanged deferred tools").await?;
+    assert!(
+        counters.binding_captures.load(Ordering::SeqCst) > initial_captures,
+        "the follow-up must capture a new binding after the refresh"
+    );
+    assert_eq!(
+        counters.search_index_builds.load(Ordering::SeqCst),
+        initial_index_builds,
+        "equivalent bindings must preserve MCP handlers and reuse the search index"
+    );
+
+    let current_config = test.codex.config().await;
     let mut refresh_config = test.config.clone();
     let user_config_path = refresh_config.codex_home.join("config.toml");
     let user_config = toml::from_str(
@@ -1109,12 +1190,23 @@ enabled = false
     refresh_config.config_layer_stack = refresh_config
         .config_layer_stack
         .with_user_config(&user_config_path, user_config)?;
-    test.codex.refresh_runtime_config(refresh_config).await;
+    let _ = test
+        .codex
+        .refresh_runtime_config(current_config, refresh_config)
+        .await;
     test.codex.submit(Op::RefreshMcpServers).await?;
     test.submit_turn("inspect removed deferred tools").await?;
 
     let requests = response.requests();
     assert_eq!(requests.len(), 3);
+    assert!(
+        requests[2].body_json()["tools"]
+            .as_array()
+            .expect("model request tools")
+            .iter()
+            .all(|tool| tool["type"] != "tool_search"),
+        "removing all deferred tools must stop advertising the cached search tool"
+    );
     let tools_states = requests
         .iter()
         .map(tools_state_sections)
@@ -1135,6 +1227,7 @@ enabled = false
         )
     );
 
+    test.codex.shutdown_and_wait().await?;
     Ok(())
 }
 
@@ -1235,12 +1328,13 @@ async fn deferred_tool_world_state_survives_resume_without_duplicate_updates() -
     assert!(tools_states[0][0].contains(SEARCH_CALENDAR_NAMESPACE));
     insta::assert_snapshot!(
         "deferred_tools_resume_without_duplicate_update",
-        format_labeled_requests_snapshot(
+        context_snapshot::format_context_snapshot(
             "Persisted deferred tools remain unchanged after resuming the thread.",
             &[
-                ("Before resume", &requests[0]),
-                ("After resume", &requests[1]),
+                SnapshotEntry::items(&requests[0].input()).labeled("Before resume"),
+                SnapshotEntry::items(&requests[1].input()).labeled("After resume"),
             ],
+            &ContextSnapshotOptions::default().rewrite_known_segments(),
         )
     );
 

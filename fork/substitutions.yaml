@@ -221,7 +221,7 @@ categories:
     - name: cli-command-in-help-text
       note: subcommand list is re-derived from `enum Subcommand` by --audit; this rule is the bulk rewrite.
       globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "codex-cli/scripts/**/*.sh", ".github/ISSUE_TEMPLATE/*.yml", ".github/**/*.md"]
-      pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|unarchive|update)\b)'
+      pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|tcp-tunnel|unarchive|update)\b)'
       replace: '${bin}'
 
     - name: cli-command-before-flag
@@ -261,16 +261,16 @@ categories:
       note: >
         The fixture feeds "Your `codex` launcher ..." and asserts the rendered inline
         code span. cli-command-in-backticks rewrites the INPUT, because it is
-        backticked; the expected span is a bare `"codex".cyan()`, which no rule
+        backticked; the expected span is a styled `"codex"` literal, which no rule
         matches -- so the renderer emits `ore` and the assertion still wants `codex`.
 
-        Anchored on `.cyan()` so it cannot touch the path literals in the same test:
+        Anchored on the `Span::styled(.., code)` call so it cannot touch the path literals in the same test:
         `/home/.../bin/codex:1105` is a filesystem path in the fixture and must stay
         exactly as upstream wrote it.
       files: [codex-rs/tui/src/markdown_render_tests.rs]
       rust_literals_only: false
-      pattern: '"codex"\.cyan\(\)'
-      replace: '"${bin}".cyan()'
+      pattern: 'Span::styled\("codex", MarkdownStyles::default\(\)\.code\)'
+      replace: 'Span::styled("${bin}", MarkdownStyles::default().code)'
 
     # doctor-path-probe and npm-doctor-package-root were retired at
     # rust-v0.154.0. Both targeted text upstream DELETED: the `where`/`which -a`
@@ -428,17 +428,6 @@ categories:
       pattern: 'Within this context, Codex refers to the open-source agentic coding interface \(not the old Codex language model built by OpenAI\)\.'
       replace: 'Within this context, ${product_name} refers to the open-source agentic coding interface.'
 
-    - name: prompt-personality-header-is-ore
-      note: >
-        DEFAULT_PERSONALITY_HEADER, the other half of what the agent is told it is.
-        "based on GPT-5" is the one clause where the provider genuinely matters: true
-        for an OpenAI model, false for Claude. Dropped rather than made conditional --
-        a substitution cannot branch on provider, and the base model is not something
-        the agent needs told to behave correctly.
-      files: [codex-rs/models-manager/src/model_info.rs]
-      pattern: 'You are Codex, a coding agent based on GPT-5\.'
-      replace: 'You are ${product_name}, a coding agent.'
-
     - name: ui-app-name-label
       note: >
         The other half of ui-bare-lowercase-label. That rule fixed the VALUE the
@@ -468,50 +457,17 @@ categories:
         the pattern still enforces that.
       globs: ["codex-rs/tui/**/tooltips.txt"]
       rust_literals_only: false
-      pattern: '(?m)^Use /feedback to send logs to the maintainers when something looks off\.$'
+      pattern: '(?m)^Use \*\*/feedback\*\* to send logs to the maintainers when something looks off\.$'
       replace: ''
-
-    - name: tooltip-points-at-ore-community-not-openai-s
-      note: >
-        Upstream points users at OpenAI's Discord and at the Codex category of
-        OpenAI's forum. Rebranded, the forum line became "Visit the Ore community
-        forum" pointing at community.openai.com/c/codex -- claiming OpenAI's
-        forum as ore's, which is both untrue and rude to the people who run it.
-        The Discord line keeps its shape and gets ore's own server; the forum
-        line is emptied because ore has no forum to send anyone to.
-      globs: ["codex-rs/tui/**/tooltips.txt"]
-      rust_literals_only: false
-      pattern: '(?m)^Join the OpenAI community Discord: http://discord\.gg/openai$'
-      replace: 'Join the ${product_name} community Discord: https://discord.gg/awN2xANFMW'
 
     - name: tooltip-drops-the-forum-that-is-not-ours
       note: >
-        See tooltip-points-at-ore-community-not-openai-s. Matches either spelling
+        OpenAI's forum, not ore's. Matches either spelling
         because ui-bare-product-name may rewrite Codex to Ore before this runs.
       globs: ["codex-rs/tui/**/tooltips.txt"]
       rust_literals_only: false
-      pattern: '(?m)^Visit the (?:Codex|Ore) community forum: https://community\.openai\.com/c/codex/37$'
+      pattern: '(?m)^Visit the \[(?:Codex|Ore) community forum\]\(https://community\.openai\.com/c/codex/37\)\.$'
       replace: ''
-
-    - name: tooltip-claims-no-plan-that-does-not-exist
-      note: >
-        Upstream shows ChatGPT Free and Go accounts "For a limited time, Codex is
-        included in your plan for free". Rebranded word-for-word that becomes
-        "Ore is included in your plan", which is false: ore is a fork, it is not
-        sold, and nothing about it is included in anyone's subscription. It is
-        also the one claim the rest of the fork is careful never to make -- the
-        README, the sign-in section and the NOTICE all go out of their way to say
-        ore is not affiliated with OpenAI, and then the TUI greeted free-plan
-        users by implying a commercial relationship.
-
-        Replaced with the wording the same file already uses for every other
-        account type, rather than deleted, so the tooltip rotation keeps its
-        shape and the constant stays where a sync can still see it. Matches
-        either spelling because ui-bare-product-name may have rewritten Codex to
-        Ore before this rule runs.
-      files: [codex-rs/tui/src/tooltips.rs]
-      pattern: 'For a limited time, (?:Codex|Ore) is included in your plan for free – let\u2019s build together\.'
-      replace: 'Build faster with ${product_name}.'
 
     - name: ui-bare-lowercase-label
       note: >
@@ -587,27 +543,6 @@ categories:
         slugs, ids, wire field names -- is reachable by it.
       files: [codex-rs/models-manager/models.json]
       rust_literals_only: false
-      pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
-      replace: 'You are ${product_name}, a coding agent.'
-
-    - name: test-constant-tracks-the-rebranded-identity
-      note: >
-        codex-app-server's thread_resume suite hardcodes the gpt-5.2 instructions
-        opening as a &str constant and asserts the resumed thread's instructions
-        still contain it. models-json-identity-is-ore rewrites that same sentence
-        in models.json, which is where the runtime template actually comes from,
-        so on an assembled tree the two sides disagree and
-        thread_resume_accepts_personality_override fails -- while passing on the
-        series, where no substitution has run. That split is why it went
-        unnoticed: ore-ci tests delta unsubstituted.
-
-        Rewriting the constant keeps the test doing its real job -- asserting a
-        personality override does not displace the base instructions -- instead of
-        retiring it into known-failing, which is scoped to the telemetry seams and
-        would silently drop the coverage. Same pattern and replacement as the
-        models.json rule so the two cannot drift; rust_literals_only stays at its
-        default, so only the string literal's contents are reachable.
-      files: [codex-rs/app-server/tests/suite/v2/thread_resume.rs]
       pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
       replace: 'You are ${product_name}, a coding agent.'
 
@@ -888,14 +823,14 @@ categories:
     - name: ui-docs-link-probe-range
       note: >
         chatgpt_success_message_renders_osc8_hyperlinks measures the "Codex docs"
-        hyperlink cell-by-cell -- 27 dim prefix cells, then the underlined link.
+        hyperlink cell-by-cell -- 47 dim prefix cells, then the underlined link.
         "ore docs" is 8 columns where "Codex docs" was 10, so the probed range
-        (27+10) and the run length shrink with it (precedent:
+        (47+10) and the run length shrink with it (precedent:
         installer-ps1-prefix-length).
       files: [codex-rs/tui/src/onboarding/auth.rs]
       rust_literals_only: false
-      pattern: '\(0\.\.37\)'
-      replace: '(0..35)'
+      pattern: '\(0\.\.57\)'
+      replace: '(0..55)'
 
     - name: ui-docs-link-probe-width
       files: [codex-rs/tui/src/onboarding/auth.rs]

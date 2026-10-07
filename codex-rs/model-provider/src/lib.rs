@@ -2,6 +2,7 @@ mod amazon_bedrock;
 mod anthropic;
 mod auth;
 mod bearer_auth_provider;
+mod combined_auth;
 mod discovered_models;
 mod gemini;
 mod models_endpoint;
@@ -9,8 +10,15 @@ mod models_identity;
 mod provider;
 mod shared_state;
 pub mod test_support;
+mod workspace_routing;
+pub use workspace_routing::ACCOUNT_ROUTING_HEADER;
+pub use workspace_routing::ResolvedResponsesProvider;
+pub use workspace_routing::ResponsesConnectionKey;
+pub use workspace_routing::WorkspaceRoutingContext;
 
+pub use amazon_bedrock::is_amazon_bedrock_gov_cloud_region;
 pub use amazon_bedrock::is_supported_amazon_bedrock_region;
+pub use amazon_bedrock::resolve_amazon_bedrock_region;
 pub use anthropic::AnthropicModelFacts;
 pub use anthropic::anthropic_model_facts;
 pub use anthropic::info::ANTHROPIC_API_KEY_ENV_VAR;
@@ -50,3 +58,7 @@ pub use provider::ProviderUnauthorizedRecovery;
 pub use provider::RemoteCompactionSupport;
 pub use provider::SharedModelProvider;
 pub use provider::create_model_provider;
+
+#[cfg(test)]
+#[path = "workspace_routing_tests.rs"]
+mod workspace_routing_tests;

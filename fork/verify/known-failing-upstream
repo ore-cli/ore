@@ -22,7 +22,6 @@
 
 
 # --- codex-core --------------------------------------------------------
-package(codex-core) & test(=suite::compact_resume_fork::snapshot_rollback_past_compaction_replays_append_only_history)
 # Substring, not `=`: rust-v0.152.0 parameterised this into `user_turn` and
 # `automatic_continuation`, and an exact-match filter matches neither. The entry
 # looked alive to known_failing_check -- the function name is still in the source

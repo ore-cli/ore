@@ -67,7 +67,10 @@ pub(crate) fn feedback_success_cell(
         Some(url) if feedback_audience == FeedbackAudience::OpenAiEmployee => {
             lines.extend([
                 "".into(),
-                Line::from(vec!["  ".into(), url.cyan().underlined()]),
+                Line::from(vec![
+                    "  ".into(),
+                    url.fg(crate::style::accent_color()).underlined(),
+                ]),
                 "".into(),
                 Line::from(vec![
                     "  Sentry Feedback ID: ".into(),
@@ -76,7 +79,7 @@ pub(crate) fn feedback_success_cell(
                 Line::from(vec![
                     "  Sentry URL: ".into(),
                     format!("https://go/codex-feedback/{thread_id}")
-                        .cyan()
+                        .fg(crate::style::accent_color())
                         .underlined(),
                 ]),
             ]);
@@ -84,7 +87,10 @@ pub(crate) fn feedback_success_cell(
         Some(url) => {
             lines.extend([
                 "".into(),
-                Line::from(vec!["  ".into(), url.cyan().underlined()]),
+                Line::from(vec![
+                    "  ".into(),
+                    url.fg(crate::style::accent_color()).underlined(),
+                ]),
                 "".into(),
                 Line::from(vec![
                     "  Or mention your thread ID ".into(),
@@ -143,35 +149,35 @@ pub(crate) fn feedback_selection_params(
             make_feedback_item(
                 app_event_tx.clone(),
                 "bug",
-                "Crash, error message, hang, or broken UI/behavior.",
+                "Crash, error message, hang, or broken UI/behavior",
                 FeedbackCategory::Bug,
             ),
             make_feedback_item(
                 app_event_tx.clone(),
                 "bad result",
-                "Output was off-target, incorrect, incomplete, or unhelpful.",
+                "Output was off-target, incorrect, incomplete, or unhelpful",
                 FeedbackCategory::BadResult,
             ),
             make_feedback_item(
                 app_event_tx.clone(),
                 "good result",
-                "Helpful, correct, high‑quality, or delightful result worth celebrating.",
+                "Helpful, correct, high‑quality, or delightful result worth celebrating",
                 FeedbackCategory::GoodResult,
             ),
             make_feedback_item(
                 app_event_tx.clone(),
                 "safety check",
-                "Benign usage blocked due to safety checks or refusals.",
+                "Benign usage blocked due to safety checks or refusals",
                 FeedbackCategory::SafetyCheck,
             ),
             make_feedback_item(
                 app_event_tx,
                 "other",
-                "Slowness, feature suggestion, UX feedback, or anything else.",
+                "Slowness, feature suggestion, UX feedback, or anything else",
                 FeedbackCategory::Other,
             ),
         ],
-        ..Default::default()
+        ..super::SelectionViewParams::picker()
     }
 }
 
@@ -186,7 +192,7 @@ pub(crate) fn feedback_disabled_params() -> super::SelectionViewParams {
             dismiss_on_select: true,
             ..Default::default()
         }],
-        ..Default::default()
+        ..super::SelectionViewParams::picker()
     }
 }
 
@@ -246,6 +252,7 @@ pub(crate) fn feedback_upload_consent_params(
         Line::from("").into(),
         Line::from("The following files will be sent:".dim()).into(),
         Line::from(vec!["  • ".into(), "codex-logs.log".into()]).into(),
+        Line::from(vec!["  • ".into(), "client-logs.txt (if available)".into()]).into(),
         Line::from(vec![
             "  • ".into(),
             DOCTOR_REPORT_ATTACHMENT_FILENAME.into(),
@@ -306,7 +313,7 @@ pub(crate) fn feedback_upload_consent_params(
             super::SelectionItem {
                 name: "Yes".to_string(),
                 description: Some(
-                    "Share the current Ore session logs and diagnostics with the team for troubleshooting."
+                    "Share the current Ore session logs and diagnostics with the team for troubleshooting"
                         .to_string(),
                 ),
                 actions: vec![yes_action],
@@ -323,7 +330,7 @@ pub(crate) fn feedback_upload_consent_params(
         header: Box::new(crate::render::renderable::ColumnRenderable::with(
             header_lines,
         )),
-        ..Default::default()
+        ..super::SelectionViewParams::picker()
     }
 }
 

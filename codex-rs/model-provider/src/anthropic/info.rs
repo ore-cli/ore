@@ -98,6 +98,9 @@ fn create_anthropic_provider_from(
         auth: None,
         aws: None,
         wire_api: WireApi::Anthropic,
+        model_catalog_url: None,
+        gateway_oauth: None,
+        include_internal_metadata: false,
         query_params: None,
         http_headers: Some(HashMap::from([(
             ANTHROPIC_VERSION_HEADER.to_string(),

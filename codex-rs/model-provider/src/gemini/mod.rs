@@ -257,11 +257,13 @@ fn gemini_model(
         additional_speed_tiers: Vec::new(),
         service_tiers: Vec::new(),
         default_service_tier: None,
+        available_access_programs: None,
         availability_nux: None,
         upgrade: None,
         model_messages: Some(ModelMessages {
             instructions_template: Some(BASE_INSTRUCTIONS.to_string()),
             instructions_variables: None,
+            content_filter_guidance: None,
             approvals: None,
             collaboration_modes: None,
             auto_review: None,
@@ -279,6 +281,7 @@ fn gemini_model(
         // Responses API parameter; Gemini returns thought summaries through
         // `thinkingConfig.includeThoughts`, which is not a summary style.
         supports_reasoning_summary_parameter: false,
+        supports_reasoning_effort_updates: false,
         default_reasoning_summary: ReasoningSummary::Auto,
         support_verbosity: false,
         default_verbosity: None,

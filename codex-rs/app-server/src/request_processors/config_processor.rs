@@ -41,7 +41,7 @@ use codex_app_server_protocol::NetworkRequirements;
 use codex_app_server_protocol::NetworkUnixSocketPermission;
 use codex_app_server_protocol::NewThreadModelDefaults;
 use codex_app_server_protocol::SandboxMode;
-use codex_app_server_protocol::WindowsSandboxSetupMode;
+use codex_app_server_protocol::WindowsSandboxImplementation;
 use codex_config::ConfigRequirementsToml;
 use codex_config::HookEventsToml;
 use codex_config::HookHandlerConfig as CoreHookHandlerConfig;
@@ -55,6 +55,7 @@ use codex_features::canonical_feature_for_key;
 use codex_features::feature_for_key;
 use codex_model_provider::create_model_provider;
 use codex_plugin::PluginId;
+use codex_protocol::config_types::ForcedLoginMethod;
 use codex_protocol::config_types::WebSearchMode;
 use serde_json::json;
 use std::path::PathBuf;
@@ -63,6 +64,7 @@ const BACKGROUND_PAGINATED_ROLLOUT_MIGRATION_FEATURE: &str =
     "background_paginated_rollout_migration";
 
 const SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT: &[&str] = &[
+    "api_key_cyber_access_programs",
     "api_key_model_discovery",
     "auth_elicitation",
     BACKGROUND_PAGINATED_ROLLOUT_MIGRATION_FEATURE,
@@ -135,8 +137,11 @@ impl ConfigRequestProcessor {
             .config_manager
             .read_requirements()
             .await
-            .map_err(map_error)?
-            .map(map_requirements_toml_to_api);
+            .map_err(map_error)?;
+        let requirements = map_requirements_to_api(
+            requirements,
+            self.thread_manager.auth_manager().allowed_login_methods(),
+        );
 
         Ok(ConfigRequirementsReadResponse { requirements })
     }
@@ -353,11 +358,18 @@ pub(super) async fn reload_user_config(
     config_manager: &ConfigManager,
     thread_manager: &ThreadManager,
 ) {
-    if let Err(err) = config_manager
-        .load_latest_config(/*fallback_cwd*/ None)
-        .await
-    {
+    // Reload owns several config snapshots; do not inline that future into dispatch.
+    Box::pin(reload_user_config_inner(config_manager, thread_manager)).await;
+}
+
+async fn reload_user_config_inner(config_manager: &ConfigManager, thread_manager: &ThreadManager) {
+    if let Err(err) = config_manager.load_config_layers(/*cwd*/ None).await {
         tracing::warn!("failed to rebuild user config for runtime refresh: {err}");
+        for thread_id in thread_manager.list_thread_ids().await {
+            if let Ok(thread) = thread_manager.get_thread(thread_id).await {
+                thread.disable_mcp_enterprise_auth().await;
+            }
+        }
         return;
     }
     let thread_ids = thread_manager.list_thread_ids().await;
@@ -365,29 +377,77 @@ pub(super) async fn reload_user_config(
         let Ok(thread) = thread_manager.get_thread(thread_id).await else {
             continue;
         };
-        let current_config = thread.config().await;
-        let next_config = match config_manager
-            .load_latest_config_for_thread(current_config.as_ref())
-            .await
-        {
-            Ok(config) => config,
-            Err(err) => {
-                tracing::warn!(%thread_id, %err, "failed to reload thread configuration");
-                continue;
+        for attempt in 0..4 {
+            let current_config = thread.config().await;
+            let next_config = match config_manager
+                .load_latest_config_with_session_layers(
+                    &current_config.config_layer_stack,
+                    &current_config.cwd,
+                )
+                .await
+            {
+                Ok(config) => config,
+                Err(err) => {
+                    tracing::warn!(%thread_id, %err, "failed to reload thread configuration");
+                    thread.disable_mcp_enterprise_auth().await;
+                    break;
+                }
+            };
+            let current_requirements = current_config.config_layer_stack.requirements();
+            let next_requirements = next_config.config_layer_stack.requirements();
+            let promote_mcp = current_requirements.mcp_servers != next_requirements.mcp_servers
+                || current_requirements.plugins != next_requirements.plugins
+                || current_requirements.feature_requirements
+                    != next_requirements.feature_requirements;
+            let outcome = if promote_mcp {
+                // Keep the loaded MCP map and its requirements under one owner,
+                // then reload the user update from that owner.
+                Box::pin(thread.refresh_mcp_config(current_config, next_config)).await
+            } else {
+                // Keep runtime refresh state off the request dispatcher's stack.
+                Box::pin(thread.refresh_runtime_config(current_config, next_config)).await
+            };
+            match outcome {
+                codex_core::ConfigRefreshOutcome::Published => {
+                    if !promote_mcp {
+                        break;
+                    }
+                }
+                codex_core::ConfigRefreshOutcome::Stale => {}
+                codex_core::ConfigRefreshOutcome::Rejected => {
+                    tracing::warn!(%thread_id, "stopped user configuration reload after rejected refresh");
+                    break;
+                }
             }
-        };
-        // Keep runtime refresh state off the request dispatcher's stack.
-        Box::pin(thread.refresh_runtime_config(next_config)).await;
+            if attempt == 3 {
+                thread.disable_mcp_enterprise_auth().await;
+                tracing::warn!(%thread_id, "configuration kept changing during user reload; enterprise MCP disabled");
+            }
+        }
     }
 }
 
-fn map_requirements_toml_to_api(requirements: ConfigRequirementsToml) -> ConfigRequirements {
-    let windows_sandbox_private_desktop = requirements
-        .windows
-        .as_ref()
-        .and_then(|windows| windows.sandbox_private_desktop);
+fn map_requirements_to_api(
+    requirements: Option<ConfigRequirementsToml>,
+    allowed_login_methods: Vec<ForcedLoginMethod>,
+) -> Option<ConfigRequirements> {
+    let requirements = match requirements {
+        Some(requirements) => requirements,
+        None if allowed_login_methods == [ForcedLoginMethod::Api, ForcedLoginMethod::Chatgpt] => {
+            return None;
+        }
+        None => ConfigRequirementsToml::default(),
+    };
 
-    ConfigRequirements {
+    Some(ConfigRequirements {
+        model_provider: requirements.model_provider,
+        model_providers: requirements.model_providers.map(|providers| {
+            providers
+                .into_iter()
+                .map(|(id, provider)| (id, serde_json::json!(provider)))
+                .collect()
+        }),
+        allowed_login_methods: Some(allowed_login_methods),
         application: requirements.application.map(|application| {
             codex_app_server_protocol::ApplicationRequirements {
                 network: application.network.map(|network| {
@@ -447,11 +507,11 @@ fn map_requirements_toml_to_api(requirements: ConfigRequirementsToml) -> ConfigR
                     implementations
                         .into_iter()
                         .map(|implementation| match implementation {
-                            codex_config::types::WindowsSandboxModeToml::Elevated => {
-                                WindowsSandboxSetupMode::Elevated
+                            codex_config::WindowsSandboxImplementationToml::Elevated => {
+                                WindowsSandboxImplementation::Elevated
                             }
-                            codex_config::types::WindowsSandboxModeToml::Unelevated => {
-                                WindowsSandboxSetupMode::Unelevated
+                            codex_config::WindowsSandboxImplementationToml::Unelevated => {
+                                WindowsSandboxImplementation::Unelevated
                             }
                         })
                         .collect()
@@ -514,8 +574,7 @@ fn map_requirements_toml_to_api(requirements: ConfigRequirementsToml) -> ConfigR
         feedback: requirements.feedback.map(|feedback| FeedbackRequirements {
             enabled: feedback.enabled,
         }),
-        windows_sandbox_private_desktop,
-    }
+    })
 }
 
 fn map_computer_use_requirements_to_api(
@@ -821,7 +880,9 @@ fn config_write_error(code: ConfigWriteErrorCode, message: impl Into<String>) ->
 
 #[cfg(test)]
 mod tests {
-    use super::map_requirements_toml_to_api;
+    use super::map_requirements_to_api;
+    use super::reload_user_config;
+    use crate::config_manager::ConfigManager;
     use codex_app_server_protocol::AllowDenyRequirement;
     use codex_app_server_protocol::AutoReviewRequirements;
     use codex_app_server_protocol::BrowserUseAccessApprovalLifetime;
@@ -832,30 +893,118 @@ mod tests {
     use codex_app_server_protocol::ComputerUseWindowsExeRequirement;
     use codex_app_server_protocol::ComputerUseWindowsRequirements;
     use codex_app_server_protocol::FeedbackRequirements;
-    use codex_app_server_protocol::WindowsSandboxSetupMode;
+    use codex_app_server_protocol::WindowsSandboxImplementation;
     use codex_config::AllowDenyRequirementToml;
     use codex_config::AutoReviewRequirementsToml;
     use codex_config::BrowserUseAccessApprovalLifetimeToml;
     use codex_config::BrowserUseOriginPolicyToml;
     use codex_config::BrowserUseRequirementsToml;
+    use codex_config::CloudConfigBundleLoader;
     use codex_config::ComputerUseMacosRequirementsToml;
     use codex_config::ComputerUseRequirementsToml;
     use codex_config::ComputerUseWindowsExeRequirementToml;
     use codex_config::ComputerUseWindowsRequirementsToml;
     use codex_config::ConfigRequirementsToml;
+    use codex_config::LoaderOverrides;
     use codex_config::ModelsRequirementsToml;
     use codex_config::NewThreadModelDefaultsToml;
     use codex_config::WindowsRequirementsToml;
     use codex_config::types::FeedbackConfigToml;
+    use codex_config::types::ToolSuggestDisabledTool;
+    use codex_exec_server::EnvironmentManager;
+    use codex_login::CodexAuth;
+    use codex_protocol::config_types::ForcedLoginMethod;
     use codex_protocol::openai_models::ReasoningEffort;
     use codex_utils_absolute_path::AbsolutePathBuf;
     use codex_utils_path_uri::PathUri;
     use pretty_assertions::assert_eq;
     use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn reload_user_config_preserves_promoted_mcp_allowlist_denial() -> anyhow::Result<()> {
+        let home = tempfile::tempdir()?;
+        let managed_config_path = home.path().join("managed_config.toml");
+        std::fs::write(
+            &managed_config_path,
+            r#"
+[features]
+use_xaa = true
+[mcp_enterprise_managed_auth.idp]
+issuer = "https://idp.example"
+client_id = "idp-client"
+[mcp_servers.enterprise]
+url = "https://resource.example/mcp"
+auth = "ema_auth"
+oauth_resource = "https://resource.example/mcp"
+[mcp_servers.enterprise.oauth]
+client_id = "mcp-client"
+"#,
+        )?;
+        let requirements_path = home.path().join("requirements.toml");
+        std::fs::write(
+            &requirements_path,
+            "[mcp_servers.enterprise.identity]\nurl = 'https://resource.example/mcp'\n",
+        )?;
+        let config_manager = ConfigManager::new_for_tests(
+            home.path().to_path_buf(),
+            Vec::new(),
+            LoaderOverrides::with_managed_config_path_for_tests(managed_config_path),
+            CloudConfigBundleLoader::default(),
+        );
+        let initial = config_manager
+            .load_latest_config(Some(home.path().to_path_buf()))
+            .await?;
+        let thread_manager = codex_core::test_support::thread_manager_with_models_provider_and_home(
+            CodexAuth::from_api_key("dummy"),
+            initial.model_provider.clone(),
+            initial.codex_home.to_path_buf(),
+            Arc::new(EnvironmentManager::default_for_tests()),
+        );
+        let thread = thread_manager
+            .start_thread(codex_core::StartThreadOptions::new(initial))
+            .await?
+            .thread;
+        assert!(thread.config().await.mcp_servers.get()["enterprise"].enabled);
+
+        std::fs::write(&requirements_path, "[mcp_servers]\n")?;
+        std::fs::write(
+            home.path().join(codex_config::CONFIG_TOML_FILE),
+            "[tool_suggest]\ndisabled_tools = [{ type = 'connector', id = 'calendar' }]\n",
+        )?;
+        reload_user_config(&config_manager, &thread_manager).await;
+
+        let refreshed = thread.config().await;
+        assert_eq!(
+            refreshed
+                .config_layer_stack
+                .requirements()
+                .mcp_servers
+                .as_ref()
+                .map(|requirements| &requirements.value),
+            Some(&BTreeMap::new())
+        );
+        assert!(!refreshed.mcp_servers.get()["enterprise"].enabled);
+        assert_eq!(
+            refreshed.tool_suggest.disabled_tools,
+            vec![ToolSuggestDisabledTool::connector("calendar")]
+        );
+        Ok(())
+    }
+
+    fn map_test_requirements(
+        requirements: ConfigRequirementsToml,
+    ) -> codex_app_server_protocol::ConfigRequirements {
+        map_requirements_to_api(
+            Some(requirements),
+            vec![ForcedLoginMethod::Api, ForcedLoginMethod::Chatgpt],
+        )
+        .expect("requirements")
+    }
 
     #[test]
     fn requirements_api_includes_allow_managed_hooks_only() {
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             allow_managed_hooks_only: Some(true),
             ..ConfigRequirementsToml::default()
         });
@@ -866,7 +1015,7 @@ mod tests {
 
     #[test]
     fn requirements_api_includes_permission_default_and_allowlist() {
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             allowed_permission_profiles: Some(BTreeMap::from([
                 ("managed-build".to_string(), false),
                 ("managed-standard".to_string(), true),
@@ -890,7 +1039,7 @@ mod tests {
 
     #[test]
     fn requirements_api_includes_allow_appshots() {
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             allow_appshots: Some(false),
             ..ConfigRequirementsToml::default()
         });
@@ -901,7 +1050,7 @@ mod tests {
 
     #[test]
     fn requirements_api_includes_allow_remote_control() {
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             allow_remote_control: Some(false),
             ..ConfigRequirementsToml::default()
         });
@@ -911,7 +1060,7 @@ mod tests {
 
     #[test]
     fn requirements_api_includes_model_auto_review_and_new_thread_defaults() {
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             auto_review: Some(AutoReviewRequirementsToml {
                 required_on_models: Some(vec!["gpt-protected".to_string()]),
                 ignore_rules: Some(vec!["gpt-protected".to_string()]),
@@ -945,7 +1094,7 @@ mod tests {
 
     #[test]
     fn requirements_api_includes_browser_and_computer_use_requirements() {
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             allow_browser_and_computer_use: Some(false),
             browser_use: Some(BrowserUseRequirementsToml {
                 allow_webmcp: Some(true),
@@ -1063,13 +1212,13 @@ mod tests {
 
     #[test]
     fn requirements_api_includes_allowed_windows_sandbox_implementations() {
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             windows: Some(WindowsRequirementsToml {
                 allowed_sandbox_implementations: Some(vec![
-                    codex_config::types::WindowsSandboxModeToml::Elevated,
-                    codex_config::types::WindowsSandboxModeToml::Unelevated,
+                    codex_config::WindowsSandboxImplementationToml::Elevated,
+                    codex_config::WindowsSandboxImplementationToml::Unelevated,
                 ]),
-                sandbox_private_desktop: Some(false),
+                allow_mxc: None,
             }),
             ..ConfigRequirementsToml::default()
         });
@@ -1077,11 +1226,10 @@ mod tests {
         assert_eq!(
             mapped.allowed_windows_sandbox_implementations,
             Some(vec![
-                WindowsSandboxSetupMode::Elevated,
-                WindowsSandboxSetupMode::Unelevated,
+                WindowsSandboxImplementation::Elevated,
+                WindowsSandboxImplementation::Unelevated,
             ])
         );
-        assert_eq!(mapped.windows_sandbox_private_desktop, Some(false));
     }
 
     #[test]
@@ -1093,7 +1241,7 @@ mod tests {
         let model_catalog_json =
             AbsolutePathBuf::try_from(std::env::temp_dir().join("managed-models.json"))
                 .expect("managed model catalog path should be absolute");
-        let mapped = map_requirements_toml_to_api(ConfigRequirementsToml {
+        let mapped = map_test_requirements(ConfigRequirementsToml {
             sqlite_home: Some(sqlite_home.clone()),
             log_dir: Some(log_dir.clone()),
             model_catalog_json: Some(model_catalog_json.clone()),
