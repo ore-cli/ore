@@ -738,16 +738,31 @@ if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   # other than 100.
   regen_filter=$(cat "$WORKTREE/fork/verify/known-failing-upstream" "$WORKTREE/fork/verify/known-failing" 2>/dev/null \
     | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' | paste -sd'|' - | sed 's/|/ or /g')
-  regen_args=(--no-fail-fast -p codex-tui -p codex-core -p codex-cli)
+  regen_args=(--no-fail-fast)
   [[ -n "$regen_filter" ]] && regen_args+=(-E "not ($regen_filter)")
   regen_rc=0
   # Raw nextest output goes to its own file. It is megabytes for a full run, and
   # the passes log becomes the assembly commit message.
   regen_log="$OUT_DIR/snapshot-regen.log"
-  ( cd "$WORKTREE/codex-rs" && INSTA_UPDATE=always RUST_MIN_STACK=8388608 \
-      cargo "+$TOOLCHAIN" nextest run "${regen_args[@]}" ) \
-    >"$regen_log" 2>&1 || regen_rc=$?
-  grep -E '^ +Summary ' "$regen_log" | tail -1 >>"$PASSES_LOG" || true
+  : >"$regen_log"
+  # One crate at a time, tui first. Many tui snapshots render elapsed time
+  # ("Working (0s ...)") and the spinner frame, and the regen RECORDS whatever it
+  # sees. Run beside codex-core's suite, those renders landed seconds late, and
+  # rust-v0.161.0's candidate shipped "Working (8s", then "Working (4s" at a
+  # quarter of the threads, both failing on CI. On its own the tui suite renders
+  # what upstream recorded.
+  for regen_pkg in codex-tui codex-core codex-cli; do
+    pkg_rc=0
+    ( cd "$WORKTREE/codex-rs" && INSTA_UPDATE=always RUST_MIN_STACK=8388608 \
+        cargo "+$TOOLCHAIN" nextest run -p "$regen_pkg" "${regen_args[@]}" ) \
+      >>"$regen_log" 2>&1 || pkg_rc=$?
+    if [[ "$pkg_rc" -ne 0 && "$pkg_rc" -ne 100 ]]; then
+      regen_rc=$pkg_rc
+      break
+    fi
+    if [[ "$pkg_rc" -eq 100 ]]; then regen_rc=100; fi
+  done
+  grep -E '^ +Summary ' "$regen_log" >>"$PASSES_LOG" || true
   echo "(full output: $(basename "$regen_log"))" >>"$PASSES_LOG"
   if [[ "$regen_rc" -ne 0 && "$regen_rc" -ne 100 ]]; then
     fail_pass "snapshot regen: the suite did not build (exit $regen_rc), so nothing was regenerated"
