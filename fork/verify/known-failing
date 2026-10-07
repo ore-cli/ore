@@ -602,3 +602,26 @@ package(codex-cli) & test(wall_clock_shift_keeps_server_and_updater_managed)
 # the test then expects the migrated install's updater:
 #   assert_eq!(new_updater.is_starting_or_running().await.unwrap(), running);
 package(codex-app-server-daemon) & test(explicit_update_migrates_running_and_stopped_installations)
+
+# --- (5) entrypoint-ship-ore, on the series only --------------------------
+# Same cause as the group above, reached by tests rust-v0.161.0 added or
+# rewrote: each stages a managed install named codex, and the daemon answers
+#   daemon executable not found at .../packages/app-server-daemon/current/bin/ore
+# All sixteen pass on the candidate, where the daemon-*-is-ore rules rename the
+# fixtures; they fail only on the unsubstituted series that delta's CI tests.
+package(codex-app-server-daemon) & test(legacy_selection_is_not_migrated_or_refreshed)
+package(codex-app-server-daemon) & test(confirmed_feature_restart_preserves_ownership_and_skips_matching_settings)
+package(codex-app-server-daemon) & test(daemon_owned_updates_require_and_request_an_isolated_installer)
+package(codex-app-server-daemon) & test(daemon_start_and_restart_preserve_launch_features)
+package(codex-app-server-daemon) & test(manual_update_restarts_local_daemon_with_automatic_updates_disabled)
+package(codex-app-server-daemon) & test(update_rejects_a_package_root_change_during_download)
+package(codex-cli) & test(packaged_daemon_bootstrap_seeds_local_package)
+package(codex-cli) & test(packaged_daemon_restart_seeds_local_package)
+package(codex-cli) & test(packaged_daemon_start_and_explicit_replacement)
+package(codex-cli) & test(auto_daemon_start_attaches_to_shared_server)
+package(codex-cli) & test(bedrock_onboarding_leaves_a_running_daemon_untouched)
+package(codex-cli) & test(fresh_daemon_requires_confirmation_to_disable_shared_features)
+package(codex-cli) & test(incompatible_daemon_can_cancel)
+package(codex-cli) & test(incompatible_daemon_can_restart_with_confirmed_settings)
+package(codex-cli) & test(incompatible_daemon_can_run_embedded)
+package(codex-cli) & test(stopped_daemon_requires_confirmation_to_disable_persisted_features)
