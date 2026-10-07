@@ -72,4 +72,10 @@ keep:
   - api.github.com/                                    # bare host only: network-proxy's credential-injection test builds a request to it
   - 172.32.2.3                                         # credential-broker fixture: a public-range address the broker must not treat as local
   - api.chatgpt-staging.com                            # core client_tests fixture in the is-an-openai-host table
+  - bedrock-mantle.us-gov-                             # Bedrock GovCloud endpoints the bedrock provider selects by region (provider traffic)
+  - chatgpt.com/settings/usage                         # usage page the TUI opens in the browser from a limit banner; never fetched
+  - github.com/getsentry/relay/blob                    # doc-comment reference in feedback/src/lib.rs
+  - github.com/tokio-rs/tokio/issues                   # doc-comment reference in utils/pty
+  - github.com/v8/v8/commit                            # doc-comment reference in code-mode-runtime
+  - learn.microsoft.com/windows/win32                  # doc-comment references in windows-sandbox-rs
   - api.stripe.com                                     # credential-broker fixtures: the configured third-party provider host
