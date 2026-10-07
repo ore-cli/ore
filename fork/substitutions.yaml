@@ -802,6 +802,18 @@ categories:
       pattern: '"bin/codex(?P<exe>(?:\.exe)?)"'
       replace: '"bin/${bin}\g<exe>"'
 
+    - name: daemon-migration-entrypoint-is-ore
+      note: >
+        migration.rs moves a legacy standalone install into the daemon's own
+        package and probes the prepared release's `bin/codex` for its version and
+        for `pid-update-loop` support. ore's release ships `bin/ore`, so an
+        explicit update failed to run a binary that was never there instead of
+        migrating.
+      files: [codex-rs/app-server-daemon/src/migration.rs]
+      rust_literals_only: false
+      pattern: '"bin/codex(?P<exe>(?:\.exe)?)"'
+      replace: '"bin/${bin}\g<exe>"'
+
     - name: daemon-prepared-install-alias-is-ore
       note: >
         The alias half of daemon-prepared-install-entrypoint-is-ore: the bare
@@ -960,12 +972,14 @@ categories:
         The daemon's update-loop tests stage the same install in both layouts and let
         their fake installer write the next release: `releases/<v>/codex` behind
         `current` (legacy), `current/bin/codex` (packaged), and
-        `'{root}/releases/{next}/bin/codex'` inside the installer script. Each is
+        `'{root}/releases/{next}/bin/codex'` inside the installer script, which
+        the local-package case fills by copying `'{root}/releases/{release}/codex'`
+        and so must name the same file the legacy fixture wrote. Each is
         resolved through managed_codex_bin(), which names the entrypoint ore. The
         `echo codex 1.1.0` version banner stays: the parser reads the second word.
       files: [codex-rs/app-server-daemon/src/update_loop_tests.rs]
       rust_literals_only: false
-      pattern: '(?P<lead>\.join\("(?:current/)?(?:bin/)?|/bin/)codex(?=[''"])'
+      pattern: '(?P<lead>\.join\("(?:current/)?(?:bin/)?|/bin/|/releases/\{release\}/)codex(?=[''"])'
       replace: '\g<lead>${bin}'
 
   # ------------------------------------------------------------------------ URLs
