@@ -213,19 +213,68 @@ pub(crate) trait ModelListDiscovery: fmt::Debug + Send + Sync {
 pub(crate) struct ProviderModelListDiscovery {
     provider: SharedModelProvider,
     timeout: Duration,
+    gateway: Option<std::sync::Mutex<GatewaySignIn>>,
+}
+
+/// Whether a gateway-OAuth provider has been seen signed in. Probing before
+/// that publishes the account's first NotReady while no client is listening,
+/// and `account/gatewayOAuth/read` then has no transition left to announce.
+struct GatewaySignIn {
+    config: codex_login::GatewayAuthConfig,
+    changes: tokio::sync::broadcast::Receiver<codex_login::GatewayAuthStatusChange>,
+    signed_in: bool,
+}
+
+impl fmt::Debug for GatewaySignIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GatewaySignIn")
+            .field("signed_in", &self.signed_in)
+            .finish_non_exhaustive()
+    }
+}
+
+impl GatewaySignIn {
+    fn for_provider(provider: &SharedModelProvider) -> Option<Self> {
+        let manager = provider.gateway_auth_manager().ok().flatten()?;
+        let auth_manager = provider.auth_manager()?;
+        Some(Self {
+            config: manager.config().clone(),
+            changes: codex_login::subscribe_gateway_auth_status(&auth_manager.runtime_config()),
+            signed_in: false,
+        })
+    }
+
+    fn signed_in(&mut self) -> bool {
+        loop {
+            match self.changes.try_recv() {
+                Ok(change) if change.config == self.config => {
+                    self.signed_in = change.status == codex_login::GatewayAuthStatus::Succeeded;
+                }
+                Ok(_) | Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {}
+                Err(_) => return self.signed_in,
+            }
+        }
+    }
 }
 
 impl ProviderModelListDiscovery {
     pub(crate) fn new(provider: SharedModelProvider) -> Self {
+        let gateway = GatewaySignIn::for_provider(&provider).map(std::sync::Mutex::new);
         Self {
             provider,
             timeout: DISCOVERY_TIMEOUT,
+            gateway,
         }
     }
 
     #[cfg(test)]
     pub(crate) fn with_timeout(provider: SharedModelProvider, timeout: Duration) -> Self {
-        Self { provider, timeout }
+        let gateway = GatewaySignIn::for_provider(&provider).map(std::sync::Mutex::new);
+        Self {
+            provider,
+            timeout,
+            gateway,
+        }
     }
 
     /// A first-party credential means `/models` is the Codex backend's own
@@ -237,6 +286,14 @@ impl ProviderModelListDiscovery {
     /// `auth_manager_for_provider` passes the signed-in `AuthManager` through to
     /// the rest, whose endpoint it says nothing about.
     async fn applies(&self) -> bool {
+        if let Some(gateway) = &self.gateway
+            && !gateway
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .signed_in()
+        {
+            return false;
+        }
         if carries_own_credential(self.provider.info()) {
             return true;
         }
