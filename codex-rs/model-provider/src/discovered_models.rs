@@ -1028,6 +1028,20 @@ impl ModelsManager for DiscoveringModelsManager {
         self.inner.list_collaboration_modes()
     }
 
+    /// An auth change can change which catalog the inner manager serves, so the
+    /// merge built on the old one is void, as for a new etag.
+    fn refresh_after_auth_change(
+        &self,
+        http_client_factory: HttpClientFactory,
+    ) -> ModelsManagerFuture<'_, ()> {
+        Box::pin(async move {
+            *self.merged.write().await = None;
+            self.inner
+                .refresh_after_auth_change(http_client_factory)
+                .await;
+        })
+    }
+
     fn refresh_if_new_etag(
         &self,
         etag: String,
@@ -1155,6 +1169,27 @@ impl ModelProvider for DiscoveringModelProvider {
         &self,
     ) -> ModelProviderFuture<'_, CoreResult<ProviderUnauthorizedRecovery>> {
         self.inner.recover_from_unauthorized()
+    }
+
+    fn auth_recovery_messages(&self) -> Option<crate::provider::ProviderAuthRecoveryMessages> {
+        self.inner.auth_recovery_messages()
+    }
+
+    fn gateway_auth_manager(
+        &self,
+    ) -> std::io::Result<Option<Arc<codex_login::GatewayAuthManager>>> {
+        self.inner.gateway_auth_manager()
+    }
+
+    fn include_internal_metadata(&self, provider: &Provider) -> bool {
+        self.inner.include_internal_metadata(provider)
+    }
+
+    fn responses_api_provider<'a>(
+        &'a self,
+        routing_context: &'a crate::workspace_routing::WorkspaceRoutingContext,
+    ) -> ModelProviderFuture<'a, CoreResult<crate::ResolvedResponsesProvider>> {
+        self.inner.responses_api_provider(routing_context)
     }
 
     fn auth(&self) -> ModelProviderFuture<'_, Option<CodexAuth>> {
