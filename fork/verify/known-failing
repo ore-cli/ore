@@ -580,6 +580,15 @@ package(codex-cli) & test(foreground_update_respects_consent_and_reports_unconfi
 #   tokio::time::timeout(10s, metric_rx.recv()).await?
 #       .context("metrics export while the TUI is running")?;
 package(codex-cli) & test(daemon_worktree_start_and_fork_bind_owner_before_turn)
+# guardian_stateful_async_tests.rs routes every case through
+# guardian_v2_routes_scoped_tool_approvals. It sets `[analytics] enabled = true`
+# with its own otlp-http collector, then waits on both seams: the context metric
+# (guardian_v2.rs:1614) and codex_guardian_v2_classification analytics events.
+#   timeout(TIMEOUT, responses_state.context_metrics_recorded.notified())
+# All twelve cases passed on pristine rust-v0.161.0 under ore-upstream-probe on
+# ubuntu-24.04, and failed on the candidate with "deadline has elapsed" once
+# the guardian prompt copies stopped being rewritten.
+package(codex-app-server) & test(classifier_modes_preserve_approval_matrix)
 
 # --- (3) feedback force-off -------------------------------------------------
 # feedback.rs expects the log-write warning that suggests /feedback. Upstream
