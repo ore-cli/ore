@@ -374,10 +374,14 @@ impl<'a> ChatRequestBuilder<'a> {
             // Without this the stream carries no usage chunk and every turn
             // reports zero tokens.
             "stream_options": { "include_usage": true },
-            "tools": tools,
         });
 
         if let Some(obj) = payload.as_object_mut() {
+            // vLLM rejects `tools: []` outright, and a turn with nothing to call
+            // (compaction, a title) has nothing to send.
+            if !tools.is_empty() {
+                obj.insert("tools".to_string(), Value::Array(tools));
+            }
             if let Some(max_tokens) = self.max_tokens {
                 obj.insert("max_tokens".to_string(), json!(max_tokens));
             }
@@ -615,6 +619,24 @@ mod tests {
             },
             stream_idle_timeout: Duration::from_secs(1),
         }
+    }
+
+    #[test]
+    fn a_request_without_tools_omits_the_field() {
+        let prompt_input = vec![ResponseItem::Message {
+            id: None,
+            role: "user".to_string(),
+            content: vec![ContentItem::InputText {
+                text: "hi".to_string(),
+            }],
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+        }];
+        let req = ChatRequestBuilder::new("gpt-test", "inst", &prompt_input, &[])
+            .build(&provider())
+            .expect("request");
+
+        assert_eq!(req.body.get("tools"), None);
     }
 
     #[test]
