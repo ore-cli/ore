@@ -751,6 +751,12 @@ if [[ "$SKIP_HEAVY" -eq 0 ]]; then
   # rust-v0.161.0's candidate shipped "Working (8s", then "Working (4s" at a
   # quarter of the threads, both failing on CI. On its own the tui suite renders
   # what upstream recorded.
+  # ORE_REGEN_CONTAINER=1 runs the same suites on Linux, as CI does; see
+  # fork/regen-in-container.sh for why macOS is not a faithful renderer.
+  if [[ "${ORE_REGEN_CONTAINER:-0}" == 1 ]]; then
+    "$WORKTREE/fork/regen-in-container.sh" "$WORKTREE" "$regen_log" "$regen_filter" \
+      || regen_rc=$?
+  else
   for regen_pkg in codex-tui codex-core codex-cli; do
     pkg_rc=0
     ( cd "$WORKTREE/codex-rs" && INSTA_UPDATE=always RUST_MIN_STACK=8388608 \
@@ -776,6 +782,7 @@ if [[ "$SKIP_HEAVY" -eq 0 ]]; then
           cargo "+$TOOLCHAIN" nextest run -p codex-tui --no-fail-fast --test-threads 2 \
           -E "$retry_filter" ) >>"$regen_log" 2>&1 || true
     fi
+  fi
   fi
   # What remains of load in the snapshots is elapsed time and the spinner
   # frame; put those lines back as upstream recorded them.
