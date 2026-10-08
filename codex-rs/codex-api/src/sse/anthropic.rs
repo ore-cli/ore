@@ -510,7 +510,32 @@ fn stream_error(value: &Value) -> ApiError {
         };
     }
 
+    // The request itself was refused, so sending it again cannot help. As a
+    // `Stream` error it read as a dropped connection and was retried five times.
+    if kind == "invalid_request_error" {
+        if is_context_window_message(&message) {
+            return ApiError::ContextWindowExceeded;
+        }
+        return ApiError::InvalidRequest { message };
+    }
+
     ApiError::Stream(message)
+}
+
+/// Whether a rejection says the prompt and the requested output do not fit
+/// the model's context window. Anthropic, vLLM and LiteLLM each word it
+/// differently, and a gateway passes the backend's wording through.
+pub fn is_context_window_message(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    [
+        "prompt is too long",
+        "maximum context length",
+        "context_length_exceeded",
+        "contextwindowexceedederror",
+        "exceeds the context window",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle))
 }
 
 #[cfg(test)]
@@ -902,8 +927,21 @@ mod tests {
 
         assert_matches!(
             &results[..],
-            [Err(ApiError::Stream(message))] if message == "bad prompt"
+            [Err(ApiError::InvalidRequest { message })] if message == "bad prompt"
         );
+    }
+
+    /// A gateway in front of vLLM reports an overflowing request in-band.
+    #[tokio::test]
+    async fn an_in_band_context_overflow_is_a_context_window_error() {
+        let events = [
+            message_start(),
+            json!({"type": "error", "error": {"type": "invalid_request_error", "message": "litellm.ContextWindowExceededError: litellm.BadRequestError: Hosted_vllmException - This model's maximum context length is 262144 tokens. However, you requested 32000 output tokens and your prompt contains at least 230145 input tokens"}}),
+        ];
+
+        let results = collect_results(&body(&events)).await;
+
+        assert_matches!(&results[..], [Err(ApiError::ContextWindowExceeded)]);
     }
 
     /// The in-band `overloaded_error` maps to a retryable error, as the HTTP 529 does.

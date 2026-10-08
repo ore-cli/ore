@@ -24,6 +24,11 @@ pub(super) const ANTHROPIC_OVERLOADED_MESSAGE: &str = concat!(
 pub(super) fn map_api_error(error: ApiError) -> CodexErr {
     let retry_after = overloaded_retry_after(&error);
     let error = codex_api::map_api_error(error);
+    if let CodexErrorDetails::InvalidRequest(body) = error.details()
+        && codex_api::is_context_window_message(body)
+    {
+        return CodexErr::ContextWindowExceeded;
+    }
     let CodexErrorDetails::UnexpectedStatus(response) = error.details() else {
         return error;
     };
@@ -209,6 +214,20 @@ mod tests {
         assert!(matches!(
             error.details(),
             CodexErrorDetails::InternalServerError
+        ));
+    }
+
+    #[test]
+    fn a_rejected_overflow_is_a_context_window_error() {
+        let error = map_api_error(http_error(
+            StatusCode::BAD_REQUEST.as_u16(),
+            r#"{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 210000 tokens > 200000 maximum"}}"#,
+            /*retry_after*/ None,
+        ));
+
+        assert!(matches!(
+            error.details(),
+            CodexErrorDetails::ContextWindowExceeded
         ));
     }
 }

@@ -128,6 +128,7 @@ pub use crate::search::SportsOperation;
 pub use crate::search::SportsToolName;
 pub use crate::search::TimeOperation;
 pub use crate::search::WeatherOperation;
+pub use crate::sse::anthropic::is_context_window_message;
 pub use crate::telemetry::SseTelemetry;
 pub use crate::telemetry::WebsocketTelemetry;
 pub use codex_protocol::protocol::RealtimeAudioFrame;

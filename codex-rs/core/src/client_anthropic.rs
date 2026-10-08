@@ -62,6 +62,25 @@ fn thinking_enabled(facts: &AnthropicModelFacts, effort: Option<&ReasoningEffort
     facts.supports_adaptive_thinking && !matches!(effort, Some(ReasoningEffort::None))
 }
 
+/// Requests the output cap only while it fits beside the prompt.
+///
+/// A server that counts input plus `max_tokens` against the window (vLLM, and
+/// any gateway in front of it) rejects the request once the sum overflows.
+/// Auto-compaction starts at 90% of the window, so any cap above a tenth of it
+/// leaves a band of prompt sizes that can neither be sent nor compacted: a
+/// 262144-token model asked for 32000 on a 230145-token prompt. The prompt is
+/// estimated at three bytes a token, deliberately high, so the clamp errs
+/// toward a shorter answer rather than a refused request.
+fn output_budget(cap: i64, context_window: Option<i64>, request_bytes: usize) -> i64 {
+    const MIN_OUTPUT_TOKENS: i64 = 1_024;
+    let Some(context_window) = context_window else {
+        return cap;
+    };
+    let estimated_input = i64::try_from(request_bytes / 3).unwrap_or(i64::MAX);
+    cap.min(context_window.saturating_sub(estimated_input))
+        .max(MIN_OUTPUT_TOKENS.min(cap))
+}
+
 /// The API rejects an effort level the model does not publish.
 fn effort_for(model_info: &ModelInfo, effort: Option<&ReasoningEffort>) -> Option<&'static str> {
     let effort = effort?;
@@ -109,6 +128,14 @@ impl ModelClientSession {
         self.client.prepare_response_items_for_request(&mut input);
 
         let facts = anthropic_model_facts(&model_info.slug);
+        let request_bytes = prompt.base_instructions.text.len()
+            + serde_json::to_string(&input).map_or(0, |json| json.len())
+            + serde_json::to_string(&tools.json).map_or(0, |json| json.len());
+        let max_tokens = output_budget(
+            facts.max_output_tokens,
+            model_info.resolved_context_window(),
+            request_bytes,
+        );
 
         loop {
             let client_setup = self
@@ -148,7 +175,7 @@ impl ModelClientSession {
                     &input,
                     &tools.json,
                     AnthropicPromptOptions {
-                        max_tokens: facts.max_output_tokens,
+                        max_tokens,
                         effort: effort_for(model_info, effort.as_ref()),
                         thinking_enabled: thinking_enabled(&facts, effort.as_ref()),
                         supports_inline_system: facts.supports_mid_conversation_system,
@@ -227,6 +254,31 @@ impl ModelClientSession {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    /// The request that a 262144-token vLLM model refused: 32000 requested on
+    /// a prompt of about 230145 tokens.
+    #[test]
+    fn the_output_cap_shrinks_to_the_room_the_prompt_leaves() {
+        let prompt_bytes = 230_145 * 3;
+        assert_eq!(
+            output_budget(32_000, Some(262_144), prompt_bytes),
+            262_144 - 230_145
+        );
+    }
+
+    #[test]
+    fn the_output_cap_is_kept_while_it_fits() {
+        assert_eq!(output_budget(32_000, Some(262_144), 30_000), 32_000);
+        assert_eq!(output_budget(32_000, None, usize::MAX), 32_000);
+    }
+
+    /// A full window still asks for something; the server's refusal is then a
+    /// context-window error, which compacts the next turn.
+    #[test]
+    fn an_exhausted_window_still_requests_a_minimal_answer() {
+        assert_eq!(output_budget(32_000, Some(262_144), 262_144 * 3), 1_024);
+        assert_eq!(output_budget(512, Some(1_000), 3_000), 512);
+    }
 
     /// The Messages API rejects effort values the Responses wire accepts.
     #[test]
