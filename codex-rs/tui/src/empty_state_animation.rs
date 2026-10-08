@@ -233,6 +233,12 @@ impl EmptyStateAnimation {
     }
 
     fn paint_frame(&mut self, area: Rect, buffer: &mut Buffer, phase: f64, opacity: f32) {
+        // ore: the blossom is OpenAI's mark; ore shows its own crystal, still.
+        const ORE_CRYSTAL_REPLACES_BLOSSOM: bool = true;
+        if ORE_CRYSTAL_REPLACES_BLOSSOM {
+            crate::ore_mark::paint(area, buffer, opacity);
+            return;
+        }
         let background = terminal_palette::default_bg();
         let color_level = if background.is_some() {
             terminal_palette::effective_stdout_color_level()

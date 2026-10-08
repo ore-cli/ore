@@ -159,6 +159,7 @@ mod hooks_rpc;
 mod ide_context;
 mod inline_visualization;
 pub(crate) mod insert_history;
+mod ore_mark;
 pub use insert_history::insert_history_lines;
 mod footer_hint;
 mod key_hint;
