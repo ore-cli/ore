@@ -20,12 +20,6 @@ opentelemetry-proto
 opentelemetry-semantic-conventions
 opentelemetry_sdk
 sentry
-sentry-actix
-sentry-backtrace
-sentry-contexts
 sentry-core
-sentry-debug-images
-sentry-panic
-sentry-tracing
 sentry-types
 tracing-opentelemetry

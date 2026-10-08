@@ -1,6 +1,7 @@
 use codex_extension_api::ConversationHistorySnapshot;
 use codex_extension_api::ResponseItem;
 pub(crate) use codex_features::GuardianV2TranscriptSource as TranscriptSource;
+use codex_guardian_context::CollectedContext;
 use codex_guardian_context::ComposedContext;
 use codex_guardian_context::ContextPresentation;
 use codex_guardian_context::ContextProfile;
@@ -15,12 +16,14 @@ use codex_guardian_context::PreviousReviews;
 use codex_guardian_context::SectionError;
 use codex_guardian_context::SectionHistory;
 use codex_guardian_context::SectionInput;
+use codex_guardian_context::TranscriptCursor;
 use codex_guardian_context::TranscriptEntryLimits;
 use codex_guardian_context::TranscriptImageInput;
+use codex_guardian_context::TranscriptMode;
 use codex_guardian_context::TranscriptRetentionConfig;
+use codex_guardian_context::TranscriptSelection;
 use codex_guardian_context::TrustedTool;
 use codex_guardian_context::default_registry;
-pub(crate) use codex_guardian_context::truncate_text as truncate_entry;
 
 pub(crate) const MAX_MESSAGE_ENTRY_TOKENS: usize = ContextProfile::asynchronous()
     .transcript
@@ -46,6 +49,7 @@ pub(crate) struct ContextInput<'a> {
     pub(crate) root_conversation: &'a [GuardianRootMessage],
     pub(crate) trusted_user_answers: &'a [String],
     pub(crate) planned_action: Option<&'a PlannedAction>,
+    pub(crate) permissions: Option<&'a codex_guardian_context::PermissionContext>,
     pub(crate) previous_reviews: Option<&'a PreviousReviews>,
     pub(crate) trusted_tool: Option<&'a TrustedTool>,
     pub(crate) trusted_skill_paths: &'a [String],
@@ -84,17 +88,28 @@ impl TranscriptConfig {
         &self,
         input: ContextInput<'_>,
     ) -> Result<RenderedContext, SectionError> {
+        let (mut context, _) = self.collect_context(input)?.compose(/*cursor*/ None, &[])?;
+        context.deduplicate_transcript_instructions();
+        Ok(context)
+    }
+
+    pub(super) fn collect_context(
+        &self,
+        input: ContextInput<'_>,
+    ) -> Result<CollectedTranscript, SectionError> {
         let ContextInput {
             target,
             history,
             root_conversation,
             trusted_user_answers,
             planned_action,
+            permissions,
             previous_reviews,
             trusted_tool,
             trusted_skill_paths,
             node_repl_images,
         } = input;
+        let history_version = history.review_history_version();
         let history = SnapshotHistory(history);
         let profile = ContextProfile {
             target: ContextTarget::Async,
@@ -124,7 +139,7 @@ impl TranscriptConfig {
             root_conversation,
             trusted_user_answers,
             planned_action,
-            permissions: None,
+            permissions,
             previous_reviews,
             trusted_tool,
             trusted_skill_paths,
@@ -135,9 +150,49 @@ impl TranscriptConfig {
             }),
             node_repl: None,
         })?;
-        let transcript =
-            profile.render_transcript(context.transcript_entries(), /*entry_number_offset*/ 0);
-        context.compose(ContextPresentation::Async, transcript)
+        Ok(CollectedTranscript {
+            context,
+            profile,
+            history_version,
+        })
+    }
+}
+
+/// Captured evidence stays typed until the owning conversation selects its delta.
+#[derive(Clone)]
+pub(super) struct CollectedTranscript {
+    context: CollectedContext,
+    profile: ContextProfile,
+    history_version: u64,
+}
+
+impl CollectedTranscript {
+    pub(super) fn select(
+        &self,
+        cursor: Option<TranscriptCursor>,
+    ) -> (TranscriptSelection<'_>, TranscriptCursor) {
+        let mode = cursor.map_or(TranscriptMode::Full, |cursor| TranscriptMode::Delta {
+            cursor,
+        });
+        mode.select(self.context.transcript_entries(), self.history_version)
+    }
+
+    pub(super) fn compose(
+        mut self,
+        cursor: Option<TranscriptCursor>,
+        reviewer_history: &[codex_history::ResponseItemEnvelope],
+    ) -> Result<(ComposedContext, TranscriptCursor), SectionError> {
+        self.context.retain_new_reviews(reviewer_history);
+        let (selection, next) = self.select(cursor);
+        let (entries, offset, presentation) = match selection {
+            TranscriptSelection::Full(entries) => (entries, 0, ContextPresentation::Async),
+            TranscriptSelection::Delta { entries, offset } => {
+                (entries, offset, ContextPresentation::AsyncDelta)
+            }
+        };
+        let transcript = self.profile.render_transcript(entries, offset);
+        let context = self.context.compose(presentation, transcript)?;
+        Ok((context, next))
     }
 }
 
@@ -149,7 +204,22 @@ impl SectionHistory for SnapshotHistory<'_> {
     }
 
     fn items(&self) -> Box<dyn Iterator<Item = &ResponseItem> + Send + '_> {
-        self.0.review_items()
+        Box::new(self.items_with_sources().map(|(item, _)| item))
+    }
+
+    fn items_with_sources(
+        &self,
+    ) -> Box<dyn Iterator<Item = (&ResponseItem, Option<&codex_history::RetainedSource>)> + Send + '_>
+    {
+        self.0.review_items_with_sources()
+    }
+
+    fn render_retained_assistant(
+        &self,
+        message: &codex_history::RetainedUserMessage,
+    ) -> Option<GuardianRootMessage> {
+        codex_core::context::render_retained_assistant_context(message)
+            .map(GuardianRootMessage::Assistant)
     }
 }
 

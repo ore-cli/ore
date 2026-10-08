@@ -4,5 +4,7 @@ expression: "meters.join(\"\\n\")"
 ---
 mic ██████  ore ▅▅▅▅▅▅
 mic ██████  ore ▅▅▅▅▅▅
-mic ▁▁▁▁▁▁  ore ▅▅▅▅██
-mic ▁▁▁▁▁█  ore ▁▁▁▁▁▁
+mic ████▅▁  ore ▅▅▅▅██
+mic ███▅▁█  ore ▅▅▅██▁
+mic ██▅▁█▁  ore ▅▅██▁▁
+mic ▁▁▁▁▁▁  ore ▁▁▁▁▁▁

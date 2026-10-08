@@ -77,7 +77,6 @@ package(codex-app-server) & test(account_switch_reloads_telemetry_collectors_and
 # guardian_v2: every test routes through guardian_v2_routes_tool_approvals,
 # which awaits a codex.guardian_v2.classification metric on its own /metrics
 # endpoint (suite/v2/guardian_v2.rs:354).
-package(codex-app-server) & test(guardian_v2_low_risk_actions_skip_subsequent_reviews)
 package(codex-app-server) & test(guardian_v2_high_risk_actions_require_full_reviews)
 package(codex-app-server) & test(guardian_v2_threshold_score_requires_full_reviews)
 # rust-v0.155.0's action-budget test awaits the codex_guardian_v2_classification
@@ -97,8 +96,6 @@ package(codex-app-server) & test(oversized_async_action_requires_sync_review_and
 # Same file, same helper, same /metrics timeout, so the cause is unchanged and
 # they belong here rather than in a new group. The plugin-measurement entry is
 # still gone.
-package(codex-app-server) & test(resumed_thread_ignores_persisted_guardian_score)
-package(codex-app-server) & test(forked_thread_ignores_persisted_guardian_score)
 # Moved here from cause (4) after ore-upstream-probe ran them on a pristine
 # rust-v0.152.0 on ubuntu-24.04: all seven cases passed, so upstream is not the
 # reason. They route through the same helper as everything else in this group and
@@ -161,7 +158,6 @@ package(codex-core) & test(explicit_plugin_skill_invocation_tracks_remote_plugin
 package(codex-core) & test(implicit_plugin_skill_invocation_tracks_remote_plugin_id)
 # tests/suite/skills_extension.rs — wait_for_analytics_events at :1037, :1062,
 # :1337, :1873.
-package(codex-core) & test(explicit_only_orchestrator_skill_is_hidden_but_can_be_invoked)
 package(codex-core) & test(executor_skill_invocation_is_environment_scoped_and_deduplicated)
 package(codex-core) & test(production_turn_uses_provider_host_catalog_and_core_snapshot_injection)
 # tests/suite/request_plugin_install.rs :840 — the wait lives in the shared
@@ -183,7 +179,6 @@ package(codex-core) & test(endpoint_recommendation_hydrates_install_identity_aft
 package(codex-app-server) & test(turn_start_with_empty_input_runs_model_request)
 package(codex-app-server) & test(direct_input_to_multi_agent_v2_subagent_is_rejected)
 package(codex-app-server) & test(turn_start_emits_spawn_agent_item_with_model_metadata_v2)
-package(codex-app-server) & test(thread_archive_requires_materialized_rollout)
 package(codex-app-server) & test(history_notes_and_async_message_emit_control_tool_analytics)
 package(codex-app-server) & test(multi_agent_v2_tools_emit_collaborator_analytics)
 
@@ -255,7 +250,6 @@ package(codex-exec-server) & test(shell_snapshot_v2_)
 # BEFORE the analytics seam, so it is neither cause (1) nor ours. Symptom is
 # `timeout waiting for event: Elapsed(())`. A sibling in the same file is already
 # excluded above for cause (1); this one is not that, despite the resemblance.
-package(codex-core) & test(snapshot_rollback_followup_turn_trims_context_updates)
 
 # ---------------------------------------------------------------- rust-v0.151.0
 
@@ -412,7 +406,6 @@ package(codex-app-server) & test(turn_steer_updates_client_metadata_on_follow_up
 #   .expect("parent turn analytics")   (guardian_v2.rs:1407)
 # for a codex_turn_event POST the analytics seam never sends. Hence FAIL rather
 # than the family's usual timeout.
-package(codex-app-server) & test(guardian_v2_required_model_bypasses_scoring_and_runs_full_reviews)
 
 # --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
 # suite/v2/turn_cost_otel.rs builds its own provider through
@@ -531,3 +524,113 @@ package(codex-cli) & test(restart_applies_saved_updater_preference)
 # them on main costs nothing the candidate's own run has not already shown.
 package(codex-app-server-daemon) & test(manual_update_restarts_managed_daemon_with_automatic_updates_disabled)
 package(codex-cli) & test(managed_start_succeeds_when_updater_record_is_invalid)
+
+# ---------------------------------------------------------------- rust-v0.161.0
+# Each entry below passed on a pristine rust-v0.161.0 checkout and failed on the
+# candidate, on the line quoted with it.
+
+# --- (1) analytics force-off ------------------------------------------------
+# Each awaits an analytics POST the disabled client never sends:
+#   wait_for_matching_analytics_event(&server, .., |event| ..)
+# analytics.rs, compaction.rs, thread_archive.rs, selected_capability_stack.rs.
+package(codex-app-server) & test(usage_limit_window_reaches_turn_analytics)
+package(codex-app-server) & test(compaction_error_window_reaches_analytics)
+package(codex-app-server) & test(thread_archive_without_turns)
+package(codex-app-server) & test(selected_plugin_mcp_startup_respects_explicit_mentions)
+# imagegen_extension.rs: the terminal item arrives, then
+#   let event = wait_for_analytics_event(..)
+package(codex-app-server) & test(standalone_image_generation_failure_emits_terminal_item)
+# plugin_reconcile.rs: turn_hook_runs completes each turn, then
+#   wait_for_matching_analytics_event(server, .., |event|
+#       event["event_type"] == "codex_turn_event" ..)
+package(codex-app-server) & test(plugin_reconcile_syncs_bundles_and_reports_changes)
+# mcp_auth_elicitation.rs and plugins.rs mount /codex/analytics-events/events
+# with an expectation and start with analytics_enabled Some(true), which the
+# seam overrides.
+package(codex-core) & test(actual_turn_elicitation_analytics)
+package(codex-core) & test(shared_analytics_client_preserves_session_products)
+# cloud_skill_tests.rs: "timed out waiting for skill_invocation analytics".
+package(codex-core) & test(explicit_only_cloud_skill_is_hidden_but_can_be_invoked)
+package(codex-core) & test(yielded_skill_read_keeps_originating_turn_metadata)
+# Upstream captures an MCP result's `_meta` only while analytics is on
+# (core/src/tools/handlers/mcp.rs):
+#   let result_metadata_capture_allowed = invocation.session.services
+#       .analytics_events_client.is_enabled() && .. is_host_owned_apps);
+# so no executed call carries tool_result_metadata and these assertions see
+# Null. turn_start.rs is the demonstration: of its three cases, the one passing
+# analytics_enabled = Some(false) expects no metadata and passes on ore.
+package(codex-core) & test(code_mode_late_truncated_result_metadata_survives_waits)
+package(codex-core) & test(code_mode_result_metadata_follows_runtime_recording_enablement)
+package(codex-core) & test(code_mode_result_metadata_keeps_prepared_call_binding_across_runtime_refresh)
+package(codex-core) & test(direct_result_metadata_retained_budget_preserves_resource_access)
+package(codex-core) & test(result_metadata_preserves_results_within_request_budget)
+package(codex-app-server) & test(tool_call_metadata_stays_out_of_raw_response_item_notifications)
+
+# --- (2) user BYO OTLP metrics (accepted Caveat A) --------------------------
+# Each configures `[otel] metrics_exporter = { otlp-http = .. }` against its own
+# mock collector and waits for an export; the seam nulls the exporter.
+# account.rs and auth_storage_originator.rs time out; daemon_telemetry.rs
+# asserts the request count:
+#   assert_eq!(requests.len(), expected_requests);
+package(codex-app-server) & test(login_account_chatgpt_device_code_succeeds_and_notifies)
+package(codex-app-server) & test(/^suite::v2::auth_storage_originator::/)
+package(codex-cli) & test(foreground_update_respects_consent_and_reports_unconfirmed)
+# worktree.rs's daemon sibling of interactive_worktree_start_and_fork_bind_owner_before_turn,
+# dying on the same wait:
+#   tokio::time::timeout(10s, metric_rx.recv()).await?
+#       .context("metrics export while the TUI is running")?;
+package(codex-cli) & test(daemon_worktree_start_and_fork_bind_owner_before_turn)
+# guardian_stateful_async_tests.rs routes every case through
+# guardian_v2_routes_scoped_tool_approvals. It sets `[analytics] enabled = true`
+# with its own otlp-http collector, then waits on both seams: the context metric
+# (guardian_v2.rs:1614) and codex_guardian_v2_classification analytics events.
+#   timeout(TIMEOUT, responses_state.context_metrics_recorded.notified())
+# All twelve cases passed on pristine rust-v0.161.0 under ore-upstream-probe on
+# ubuntu-24.04, and failed on the candidate with "deadline has elapsed" once
+# the guardian prompt copies stopped being rewritten.
+package(codex-app-server) & test(classifier_modes_preserve_approval_matrix)
+
+# --- (3) feedback force-off -------------------------------------------------
+# feedback.rs expects the log-write warning that suggests /feedback. Upstream
+# picks LOG_WRITE_WARNING_WITHOUT_FEEDBACK when feedback is off
+# (app-server/src/log_write_warning.rs), so ore sends the shorter one.
+package(codex-app-server) & test(feedback_upload_includes_sqlite_flush_and_query_failures)
+# The TUI submission is refused by the config gate before it reaches the
+# thread lookup the test expects to fail:
+#   assert!(format!("{error:#}").contains("invalid thread id"));
+package(codex-tui) & test(feedback_submission_stages_logs_cleans_up_and_emits_error_history_cell)
+
+# --- (4) daemon-autoupdate-off ----------------------------------------------
+# cli/tests/app_server_daemon.rs, the same fixture as the rust-v0.155.0 group:
+#   Error: failed to read app-server-updater.pid
+package(codex-cli) & test(managed_daemon_restarts_from_deleted_working_directory)
+package(codex-cli) & test(managed_identity_survives_locale_and_timezone_changes)
+package(codex-cli) & test(packaged_daemon_explicit_replacement_migrates_running_legacy)
+package(codex-cli) & test(wall_clock_shift_keeps_server_and_updater_managed)
+# The migration itself succeeds on ore (see daemon-migration-entrypoint-is-ore);
+# the test then expects the migrated install's updater:
+#   assert_eq!(new_updater.is_starting_or_running().await.unwrap(), running);
+package(codex-app-server-daemon) & test(explicit_update_migrates_running_and_stopped_installations)
+
+# --- (5) entrypoint-ship-ore, on the series only --------------------------
+# Same cause as the group above, reached by tests rust-v0.161.0 added or
+# rewrote: each stages a managed install named codex, and the daemon answers
+#   daemon executable not found at .../packages/app-server-daemon/current/bin/ore
+# All sixteen pass on the candidate, where the daemon-*-is-ore rules rename the
+# fixtures; they fail only on the unsubstituted series that delta's CI tests.
+package(codex-app-server-daemon) & test(legacy_selection_is_not_migrated_or_refreshed)
+package(codex-app-server-daemon) & test(confirmed_feature_restart_preserves_ownership_and_skips_matching_settings)
+package(codex-app-server-daemon) & test(daemon_owned_updates_require_and_request_an_isolated_installer)
+package(codex-app-server-daemon) & test(daemon_start_and_restart_preserve_launch_features)
+package(codex-app-server-daemon) & test(manual_update_restarts_local_daemon_with_automatic_updates_disabled)
+package(codex-app-server-daemon) & test(update_rejects_a_package_root_change_during_download)
+package(codex-cli) & test(packaged_daemon_bootstrap_seeds_local_package)
+package(codex-cli) & test(packaged_daemon_restart_seeds_local_package)
+package(codex-cli) & test(packaged_daemon_start_and_explicit_replacement)
+package(codex-cli) & test(auto_daemon_start_attaches_to_shared_server)
+package(codex-cli) & test(bedrock_onboarding_leaves_a_running_daemon_untouched)
+package(codex-cli) & test(fresh_daemon_requires_confirmation_to_disable_shared_features)
+package(codex-cli) & test(incompatible_daemon_can_cancel)
+package(codex-cli) & test(incompatible_daemon_can_restart_with_confirmed_settings)
+package(codex-cli) & test(incompatible_daemon_can_run_embedded)
+package(codex-cli) & test(stopped_daemon_requires_confirmation_to_disable_persisted_features)

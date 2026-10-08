@@ -1,4 +1,9 @@
 mod common;
+#[cfg(unix)]
+#[path = "exec_process/shell_snapshot.rs"]
+mod shell_snapshot;
+#[path = "exec_process/windows_sandbox.rs"]
+mod windows_sandbox;
 
 use std::collections::HashMap;
 #[cfg(unix)]
@@ -25,6 +30,8 @@ use codex_exec_server::ShellInfo;
 #[cfg(unix)]
 use codex_exec_server::ShellSnapshotRequest;
 use codex_exec_server::StartedExecProcess;
+#[cfg(any(unix, windows))]
+use codex_exec_server::WindowsSandboxSelection;
 use codex_exec_server::WriteStatus;
 #[cfg(unix)]
 use codex_network_proxy::NetworkProxyConfig;
@@ -34,7 +41,6 @@ use codex_network_proxy::RemoteNetworkProxyConfig;
 use codex_network_proxy::RemoteNetworkProxyLaunchConfig;
 #[cfg(unix)]
 use codex_protocol::config_types::ShellEnvironmentPolicyInherit;
-use codex_protocol::config_types::WindowsSandboxLevel;
 #[cfg(unix)]
 use codex_protocol::models::PermissionProfile;
 #[cfg(unix)]
@@ -137,7 +143,7 @@ async fn codex_home_symlink_opt_out_respects_host_config_and_scope() -> Result<(
                 PathUri::from_host_native_path(root)?.into(),
                 FileSystemAccessMode::Write,
             ));
-            let sandbox = FileSystemSandboxContext::from_permission_profile_with_cwd(
+            let sandbox = FileSystemSandboxContext::from_permission_profile(
                 PermissionProfile::from_runtime_permissions(
                     &policy,
                     NetworkSandboxPolicy::Restricted,
@@ -247,7 +253,7 @@ async fn shell_snapshot_v2_filters_profile_exports_and_stays_in_memory(
     let shadowed_builtins = if posix_shell {
         ""
     } else {
-        "unset() { exit 41; }\nbuiltin() { :; }\n"
+        "unset() { exit 41; }\nbuiltin() { exit 41; }\nexec() { exit 41; }\n"
     };
     std::fs::write(
         &profile_path,
@@ -342,7 +348,7 @@ async fn shell_snapshot_v2_filters_profile_exports_and_stays_in_memory(
                 pipe_stdin: false,
                 arg0: (shell_name == "bash-sh").then(|| "sh".to_string()),
                 sandbox: (use_sandbox && attempt == 0).then(|| {
-                    FileSystemSandboxContext::from_permission_profile_with_cwd(
+                    FileSystemSandboxContext::from_permission_profile(
                         PermissionProfile::read_only(),
                         cwd.clone(),
                     )
@@ -452,14 +458,26 @@ async fn shell_snapshot_v2_remote_managed_proxy_uses_prepared_execution_context(
 }
 
 #[cfg(unix)]
-#[test_case(false, false, "bash", 1; "local_pipe_recovery")]
-#[test_case(false, true, "bash", 1; "local_tty_recovery")]
-#[test_case(true, false, "bash", 1; "remote_pipe_recovery")]
-#[test_case(true, true, "bash", 1; "remote_tty_recovery")]
-#[test_case(false, false, "bash", 3; "local_retry_budget_exhausted")]
-#[test_case(true, false, "bash", 3; "remote_retry_budget_exhausted")]
-#[cfg_attr(target_os = "macos", test_case(false, false, "zsh", 1; "local_zsh_recovery"))]
-#[cfg_attr(target_os = "macos", test_case(true, false, "zsh", 1; "remote_zsh_recovery"))]
+#[derive(Clone, Copy)]
+enum CaptureFailure {
+    Exit(i32),
+    Cancel,
+    Timeout,
+}
+
+#[cfg(unix)]
+#[test_case(false, false, "bash", 1, CaptureFailure::Exit(7); "local_pipe_recovery")]
+#[test_case(false, true, "bash", 1, CaptureFailure::Exit(7); "local_tty_recovery")]
+#[test_case(true, false, "bash", 1, CaptureFailure::Exit(7); "remote_pipe_recovery")]
+#[test_case(true, true, "bash", 1, CaptureFailure::Exit(7); "remote_tty_recovery")]
+#[test_case(false, false, "bash", 3, CaptureFailure::Exit(7); "local_retry_budget_exhausted")]
+#[test_case(true, false, "bash", 3, CaptureFailure::Exit(7); "remote_retry_budget_exhausted")]
+#[test_case(false, false, "bash", 1, CaptureFailure::Exit(0); "local_invalid_output_recovery")]
+#[cfg_attr(target_os = "macos", test_case(false, false, "zsh", 1, CaptureFailure::Exit(0); "local_zsh_invalid_output_recovery"))]
+#[cfg_attr(target_os = "macos", test_case(false, false, "zsh", 1, CaptureFailure::Exit(7); "local_zsh_recovery"))]
+#[cfg_attr(target_os = "macos", test_case(true, false, "zsh", 1, CaptureFailure::Exit(7); "remote_zsh_recovery"))]
+#[test_case(false, false, "bash", 1, CaptureFailure::Cancel; "cancel_capture")]
+#[test_case(false, false, "bash", 1, CaptureFailure::Timeout; "timeout_capture")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial_test::serial(remote_exec_server)]
 async fn shell_snapshot_v2_capture_failure_falls_back_and_retries(
@@ -467,6 +485,7 @@ async fn shell_snapshot_v2_capture_failure_falls_back_and_retries(
     tty: bool,
     shell_name: &str,
     failures_before_repair: usize,
+    failure: CaptureFailure,
 ) -> Result<()> {
     if use_remote
         && let Some(warning) =
@@ -483,9 +502,21 @@ async fn shell_snapshot_v2_capture_failure_falls_back_and_retries(
         "zsh" => ("/bin/zsh", ".zshrc"),
         name => anyhow::bail!("unsupported test shell {name}"),
     };
+    let child_pids = home.path().join("startup-pids");
+    let _cleanup = shell_snapshot::StartupProcesses(child_pids.clone());
+    // Sandboxed remote PIDs may be namespace-local; check descendants on the native path.
+    let startup_child = if use_remote {
+        ""
+    } else {
+        "/bin/sleep 30 >/dev/null 2>&1 &\nprintf '%s\\n' \"$!\" >> \"$HOME/startup-pids\"\n"
+    };
+    let finish = match failure {
+        CaptureFailure::Exit(code) => format!("exit {code}"),
+        CaptureFailure::Cancel | CaptureFailure::Timeout => "wait".to_string(),
+    };
     std::fs::write(
         home.path().join(profile_name),
-        "printf x >> \"$HOME/captures\"\nexit 7\n",
+        format!("printf x >> \"$HOME/captures\"\n{startup_child}{finish}\n"),
     )?;
     let policy = ExecEnvPolicy {
         inherit: ShellEnvironmentPolicyInherit::All,
@@ -519,7 +550,7 @@ async fn shell_snapshot_v2_capture_failure_falls_back_and_retries(
         pipe_stdin: false,
         arg0: None,
         sandbox: use_remote.then(|| {
-            FileSystemSandboxContext::from_permission_profile_with_cwd(
+            FileSystemSandboxContext::from_permission_profile(
                 PermissionProfile::workspace_write(),
                 cwd,
             )
@@ -531,12 +562,47 @@ async fn shell_snapshot_v2_capture_failure_falls_back_and_retries(
 
     for attempt in 0..failures_before_repair {
         params.process_id = ProcessId::from(format!("snapshot-fallback-{attempt}"));
-        let fallback = context.backend.start(params.clone()).await?;
-        let fallback_output = collect_process_output_from_events(fallback.process).await?;
-        assert_eq!(
-            fallback_output,
-            ("original".to_string(), String::new(), Some(0), true)
-        );
+        let mut start = context.backend.start(params.clone());
+        if matches!(failure, CaptureFailure::Cancel) {
+            tokio::select! {
+                result = &mut start => anyhow::bail!("capture finished before cancellation: {}", result.is_ok()),
+                _ = async {
+                    while std::fs::read_to_string(&child_pids).unwrap_or_default().trim().is_empty() {
+                        sleep(Duration::from_millis(20)).await;
+                    }
+                } => {}
+            }
+            drop(start);
+        } else {
+            let fallback = start.await?;
+            assert_eq!(
+                collect_process_output_from_events(fallback.process).await?,
+                ("original".to_string(), String::new(), Some(0), true)
+            );
+        }
+        if !use_remote {
+            let pids = std::fs::read_to_string(&child_pids)?;
+            let pid = pids
+                .split_whitespace()
+                .last()
+                .context("startup child PID")?;
+            timeout(Duration::from_secs(5), async {
+                loop {
+                    let output = std::process::Command::new("/bin/ps")
+                        .args(["-o", "stat=", "-p", pid])
+                        .output()?;
+                    let state = String::from_utf8(output.stdout)?;
+                    if state.trim().is_empty() || state.trim().starts_with('Z') {
+                        // Forget the completed child before retries can reuse its PID.
+                        std::fs::remove_file(&child_pids)?;
+                        return Ok::<_, anyhow::Error>(());
+                    }
+                    sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .context("failed capture left its startup child running")??;
+        }
         // A real remote executor has its own clock; the unit test uses a
         // paused clock to check requests made during the one-second backoff.
         sleep(Duration::from_millis(1100)).await;
@@ -600,7 +666,7 @@ async fn remote_sandboxed_process_preserves_custom_arg0() -> Result<()> {
             missing_path_behavior: None,
         },
     ]);
-    let sandbox = FileSystemSandboxContext::from_permission_profile_with_cwd(
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
         PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
         cwd.clone(),
     );
@@ -703,7 +769,7 @@ async fn remote_process_keeps_sandbox_helper_visible_with_restricted_reads() -> 
             missing_path_behavior: None,
         },
     ]);
-    let sandbox = FileSystemSandboxContext::from_permission_profile_with_cwd(
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
         PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
         cwd.clone(),
     );
@@ -774,7 +840,7 @@ async fn remote_tty_process_uses_configured_sandbox_helper_with_hostile_path() -
             missing_path_behavior: None,
         },
     ]);
-    let sandbox = FileSystemSandboxContext::from_permission_profile_with_cwd(
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
         PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
         cwd.clone(),
     );
@@ -830,7 +896,7 @@ async fn remote_process_preserves_empty_workspace_roots() -> Result<()> {
         access: FileSystemAccessMode::Read,
         missing_path_behavior: None,
     }]);
-    let mut sandbox = FileSystemSandboxContext::from_permission_profile_with_cwd(
+    let mut sandbox = FileSystemSandboxContext::from_permission_profile(
         PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
         cwd.clone(),
     );
@@ -915,12 +981,19 @@ async fn collect_process_output_from_reads(
 async fn collect_process_output_from_events(
     session: Arc<dyn ExecProcess>,
 ) -> Result<(String, String, Option<i32>, bool)> {
+    collect_process_output_from_events_with_timeout(session, Duration::from_secs(2)).await
+}
+
+async fn collect_process_output_from_events_with_timeout(
+    session: Arc<dyn ExecProcess>,
+    event_timeout: Duration,
+) -> Result<(String, String, Option<i32>, bool)> {
     let mut events = session.subscribe_events();
     let mut stdout = String::new();
     let mut stderr = String::new();
     let mut exit_code = None;
     loop {
-        match timeout(Duration::from_secs(2), events.recv()).await?? {
+        match timeout(event_timeout, events.recv()).await?? {
             ExecProcessEvent::Output(chunk) => match chunk.stream {
                 ExecOutputStream::Stdout | ExecOutputStream::Pty => {
                     stdout.push_str(&String::from_utf8_lossy(&chunk.chunk.into_inner()));
@@ -1281,7 +1354,13 @@ async fn assert_exec_process_write_then_read_without_tty(use_remote: bool) -> Re
     Ok(())
 }
 
-async fn assert_remote_windows_sandbox_process_write() -> Result<()> {
+async fn assert_remote_windows_sandbox_process_write(
+    expected_sandbox_type: codex_sandboxing::SandboxType,
+    tty: bool,
+) -> Result<()> {
+    if expected_sandbox_type == codex_sandboxing::SandboxType::WindowsMxc {
+        crate::skip_if_mxc_unavailable!(Ok(()));
+    }
     let context = create_process_context(/*use_remote*/ true).await?;
     let workspace = TempDir::new()?;
     let blocked_file = workspace.path().join("blocked.txt");
@@ -1290,7 +1369,19 @@ async fn assert_remote_windows_sandbox_process_write() -> Result<()> {
         SandboxPolicy::new_read_only_policy(),
         cwd.clone(),
     )?;
-    sandbox.windows_sandbox_level = WindowsSandboxLevel::RestrictedToken;
+    match expected_sandbox_type {
+        codex_sandboxing::SandboxType::WindowsRestrictedToken => {
+            sandbox.windows_sandbox_selection = WindowsSandboxSelection::RestrictedToken;
+        }
+        codex_sandboxing::SandboxType::WindowsMxc => {
+            sandbox.windows_sandbox_selection = WindowsSandboxSelection::Mxc;
+        }
+        codex_sandboxing::SandboxType::None
+        | codex_sandboxing::SandboxType::MacosSeatbelt
+        | codex_sandboxing::SandboxType::LinuxSeccomp => {
+            anyhow::bail!("expected a Windows sandbox type")
+        }
+    }
 
     let session = match context
         .backend
@@ -1312,8 +1403,8 @@ async fn assert_remote_windows_sandbox_process_write() -> Result<()> {
             shell_snapshot: None,
             env_policy: /*env_policy*/ None,
             env: Default::default(),
-            tty: false,
-            pipe_stdin: true,
+            tty,
+            pipe_stdin: !tty,
             arg0: None,
             sandbox: Some(sandbox),
             enforce_managed_network: false,
@@ -1325,8 +1416,10 @@ async fn assert_remote_windows_sandbox_process_write() -> Result<()> {
         Ok(session) => session,
         Err(err) => return Err(err.into()),
     };
+    assert_eq!(session.sandbox_type, Some(expected_sandbox_type));
 
-    let write_response = session.process.write(b"hello\n".to_vec()).await?;
+    let input = if tty { b"hello\r" } else { b"hello\n" };
+    let write_response = session.process.write(input.to_vec()).await?;
     assert_eq!(write_response.status, WriteStatus::Accepted);
     let StartedExecProcess { process, .. } = session;
     let wake_rx = process.subscribe_wake();
@@ -1743,11 +1836,29 @@ async fn exec_process_write_then_read_without_tty(use_remote: bool) -> Result<()
     assert_exec_process_write_then_read_without_tty(use_remote).await
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[test_case(
+    codex_sandboxing::SandboxType::WindowsRestrictedToken,
+    false;
+    "restricted_token"
+)]
+#[test_case(
+    codex_sandboxing::SandboxType::WindowsMxc,
+    false;
+    "mxc_pipe"
+)]
+#[test_case(
+    codex_sandboxing::SandboxType::WindowsMxc,
+    true;
+    "mxc_conpty"
+)]
 #[cfg_attr(not(windows), ignore = "Windows-only exec-server sandbox process test")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial_test::serial(remote_exec_server)]
-async fn remote_windows_sandbox_process_accepts_process_write() -> Result<()> {
-    assert_remote_windows_sandbox_process_write().await
+async fn remote_windows_sandbox_process_accepts_process_write(
+    expected_sandbox_type: codex_sandboxing::SandboxType,
+    tty: bool,
+) -> Result<()> {
+    assert_remote_windows_sandbox_process_write(expected_sandbox_type, tty).await
 }
 
 #[test_case(false ; "local")]

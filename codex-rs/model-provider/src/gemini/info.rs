@@ -103,6 +103,9 @@ fn create_gemini_provider_from(
         auth: None,
         aws: None,
         wire_api: WireApi::Gemini,
+        model_catalog_url: None,
+        gateway_oauth: None,
+        include_internal_metadata: false,
         // The key rides in a header, never in `?key=`: a query parameter lands in
         // proxy access logs and in `RUST_LOG` request traces.
         query_params: None,

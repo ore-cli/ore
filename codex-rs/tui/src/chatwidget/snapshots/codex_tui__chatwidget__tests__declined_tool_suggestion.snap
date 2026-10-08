@@ -1,0 +1,7 @@
+---
+source: tui/src/chatwidget/tests/app_server.rs
+expression: normalize_snapshot_paths(popup)
+---
+› Ask Ore to do anything
+
+  GPT-5.6-Sol default · /tmp/project

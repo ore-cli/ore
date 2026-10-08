@@ -19,14 +19,13 @@ impl ChatWidget {
         self.permission_popup_request_id = Some(request_id);
         self.bottom_pane.show_selection_view(SelectionViewParams {
             view_id: Some(VIEW_ID),
-            title: Some("Update Model Permissions".to_string()),
+            title: Some("Update Model Permissions".into()),
             items: vec![SelectionItem {
                 name: "Loading permission profiles…".to_string(),
                 is_disabled: true,
                 ..Default::default()
             }],
-            footer_hint: Some(standard_popup_hint_line()),
-            ..Default::default()
+            ..SelectionViewParams::picker()
         });
         self.app_event_tx.send(AppEvent::FetchPermissionProfiles {
             request_id,
@@ -57,9 +56,6 @@ impl ChatWidget {
             return;
         }
         match result {
-            Ok(discovery) if !discovery.explicit_profile_mode => {
-                self.open_legacy_permissions_popup()
-            }
             Ok(discovery) => {
                 self.permission_profiles_menu_opened = true;
                 self.open_permission_profiles_popup(discovery);
@@ -74,8 +70,7 @@ impl ChatWidget {
                     dismiss_on_select: true,
                     ..Default::default()
                 }],
-                footer_hint: Some(standard_popup_hint_line()),
-                ..Default::default()
+                ..SelectionViewParams::picker()
             }),
         }
     }

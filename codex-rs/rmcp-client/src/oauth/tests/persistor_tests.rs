@@ -179,8 +179,9 @@ async fn coordinated_401_refresh_rereads_and_persists_before_retry() -> Result<(
     let mut manager = authorization_manager_for(&initial).await?;
     manager.set_credential_store(OAuthCredentialStore::new(
         initial.clone(),
-        ResolvedOAuthCredentialStore::File,
+        ResolvedOAuthCredentialStore::file(),
         DefaultKeyringStore,
+        /*oauth_config*/ None,
     ));
     let client = AuthClient::new(
         StreamableHttpClientAdapter::new(
@@ -395,8 +396,9 @@ async fn resolved_keyring_read_error_preserves_in_memory_credentials() -> Result
         initial.server_name.clone(),
         initial.url.clone(),
         Arc::clone(&manager),
-        ResolvedOAuthCredentialStore::Keyring(AuthKeyringBackendKind::Direct),
+        ResolvedOAuthCredentialStore::keyring(AuthKeyringBackendKind::Direct),
         Some(initial.clone()),
+        /*oauth_config*/ None,
     );
 
     let error = persistor
@@ -873,8 +875,9 @@ async fn coordinated_manager_for(
     let mut manager = authorization_manager_for(tokens).await?;
     let store = OAuthCredentialStore::new(
         tokens.clone(),
-        ResolvedOAuthCredentialStore::File,
+        ResolvedOAuthCredentialStore::file(),
         DefaultKeyringStore,
+        /*oauth_config*/ None,
     );
     manager.set_credential_store(store.clone());
     Ok((Arc::new(TokioMutex::new(manager)), store))
@@ -885,12 +888,13 @@ async fn persistor_for(tokens: &StoredOAuthTokens) -> Result<OAuthPersistor> {
         tokens.server_name.clone(),
         tokens.url.clone(),
         Arc::new(TokioMutex::new(authorization_manager_for(tokens).await?)),
-        ResolvedOAuthCredentialStore::File,
+        ResolvedOAuthCredentialStore::file(),
         Some(tokens.clone()),
+        /*oauth_config*/ None,
     ))
 }
 
-async fn test_context() -> Result<(TempCodexHome, MockServer, StoredOAuthTokens)> {
+pub(super) async fn test_context() -> Result<(TempCodexHome, MockServer, StoredOAuthTokens)> {
     let env = TempCodexHome::new();
     let server = MockServer::start().await;
     mount_oauth_metadata(&server).await;
@@ -898,7 +902,9 @@ async fn test_context() -> Result<(TempCodexHome, MockServer, StoredOAuthTokens)
     Ok((env, server, tokens))
 }
 
-async fn authorization_manager_for(tokens: &StoredOAuthTokens) -> Result<AuthorizationManager> {
+pub(super) async fn authorization_manager_for(
+    tokens: &StoredOAuthTokens,
+) -> Result<AuthorizationManager> {
     let oauth_http_client = Arc::new(OAuthHttpClientAdapter::new(
         Arc::new(RouteAwareHttpClient::new(HttpClientFactory::new(
             OutboundProxyPolicy::ReqwestDefault,

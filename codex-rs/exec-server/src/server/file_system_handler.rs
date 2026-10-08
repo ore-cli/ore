@@ -3,19 +3,18 @@ use std::io;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use codex_exec_server_protocol::JSONRPCErrorError;
-use codex_protocol::config_types::WindowsSandboxLevel;
 
 use crate::CapabilityRootsDiscoverParams;
 use crate::CapabilityRootsDiscoverResponse;
 use crate::CopyOptions;
 use crate::CreateDirectoryOptions;
-use crate::ExecServerRuntimePaths;
+use crate::ExecServerRuntimeOptions;
 use crate::ExecutorFileSystem;
 use crate::GetMetadataOptions;
 use crate::ReadFileOptions;
 use crate::RemoveOptions;
 use crate::WriteFileOptions;
-use crate::file_read::FileReadHandleManager;
+use crate::file_handle::FileHandleManager;
 use crate::local_file_system::LocalFileSystem;
 use crate::protocol::FS_READ_DIRECTORY_METHOD;
 use crate::protocol::FS_WRITE_FILE_METHOD;
@@ -29,6 +28,7 @@ use crate::protocol::FsCreateDirectoryParams;
 use crate::protocol::FsCreateDirectoryResponse;
 use crate::protocol::FsGetMetadataParams;
 use crate::protocol::FsGetMetadataResponse;
+use crate::protocol::FsOpenMode;
 use crate::protocol::FsOpenParams;
 use crate::protocol::FsOpenResponse;
 use crate::protocol::FsReadBlockParams;
@@ -42,13 +42,15 @@ use crate::protocol::FsRemoveParams;
 use crate::protocol::FsRemoveResponse;
 use crate::protocol::FsWalkParams;
 use crate::protocol::FsWalkResponse;
+use crate::protocol::FsWriteBlockParams;
+use crate::protocol::FsWriteBlockResponse;
 use crate::protocol::FsWriteFileParams;
 use crate::protocol::FsWriteFileResponse;
 use crate::rpc::internal_error;
 use crate::rpc::invalid_request;
 use crate::rpc::not_found;
 
-const MAX_FILE_READ_HANDLE_ID_BYTES: usize = 32;
+const MAX_FILE_HANDLE_ID_BYTES: usize = 32;
 // Each read-directory entry needs four JSON values. Keep same-version
 // producers comfortably below the shared 256K-value decoder budget.
 const MAX_READ_DIRECTORY_ENTRIES: usize = 50_000;
@@ -56,19 +58,19 @@ const MAX_READ_DIRECTORY_ENTRIES: usize = 50_000;
 #[derive(Clone)]
 pub(crate) struct FileSystemHandler {
     file_system: LocalFileSystem,
-    file_reads: FileReadHandleManager,
+    file_handles: FileHandleManager,
 }
 
 impl FileSystemHandler {
-    pub(crate) fn new(runtime_paths: ExecServerRuntimePaths) -> Self {
+    pub(crate) fn new(runtime_paths: ExecServerRuntimeOptions) -> Self {
         Self {
             file_system: LocalFileSystem::with_runtime_paths(runtime_paths),
-            file_reads: FileReadHandleManager::default(),
+            file_handles: FileHandleManager::default(),
         }
     }
 
     pub(crate) async fn shutdown(&self) {
-        self.file_reads.close_all().await;
+        self.file_handles.close_all().await;
     }
 
     pub(crate) async fn discover_capability_roots(
@@ -80,9 +82,11 @@ impl FileSystemHandler {
             .first()
             .and_then(|root| root.sandbox.as_ref())
             .filter(|sandbox| {
-                sandbox.should_run_in_sandbox()
-                    && (!cfg!(target_os = "windows")
-                        || sandbox.windows_sandbox_level != WindowsSandboxLevel::Disabled)
+                sandbox
+                    .validate_file_system_paths_for_current_host()
+                    .is_ok()
+                    && sandbox.should_read_from_sandbox()
+                    && (!cfg!(target_os = "windows") || sandbox.windows_sandbox_is_requested())
                     && params
                         .roots
                         .iter()
@@ -120,14 +124,20 @@ impl FileSystemHandler {
         &self,
         params: FsOpenParams,
     ) -> Result<FsOpenResponse, JSONRPCErrorError> {
-        validate_file_read_handle_id(&params.handle_id)?;
+        validate_file_handle_id(&params.handle_id)?;
+        // TODO(anp): Enable replacement opens when writable file streams are implemented.
+        if params.mode == FsOpenMode::Replace {
+            return Err(invalid_request(
+                "exec-server does not support writable file streams".to_string(),
+            ));
+        }
         let file = self
             .file_system
             .open_file_for_read(&params.path, params.sandbox.as_ref())
             .await
             .map_err(map_fs_error)?;
         let handle_id = self
-            .file_reads
+            .file_handles
             .open(params.handle_id, file)
             .await
             .map_err(map_fs_error)?;
@@ -138,9 +148,9 @@ impl FileSystemHandler {
         &self,
         params: FsReadBlockParams,
     ) -> Result<FsReadBlockResponse, JSONRPCErrorError> {
-        validate_file_read_handle_id(&params.handle_id)?;
+        validate_file_handle_id(&params.handle_id)?;
         let block = self
-            .file_reads
+            .file_handles
             .read_block(&params.handle_id, params.offset, params.len)
             .await
             .map_err(map_fs_error)?;
@@ -150,12 +160,23 @@ impl FileSystemHandler {
         })
     }
 
+    pub(crate) async fn write_block(
+        &self,
+        params: FsWriteBlockParams,
+    ) -> Result<FsWriteBlockResponse, JSONRPCErrorError> {
+        validate_file_handle_id(&params.handle_id)?;
+        // TODO(anp): Implement positional writes before advertising writable file streams.
+        Err(invalid_request(
+            "exec-server does not support writable file streams".to_string(),
+        ))
+    }
+
     pub(crate) async fn close(
         &self,
         params: FsCloseParams,
     ) -> Result<FsCloseResponse, JSONRPCErrorError> {
-        validate_file_read_handle_id(&params.handle_id)?;
-        self.file_reads.close(&params.handle_id).await;
+        validate_file_handle_id(&params.handle_id)?;
+        self.file_handles.close(&params.handle_id).await;
         Ok(FsCloseResponse {})
     }
 
@@ -334,10 +355,10 @@ impl FileSystemHandler {
     }
 }
 
-fn validate_file_read_handle_id(handle_id: &str) -> Result<(), JSONRPCErrorError> {
-    if handle_id.len() > MAX_FILE_READ_HANDLE_ID_BYTES {
+fn validate_file_handle_id(handle_id: &str) -> Result<(), JSONRPCErrorError> {
+    if handle_id.len() > MAX_FILE_HANDLE_ID_BYTES {
         return Err(invalid_request(format!(
-            "file read handle ID must not exceed {MAX_FILE_READ_HANDLE_ID_BYTES} bytes"
+            "file read handle ID must not exceed {MAX_FILE_HANDLE_ID_BYTES} bytes"
         )));
     }
     Ok(())
@@ -363,12 +384,13 @@ mod tests {
     use super::*;
     use crate::FileSystemSandboxContext;
     use crate::protocol::FsReadFileParams;
+
     use crate::protocol::FsWriteFileParams;
 
     #[tokio::test]
     async fn no_platform_sandbox_policies_do_not_require_configured_sandbox_helper() {
         let temp_dir = tempfile::tempdir().expect("tempdir");
-        let runtime_paths = ExecServerRuntimePaths::new(
+        let runtime_paths = ExecServerRuntimeOptions::new(
             std::env::current_exe().expect("current exe"),
             /*codex_linux_sandbox_exe*/ None,
         )

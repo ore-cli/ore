@@ -272,6 +272,38 @@ def rs_urls(repo: Path, commit: str) -> set[str]:
     return urls
 
 
+_TEST_PATH_RE = re.compile(r"(^|/)tests?/|_tests?\.rs$|(^|/)test_support")
+
+
+def only_in_test_code(
+    repo: Path, commit: str, url: str, blobs: dict[str, list[str]]
+) -> bool:
+    """True when every occurrence of `url` is test code, so it cannot ship.
+
+    Test code is a test file (a tests/ directory, *_test(s).rs, test_support) or
+    a line below the file's `#[cfg(test)]` marker, where upstream keeps its
+    inline test modules. A literal that also occurs anywhere else is not test-only.
+    """
+    out = try_git(repo, "grep", "-n", "-F", url, commit, "--", "*.rs")
+    if not out:
+        return False
+    # -F matches substrings; only count the literal where URL_RE would end it.
+    exact = re.compile(re.escape(url) + r"(?![A-Za-z0-9._~:/%#@!$&'()*+,;=?{}-])")
+    for line in out.splitlines():
+        _, path, lineno, text = line.split(":", 3)
+        if not exact.search(text):
+            continue
+        if _TEST_PATH_RE.search(path):
+            continue
+        if path not in blobs:
+            blobs[path] = run_git(repo, "show", f"{commit}:{path}").splitlines()
+        if not any(
+            line.strip() == "#[cfg(test)]" for line in blobs[path][: int(lineno) - 1]
+        ):
+            return False
+    return True
+
+
 def egress_literals(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
     egress = load_egress(FORK_DIR / "egress.yaml")
     added = sorted(rs_urls(repo, tag_c) - rs_urls(repo, base_c))
@@ -282,8 +314,12 @@ def egress_literals(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
         "fixture": [],
         "unclassified": [],
     }
+    blobs: dict[str, list[str]] = {}
     for url in added:
-        buckets[classify(url, egress)].append(url)
+        bucket = classify(url, egress)
+        if bucket == "unclassified" and only_in_test_code(repo, tag_c, url, blobs):
+            bucket = "fixture"
+        buckets[bucket].append(url)
     verdict = (
         WARN if buckets["kill"] or buckets["decide"] or buckets["unclassified"] else OK
     )
@@ -306,7 +342,7 @@ def egress_literals(rep: Report, repo: Path, base_c: str, tag_c: str) -> None:
         )
     if buckets["fixture"]:
         rep.add(
-            f"- test fixtures (reserved hosts / placeholders, {len(buckets['fixture'])}): "
+            f"- test fixtures (reserved hosts, placeholders, or test-only code; {len(buckets['fixture'])}): "
             + ", ".join(f"`{u}`" for u in buckets["fixture"][:15])
             + (" ..." if len(buckets["fixture"]) > 15 else "")
         )

@@ -103,6 +103,11 @@ engine:
     # the request body the crate composes, so its one literal is a copy as well.
     - codex-rs/guardian-context/**/*.rs
     - codex-rs/ext/guardian-v2/src/async_scorer/extension_tests.rs
+    # Same reason, two more copies. app-server's guardian_v2 suite asserts the
+    # composed request text verbatim. core's guardian_review suite asserts the
+    # text stays out of the notify payload; rewritten, that check passes vacuously.
+    - codex-rs/app-server/tests/suite/v2/guardian_v2.rs
+    - codex-rs/core/tests/suite/guardian_review.rs
     - codex-rs/tui/prompt_for_init_command.md
     # A five-line README for a crate ore vendors and does not modify. Every
     # "Codex" in it names OpenAI's first-party product, and its issue-tracker
@@ -221,7 +226,7 @@ categories:
     - name: cli-command-in-help-text
       note: subcommand list is re-derived from `enum Subcommand` by --audit; this rule is the bulk rewrite.
       globs: ["codex-rs/**/*.rs", "codex-rs/**/*.txt", "**/*.md", "scripts/**/*.py", "scripts/**/*.sh", "codex-cli/scripts/**/*.sh", ".github/ISSUE_TEMPLATE/*.yml", ".github/**/*.md"]
-      pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|unarchive|update)\b)'
+      pattern: '(?<![\w./-])codex(?= (?:agents|app|app-server|apply|archive|cloud|completion|debug|delete|doctor|exec|exec-server|execpolicy|features|fork|login|logout|mcp|mcp-server|migrate-rollouts|plugin|queue|remote-control|responses-api-proxy|resume|review|sandbox|stdio-to-uds|tcp-tunnel|unarchive|update)\b)'
       replace: '${bin}'
 
     - name: cli-command-before-flag
@@ -261,16 +266,16 @@ categories:
       note: >
         The fixture feeds "Your `codex` launcher ..." and asserts the rendered inline
         code span. cli-command-in-backticks rewrites the INPUT, because it is
-        backticked; the expected span is a bare `"codex".cyan()`, which no rule
+        backticked; the expected span is a styled `"codex"` literal, which no rule
         matches -- so the renderer emits `ore` and the assertion still wants `codex`.
 
-        Anchored on `.cyan()` so it cannot touch the path literals in the same test:
+        Anchored on the `Span::styled(.., code)` call so it cannot touch the path literals in the same test:
         `/home/.../bin/codex:1105` is a filesystem path in the fixture and must stay
         exactly as upstream wrote it.
       files: [codex-rs/tui/src/markdown_render_tests.rs]
       rust_literals_only: false
-      pattern: '"codex"\.cyan\(\)'
-      replace: '"${bin}".cyan()'
+      pattern: 'Span::styled\("codex", MarkdownStyles::default\(\)\.code\)'
+      replace: 'Span::styled("${bin}", MarkdownStyles::default().code)'
 
     # doctor-path-probe and npm-doctor-package-root were retired at
     # rust-v0.154.0. Both targeted text upstream DELETED: the `where`/`which -a`
@@ -428,17 +433,6 @@ categories:
       pattern: 'Within this context, Codex refers to the open-source agentic coding interface \(not the old Codex language model built by OpenAI\)\.'
       replace: 'Within this context, ${product_name} refers to the open-source agentic coding interface.'
 
-    - name: prompt-personality-header-is-ore
-      note: >
-        DEFAULT_PERSONALITY_HEADER, the other half of what the agent is told it is.
-        "based on GPT-5" is the one clause where the provider genuinely matters: true
-        for an OpenAI model, false for Claude. Dropped rather than made conditional --
-        a substitution cannot branch on provider, and the base model is not something
-        the agent needs told to behave correctly.
-      files: [codex-rs/models-manager/src/model_info.rs]
-      pattern: 'You are Codex, a coding agent based on GPT-5\.'
-      replace: 'You are ${product_name}, a coding agent.'
-
     - name: ui-app-name-label
       note: >
         The other half of ui-bare-lowercase-label. That rule fixed the VALUE the
@@ -468,50 +462,17 @@ categories:
         the pattern still enforces that.
       globs: ["codex-rs/tui/**/tooltips.txt"]
       rust_literals_only: false
-      pattern: '(?m)^Use /feedback to send logs to the maintainers when something looks off\.$'
+      pattern: '(?m)^Use \*\*/feedback\*\* to send logs to the maintainers when something looks off\.$'
       replace: ''
-
-    - name: tooltip-points-at-ore-community-not-openai-s
-      note: >
-        Upstream points users at OpenAI's Discord and at the Codex category of
-        OpenAI's forum. Rebranded, the forum line became "Visit the Ore community
-        forum" pointing at community.openai.com/c/codex -- claiming OpenAI's
-        forum as ore's, which is both untrue and rude to the people who run it.
-        The Discord line keeps its shape and gets ore's own server; the forum
-        line is emptied because ore has no forum to send anyone to.
-      globs: ["codex-rs/tui/**/tooltips.txt"]
-      rust_literals_only: false
-      pattern: '(?m)^Join the OpenAI community Discord: http://discord\.gg/openai$'
-      replace: 'Join the ${product_name} community Discord: https://discord.gg/awN2xANFMW'
 
     - name: tooltip-drops-the-forum-that-is-not-ours
       note: >
-        See tooltip-points-at-ore-community-not-openai-s. Matches either spelling
+        OpenAI's forum, not ore's. Matches either spelling
         because ui-bare-product-name may rewrite Codex to Ore before this runs.
       globs: ["codex-rs/tui/**/tooltips.txt"]
       rust_literals_only: false
-      pattern: '(?m)^Visit the (?:Codex|Ore) community forum: https://community\.openai\.com/c/codex/37$'
+      pattern: '(?m)^Visit the \[(?:Codex|Ore) community forum\]\(https://community\.openai\.com/c/codex/37\)\.$'
       replace: ''
-
-    - name: tooltip-claims-no-plan-that-does-not-exist
-      note: >
-        Upstream shows ChatGPT Free and Go accounts "For a limited time, Codex is
-        included in your plan for free". Rebranded word-for-word that becomes
-        "Ore is included in your plan", which is false: ore is a fork, it is not
-        sold, and nothing about it is included in anyone's subscription. It is
-        also the one claim the rest of the fork is careful never to make -- the
-        README, the sign-in section and the NOTICE all go out of their way to say
-        ore is not affiliated with OpenAI, and then the TUI greeted free-plan
-        users by implying a commercial relationship.
-
-        Replaced with the wording the same file already uses for every other
-        account type, rather than deleted, so the tooltip rotation keeps its
-        shape and the constant stays where a sync can still see it. Matches
-        either spelling because ui-bare-product-name may have rewritten Codex to
-        Ore before this rule runs.
-      files: [codex-rs/tui/src/tooltips.rs]
-      pattern: 'For a limited time, (?:Codex|Ore) is included in your plan for free – let\u2019s build together\.'
-      replace: 'Build faster with ${product_name}.'
 
     - name: ui-bare-lowercase-label
       note: >
@@ -587,27 +548,6 @@ categories:
         slugs, ids, wire field names -- is reachable by it.
       files: [codex-rs/models-manager/models.json]
       rust_literals_only: false
-      pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
-      replace: 'You are ${product_name}, a coding agent.'
-
-    - name: test-constant-tracks-the-rebranded-identity
-      note: >
-        codex-app-server's thread_resume suite hardcodes the gpt-5.2 instructions
-        opening as a &str constant and asserts the resumed thread's instructions
-        still contain it. models-json-identity-is-ore rewrites that same sentence
-        in models.json, which is where the runtime template actually comes from,
-        so on an assembled tree the two sides disagree and
-        thread_resume_accepts_personality_override fails -- while passing on the
-        series, where no substitution has run. That split is why it went
-        unnoticed: ore-ci tests delta unsubstituted.
-
-        Rewriting the constant keeps the test doing its real job -- asserting a
-        personality override does not displace the base instructions -- instead of
-        retiring it into known-failing, which is scoped to the telemetry seams and
-        would silently drop the coverage. Same pattern and replacement as the
-        models.json rule so the two cannot drift; rust_literals_only stays at its
-        default, so only the string literal's contents are reachable.
-      files: [codex-rs/app-server/tests/suite/v2/thread_resume.rs]
       pattern: 'You are Codex, an? (?:coding )?agent based on GPT-5\.'
       replace: 'You are ${product_name}, a coding agent.'
 
@@ -846,6 +786,81 @@ categories:
       pattern: '(?P<lead>(?:install_bin|package_dir|current) / (?:"bin" / )?)"codex"'
       replace: '\g<lead>"ore"'
 
+    - name: daemon-prepared-install-entrypoint-is-ore
+      note: >
+        rust-v0.156.0's prepare_install.rs seeds the daemon's own copy of the local
+        CLI package and names the package entrypoint `bin/codex` in four places:
+        the manifest check, the package validation, the unix `codex -> bin/codex`
+        alias it adds, and the alias it skips when hashing the tree. ore's package
+        declares `bin/ore` (targets.py executable_stem) and its installer's alias is
+        `ore`, which managed_install already expects, so without this a packaged
+        ore daemon refused its own package: "local Ore package is missing
+        bin/codex". The macOS CodexCLI.app branch is left alone: ore's package
+        builds no app bundle, so it is never taken.
+      files: [codex-rs/app-server-daemon/src/prepare_install.rs]
+      rust_literals_only: false
+      pattern: '"bin/codex(?P<exe>(?:\.exe)?)"'
+      replace: '"bin/${bin}\g<exe>"'
+
+    - name: daemon-migration-entrypoint-is-ore
+      note: >
+        migration.rs moves a legacy standalone install into the daemon's own
+        package and probes the prepared release's `bin/codex` for its version and
+        for `pid-update-loop` support. ore's release ships `bin/ore`, so an
+        explicit update failed to run a binary that was never there instead of
+        migrating.
+      files: [codex-rs/app-server-daemon/src/migration.rs]
+      rust_literals_only: false
+      pattern: '"bin/codex(?P<exe>(?:\.exe)?)"'
+      replace: '"bin/${bin}\g<exe>"'
+
+    - name: daemon-prepared-install-alias-is-ore
+      note: >
+        The alias half of daemon-prepared-install-entrypoint-is-ore: the bare
+        `"codex"` passed to join() and Path::new() names the installer's alias.
+      files: [codex-rs/app-server-daemon/src/prepare_install.rs]
+      rust_literals_only: false
+      pattern: '(?<=\()"codex"(?=\))'
+      replace: '"${bin}"'
+
+    - name: daemon-package-test-fixtures-entrypoint-is-ore
+      note: >
+        The tests for that code stage a CLI package and a managed install whose
+        entrypoint is `bin/codex` (prepare_install_tests.rs, and the packaged
+        daemon flows in cli/tests/app_server_daemon.rs). Same move as
+        daemon-prepared-install-entrypoint-is-ore, for the fixtures. It subsumes
+        app-server-daemon-cli-test-managed-bin, which matched only that file's
+        `.join("bin/codex")` at rust-v0.155.0.
+      files:
+        - codex-rs/app-server-daemon/src/prepare_install_tests.rs
+        - codex-rs/cli/tests/app_server_daemon.rs
+      rust_literals_only: false
+      pattern: '(?<=["/])bin/codex(?=")'
+      replace: 'bin/${bin}'
+
+    - name: daemon-startup-test-managed-bin-is-ore
+      note: >
+        daemon_startup.rs and worktree.rs join the managed entrypoint's file
+        name onto current/bin, per platform; same move as the fixtures rule
+        above. Without it worktree.rs's daemon permutation stages `codex` and the
+        daemon reports "daemon executable not found at .../current/bin/ore".
+      files: [codex-rs/cli/tests/daemon_startup.rs, codex-rs/cli/tests/worktree.rs]
+      rust_literals_only: false
+      pattern: '\{ "codex\.exe" \} else \{ "codex" \}'
+      replace: '{ "${bin}.exe" } else { "${bin}" }'
+
+    - name: install-sh-test-bin-path-literals
+      note: >
+        rust-v0.161.0's daemon-install test spells two entrypoint paths as single
+        literals, `root / "install-bin/codex"` for the visible CLI and
+        `daemon / "releases" / release_name / "bin/codex"` for the managed one.
+        install.sh installs both as ore, so the fixture reads files that do not
+        exist; same entrypoint move as the component-shaped rule above.
+      files: [scripts/install/test_install_sh.py]
+      rust_literals_only: false
+      pattern: '(?<=/ ")(?P<dir>install-bin|bin)/codex(?=")'
+      replace: '\g<dir>/${bin}'
+
     - name: install-sh-test-managed-bin-in-release-path
       note: >
         rust-v0.155.0 added a test that deletes the managed binary through one f-string,
@@ -888,14 +903,14 @@ categories:
     - name: ui-docs-link-probe-range
       note: >
         chatgpt_success_message_renders_osc8_hyperlinks measures the "Codex docs"
-        hyperlink cell-by-cell -- 27 dim prefix cells, then the underlined link.
+        hyperlink cell-by-cell -- 47 dim prefix cells, then the underlined link.
         "ore docs" is 8 columns where "Codex docs" was 10, so the probed range
-        (27+10) and the run length shrink with it (precedent:
+        (47+10) and the run length shrink with it (precedent:
         installer-ps1-prefix-length).
       files: [codex-rs/tui/src/onboarding/auth.rs]
       rust_literals_only: false
-      pattern: '\(0\.\.37\)'
-      replace: '(0..35)'
+      pattern: '\(0\.\.57\)'
+      replace: '(0..55)'
 
     - name: ui-docs-link-probe-width
       files: [codex-rs/tui/src/onboarding/auth.rs]
@@ -954,28 +969,19 @@ categories:
       pattern: '(?<=older than your ${product_name} CLI)\n(?="###)'
       replace: ' v2.1.0.\n'
 
-    - name: app-server-daemon-cli-test-managed-bin
-      note: >
-        rust-v0.155.0 added cli/tests/app_server_daemon.rs, which stages a managed
-        standalone install for the daemon to start: releases/<v>/bin/codex behind a
-        `current` symlink. The daemon looks for the shipped entrypoint, bin/ore, and
-        without it every managed start fails before the test's own assertions run.
-      files: [codex-rs/cli/tests/app_server_daemon.rs]
-      rust_literals_only: false
-      pattern: '\.join\("bin/codex"\)'
-      replace: '.join("bin/${bin}")'
-
     - name: app-server-daemon-update-loop-test-managed-bin
       note: >
         The daemon's update-loop tests stage the same install in both layouts and let
         their fake installer write the next release: `releases/<v>/codex` behind
         `current` (legacy), `current/bin/codex` (packaged), and
-        `'{root}/releases/{next}/bin/codex'` inside the installer script. Each is
+        `'{root}/releases/{next}/bin/codex'` inside the installer script, which
+        the local-package case fills by copying `'{root}/releases/{release}/codex'`
+        and so must name the same file the legacy fixture wrote. Each is
         resolved through managed_codex_bin(), which names the entrypoint ore. The
         `echo codex 1.1.0` version banner stays: the parser reads the second word.
       files: [codex-rs/app-server-daemon/src/update_loop_tests.rs]
       rust_literals_only: false
-      pattern: '(?P<lead>\.join\("(?:current/)?(?:bin/)?|/bin/)codex(?=[''"])'
+      pattern: '(?P<lead>\.join\("(?:current/)?(?:bin/)?|/bin/|/releases/\{release\}/)codex(?=[''"])'
       replace: '\g<lead>${bin}'
 
   # ------------------------------------------------------------------------ URLs

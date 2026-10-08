@@ -15,6 +15,7 @@ use crate::requests::headers::subagent_header;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::models::plaintext_agent_message_content;
 use codex_protocol::protocol::SessionSource;
@@ -220,11 +221,9 @@ impl<'a> ChatRequestBuilder<'a> {
                                 text.push_str(t);
                                 items.push(json!({"type":"text","text": t}));
                             }
-                            ContentItem::InputImage { image_url, .. } => {
+                            ContentItem::InputImage { image, .. } => {
                                 needs_block_list = true;
-                                items.push(
-                                    json!({"type":"image_url","image_url": {"url": image_url}}),
-                                );
+                                items.push(chat_image_item(image));
                             }
                             ContentItem::InputAudio { audio_url, .. } => {
                                 needs_block_list = true;
@@ -375,10 +374,14 @@ impl<'a> ChatRequestBuilder<'a> {
             // Without this the stream carries no usage chunk and every turn
             // reports zero tokens.
             "stream_options": { "include_usage": true },
-            "tools": tools,
         });
 
         if let Some(obj) = payload.as_object_mut() {
+            // vLLM rejects `tools: []` outright, and a turn with nothing to call
+            // (compaction, a title) has nothing to send.
+            if !tools.is_empty() {
+                obj.insert("tools".to_string(), Value::Array(tools));
+            }
             if let Some(max_tokens) = self.max_tokens {
                 obj.insert("max_tokens".to_string(), json!(max_tokens));
             }
@@ -483,9 +486,7 @@ fn tool_result_content(output: &FunctionCallOutputPayload) -> Value {
             FunctionCallOutputContentItem::InputText { text } => {
                 (!text.is_empty()).then(|| json!({"type":"text","text": text}))
             }
-            FunctionCallOutputContentItem::InputImage { image_url, .. } => {
-                Some(json!({"type":"image_url","image_url": {"url": image_url}}))
-            }
+            FunctionCallOutputContentItem::InputImage { image, .. } => Some(chat_image_item(image)),
             FunctionCallOutputContentItem::InputAudio { audio_url, .. } => {
                 Some(json!({"type":"input_audio","input_audio": {"data": audio_url}}))
             }
@@ -538,6 +539,17 @@ fn push_tool_call_message(messages: &mut Vec<Value>, tool_call: Value) {
         "content": null,
         "tool_calls": [tool_call],
     }));
+}
+
+fn chat_image_item(image: &ImageReference) -> Value {
+    match image {
+        ImageReference::Inline { image_url } => {
+            json!({"type":"image_url","image_url": {"url": image_url}})
+        }
+        ImageReference::File { file_id } => {
+            json!({"type":"text","text": format!("[image omitted: {file_id} is an OpenAI file reference this provider cannot fetch]")})
+        }
+    }
 }
 
 #[cfg(test)]
@@ -607,6 +619,24 @@ mod tests {
             },
             stream_idle_timeout: Duration::from_secs(1),
         }
+    }
+
+    #[test]
+    fn a_request_without_tools_omits_the_field() {
+        let prompt_input = vec![ResponseItem::Message {
+            id: None,
+            role: "user".to_string(),
+            content: vec![ContentItem::InputText {
+                text: "hi".to_string(),
+            }],
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+        }];
+        let req = ChatRequestBuilder::new("gpt-test", "inst", &prompt_input, &[])
+            .build(&provider())
+            .expect("request");
+
+        assert_eq!(req.body.get("tools"), None);
     }
 
     #[test]
@@ -858,7 +888,9 @@ mod tests {
             id: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputImage {
-                image_url: "data:image/png;base64,AAAA".to_string(),
+                image: ImageReference::Inline {
+                    image_url: "data:image/png;base64,AAAA".to_string(),
+                },
                 detail: None,
             }],
             phase: None,

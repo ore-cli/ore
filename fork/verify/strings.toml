@@ -42,6 +42,11 @@ removed_by = "series:telemetry-statsig-strip"
 pattern = 'o33249\.ingest\.us\.sentry\.io'
 reason = "Sentry ingest host for feedback reports (codex-rs/feedback/src/lib.rs:46-47); DSN strip ratified with decision 3"
 removed_by = "series:telemetry-feedback-off"
+# rust-v0.161.0's feedback-upload test (#49843) mints a self-signed TLS
+# certificate for this host so its mock Sentry server can impersonate it. The
+# test is not linked into a shipped binary, and `--artifacts` still scans the
+# binaries; the precedent is the curated-plugins URL's test allowance below.
+source_allow_paths = ["codex-rs/app-server/tests/suite/v2/feedback.rs"]
 
 [[kill]]
 pattern = 'ae32ed50620d7a7792c1ce5df38b3e3e'

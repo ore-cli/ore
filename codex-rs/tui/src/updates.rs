@@ -75,6 +75,7 @@ async fn check_for_update(
     )
     .with_legacy_custom_ca_fallback();
     let latest_version = match action {
+        Some(UpdateAction::Daemon(_)) => return Ok(()),
         Some(UpdateAction::NpmGlobalLatest)
         | Some(UpdateAction::BunGlobalLatest)
         | Some(UpdateAction::VitePlusGlobalLatest)

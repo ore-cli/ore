@@ -19,7 +19,7 @@ expression: "layouts.join(\"\\n\\n\")"
    mic ▁▁▁  ore ▅▆█
 
 'ctrl-x m', muted=false, width=80:
- voice ● listening                                ctrl+x m mute     /voice stop
+ voice ● listening                                    ⌃x m mute     /voice stop
    mic ▆▅▄▃▂▁  ore ▁▃▄▅▆█
 
 'ctrl-x m', muted=false, width=22:
@@ -27,7 +27,7 @@ expression: "layouts.join(\"\\n\\n\")"
    mic ▃▂▁  ore ▅▆█
 
 'ctrl-x m', muted=true, width=80:
- voice ◌ muted                                    ctrl+x m unmute   /voice stop
+ voice ◌ muted                                        ⌃x m unmute   /voice stop
    mic ▁▁▁▁▁▁  ore ▁▃▄▅▆█
 
 'ctrl-x m', muted=true, width=22:

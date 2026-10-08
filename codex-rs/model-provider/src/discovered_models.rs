@@ -26,6 +26,8 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use codex_api::ApiError;
@@ -37,6 +39,7 @@ use codex_http_client::HttpClient;
 use codex_http_client::HttpClientFactory;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
+use codex_login::default_client::ClientRedirectPolicy;
 use codex_login::default_client::create_client_for_route_async;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::WireApi;
@@ -51,6 +54,7 @@ use codex_models_manager::model_info::model_info_from_slug;
 use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CoreResult;
+use codex_protocol::openai_models::ApplyPatchToolType;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelVisibility;
 use codex_protocol::openai_models::ModelsResponse;
@@ -210,19 +214,68 @@ pub(crate) trait ModelListDiscovery: fmt::Debug + Send + Sync {
 pub(crate) struct ProviderModelListDiscovery {
     provider: SharedModelProvider,
     timeout: Duration,
+    gateway: Option<std::sync::Mutex<GatewaySignIn>>,
+}
+
+/// Whether a gateway-OAuth provider has been seen signed in. Probing before
+/// that publishes the account's first NotReady while no client is listening,
+/// and `account/gatewayOAuth/read` then has no transition left to announce.
+struct GatewaySignIn {
+    config: codex_login::GatewayAuthConfig,
+    changes: tokio::sync::broadcast::Receiver<codex_login::GatewayAuthStatusChange>,
+    signed_in: bool,
+}
+
+impl fmt::Debug for GatewaySignIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GatewaySignIn")
+            .field("signed_in", &self.signed_in)
+            .finish_non_exhaustive()
+    }
+}
+
+impl GatewaySignIn {
+    fn for_provider(provider: &SharedModelProvider) -> Option<Self> {
+        let manager = provider.gateway_auth_manager().ok().flatten()?;
+        let auth_manager = provider.auth_manager()?;
+        Some(Self {
+            config: manager.config().clone(),
+            changes: codex_login::subscribe_gateway_auth_status(&auth_manager.runtime_config()),
+            signed_in: false,
+        })
+    }
+
+    fn signed_in(&mut self) -> bool {
+        loop {
+            match self.changes.try_recv() {
+                Ok(change) if change.config == self.config => {
+                    self.signed_in = change.status == codex_login::GatewayAuthStatus::Succeeded;
+                }
+                Ok(_) | Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {}
+                Err(_) => return self.signed_in,
+            }
+        }
+    }
 }
 
 impl ProviderModelListDiscovery {
     pub(crate) fn new(provider: SharedModelProvider) -> Self {
+        let gateway = GatewaySignIn::for_provider(&provider).map(std::sync::Mutex::new);
         Self {
             provider,
             timeout: DISCOVERY_TIMEOUT,
+            gateway,
         }
     }
 
     #[cfg(test)]
     pub(crate) fn with_timeout(provider: SharedModelProvider, timeout: Duration) -> Self {
-        Self { provider, timeout }
+        let gateway = GatewaySignIn::for_provider(&provider).map(std::sync::Mutex::new);
+        Self {
+            provider,
+            timeout,
+            gateway,
+        }
     }
 
     /// A first-party credential means `/models` is the Codex backend's own
@@ -234,6 +287,14 @@ impl ProviderModelListDiscovery {
     /// `auth_manager_for_provider` passes the signed-in `AuthManager` through to
     /// the rest, whose endpoint it says nothing about.
     async fn applies(&self) -> bool {
+        if let Some(gateway) = &self.gateway
+            && !gateway
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .signed_in()
+        {
+            return false;
+        }
         if carries_own_credential(self.provider.info()) {
             return true;
         }
@@ -284,6 +345,7 @@ impl ProviderModelListDiscovery {
             http_client_factory,
             list_url.clone(),
             ClientRouteClass::Api,
+            ClientRedirectPolicy::Default,
         )
         .await
         .map_err(|err| DiscoveryError::new(format!("no http client: {err}")))?;
@@ -779,6 +841,11 @@ fn synthesize_model_info(
         context_window,
         max_context_window,
         auto_compact_token_limit,
+        // Fallback means ore does not know the model's limits. When the gateway
+        // states its context window it does, and core reads this flag as
+        // "unknown model": a warning on every turn, and no use as a subagent,
+        // review or guardian model.
+        used_fallback_model_metadata: discovered.context_window.is_none(),
         ..base
     }
 }
@@ -804,7 +871,15 @@ pub(crate) struct DiscoveringModelsManager {
     /// still served -- `Offline` must not open a socket -- but does not
     /// short-circuit `OnlineIfUncached`, so the next listing asks again.
     merged_complete: RwLock<bool>,
+    /// Upstream's `api_key_model_discovery` opt-out. Starts enabled because this
+    /// layer predates the switch; a session that turns it off gets the static
+    /// catalog, as upstream's own discovery does.
+    discovery_enabled: AtomicBool,
     auth_manager: Option<Arc<AuthManager>>,
+    /// The patch tool offered to a model whose metadata names none. Upstream
+    /// offers apply_patch only where its catalog says so, which leaves every
+    /// gateway model it does not know editing files through shell heredocs.
+    default_apply_patch: Option<ApplyPatchToolType>,
 }
 
 impl DiscoveringModelsManager {
@@ -819,8 +894,22 @@ impl DiscoveringModelsManager {
             merged: RwLock::new(None),
             probe_failed: RwLock::new(false),
             merged_complete: RwLock::new(true),
+            discovery_enabled: AtomicBool::new(true),
             auth_manager,
+            default_apply_patch: None,
         }
+    }
+
+    /// Chat, Anthropic and Gemini requests are encoded by ore, which turns the
+    /// freeform tool into a plain function. Responses requests carry it as a
+    /// custom grammar tool, which a third-party Responses server may refuse.
+    pub(crate) fn with_wire(mut self, wire_api: WireApi) -> Self {
+        self.default_apply_patch = matches!(
+            wire_api,
+            WireApi::Chat | WireApi::Anthropic | WireApi::Gemini
+        )
+        .then_some(ApplyPatchToolType::Freeform);
+        self
     }
 
     async fn raw_model_catalog(
@@ -833,6 +922,11 @@ impl DiscoveringModelsManager {
             .raw_model_catalog(refresh_strategy, http_client_factory.clone())
             .await
             .models;
+        if !self.discovery_enabled.load(Ordering::SeqCst) {
+            return ModelsResponse {
+                models: static_models,
+            };
+        }
 
         match refresh_strategy {
             // Offline is a promise to the caller that nothing will be sent, and
@@ -923,6 +1017,20 @@ impl DiscoveringModelsManager {
         }
     }
 
+    async fn lookup_model_info(&self, model: &str, config: &ModelsManagerConfig) -> ModelInfo {
+        let merged = self.get_remote_models().await;
+        if merged.iter().any(|known| known.slug == model) {
+            return construct_model_info_from_candidates(model, &merged, config);
+        }
+        // Fall back to what the provider shipped, which still knows this
+        // model's real limits, before anyone guesses from the slug.
+        let static_models = self.inner.get_remote_models().await;
+        if static_models.iter().any(|known| known.slug == model) {
+            return construct_model_info_from_candidates(model, &static_models, config);
+        }
+        construct_model_info_from_candidates(model, &merged, config)
+    }
+
     async fn merged_or(&self, static_models: Vec<ModelInfo>) -> Vec<ModelInfo> {
         let merged = self.merged.read().await.clone();
         match merged {
@@ -933,6 +1041,11 @@ impl DiscoveringModelsManager {
 }
 
 impl ModelsManager for DiscoveringModelsManager {
+    fn set_api_key_model_discovery_enabled(&self, enabled: bool) {
+        self.discovery_enabled.store(enabled, Ordering::SeqCst);
+        self.inner.set_api_key_model_discovery_enabled(enabled);
+    }
+
     /// Resolves metadata from the STATIC catalog when the merged one has dropped
     /// the model.
     ///
@@ -956,17 +1069,11 @@ impl ModelsManager for DiscoveringModelsManager {
         config: &'a ModelsManagerConfig,
     ) -> ModelsManagerFuture<'a, ModelInfo> {
         Box::pin(async move {
-            let merged = self.get_remote_models().await;
-            if merged.iter().any(|known| known.slug == model) {
-                return construct_model_info_from_candidates(model, &merged, config);
+            let mut info = self.lookup_model_info(model, config).await;
+            if info.apply_patch_tool_type.is_none() {
+                info.apply_patch_tool_type = self.default_apply_patch.clone();
             }
-            // Fall back to what the provider shipped, which still knows this
-            // model's real limits, before anyone guesses from the slug.
-            let static_models = self.inner.get_remote_models().await;
-            if static_models.iter().any(|known| known.slug == model) {
-                return construct_model_info_from_candidates(model, &static_models, config);
-            }
-            construct_model_info_from_candidates(model, &merged, config)
+            info
         })
     }
 
@@ -988,16 +1095,16 @@ impl ModelsManager for DiscoveringModelsManager {
             // while the inner manager is awaited.
             let merged = self.merged.read().await.clone();
             match merged {
-                Some(merged) => merged,
-                None => self.inner.get_remote_models().await,
+                Some(merged) if self.discovery_enabled.load(Ordering::SeqCst) => merged,
+                _ => self.inner.get_remote_models().await,
             }
         })
     }
 
     fn try_get_remote_models(&self) -> Result<Vec<ModelInfo>, TryLockError> {
         match self.merged.try_read()?.clone() {
-            Some(merged) => Ok(merged),
-            None => self.inner.try_get_remote_models(),
+            Some(merged) if self.discovery_enabled.load(Ordering::SeqCst) => Ok(merged),
+            _ => self.inner.try_get_remote_models(),
         }
     }
 
@@ -1007,6 +1114,20 @@ impl ModelsManager for DiscoveringModelsManager {
 
     fn list_collaboration_modes(&self) -> Vec<CollaborationModeMask> {
         self.inner.list_collaboration_modes()
+    }
+
+    /// An auth change can change which catalog the inner manager serves, so the
+    /// merge built on the old one is void, as for a new etag.
+    fn refresh_after_auth_change(
+        &self,
+        http_client_factory: HttpClientFactory,
+    ) -> ModelsManagerFuture<'_, ()> {
+        Box::pin(async move {
+            *self.merged.write().await = None;
+            self.inner
+                .refresh_after_auth_change(http_client_factory)
+                .await;
+        })
     }
 
     fn refresh_if_new_etag(
@@ -1091,11 +1212,14 @@ impl DiscoveringModelProvider {
         if config_model_catalog_is_authoritative {
             return inner_manager;
         }
-        Arc::new(DiscoveringModelsManager::new(
-            inner_manager,
-            Arc::new(ProviderModelListDiscovery::new(Arc::clone(&self.inner))),
-            self.inner.auth_manager(),
-        ))
+        Arc::new(
+            DiscoveringModelsManager::new(
+                inner_manager,
+                Arc::new(ProviderModelListDiscovery::new(Arc::clone(&self.inner))),
+                self.inner.auth_manager(),
+            )
+            .with_wire(self.inner.info().wire_api),
+        )
     }
 }
 
@@ -1136,6 +1260,27 @@ impl ModelProvider for DiscoveringModelProvider {
         &self,
     ) -> ModelProviderFuture<'_, CoreResult<ProviderUnauthorizedRecovery>> {
         self.inner.recover_from_unauthorized()
+    }
+
+    fn auth_recovery_messages(&self) -> Option<crate::provider::ProviderAuthRecoveryMessages> {
+        self.inner.auth_recovery_messages()
+    }
+
+    fn gateway_auth_manager(
+        &self,
+    ) -> std::io::Result<Option<Arc<codex_login::GatewayAuthManager>>> {
+        self.inner.gateway_auth_manager()
+    }
+
+    fn include_internal_metadata(&self, provider: &Provider) -> bool {
+        self.inner.include_internal_metadata(provider)
+    }
+
+    fn responses_api_provider<'a>(
+        &'a self,
+        routing_context: &'a crate::workspace_routing::WorkspaceRoutingContext,
+    ) -> ModelProviderFuture<'a, CoreResult<crate::ResolvedResponsesProvider>> {
+        self.inner.responses_api_provider(routing_context)
     }
 
     fn auth(&self) -> ModelProviderFuture<'_, Option<CodexAuth>> {

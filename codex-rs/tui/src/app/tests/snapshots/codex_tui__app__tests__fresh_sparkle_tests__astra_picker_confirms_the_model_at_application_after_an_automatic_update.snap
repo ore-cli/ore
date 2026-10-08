@@ -1,0 +1,12 @@
+---
+source: tui/src/app/tests/fresh_sparkle_tests.rs
+expression: "snapshots.join(\"\\n\\n\")"
+---
+default no-op:
+› Ask Ore to do anything
+
+
+default changes model:
+                            ⠈     ⢀     ⠁                 ⠂
+›⠁Ask Ore to do anything           ⠈      ⠁
+       ⢀            ⠠     ⠄         ⠠          ⢀    ⠠     ⡀

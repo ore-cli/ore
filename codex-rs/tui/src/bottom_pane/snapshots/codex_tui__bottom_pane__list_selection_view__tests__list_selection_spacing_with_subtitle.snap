@@ -2,9 +2,9 @@
 source: tui/src/bottom_pane/list_selection_view.rs
 expression: render_lines(&view)
 ---
-                                                
   Select Approval Mode                          
   Switch between Ore approval presets           
+                                                
                                                 
 › 1. Read Only (current)  Ore can read files    
   2. Full Access          Ore can edit files    

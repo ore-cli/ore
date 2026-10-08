@@ -6,10 +6,11 @@ expression: popup
   Checked features are configured on. Some experimental features take effect
   only in new tasks or after restarting the Ore server.
 
-› [ ] Network proxy                Apply network proxy restrictions to
-                                   sandboxed sessions that already have
-                                   network access.
-  [ ] Prevent sleep while running  Keep your computer awake while Ore is
-                                   running a thread.
 
-  Press space to select or enter to save
+› [ ] Network proxy                Apply network proxy restrictions to sandboxed
+                                   sessions that already have network access.
+  [ ] Prevent sleep while running  Keep your computer awake while Ore is running
+                                   a thread.
+
+
+  space toggle · enter save · esc save/close

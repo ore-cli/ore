@@ -79,6 +79,7 @@ fn inter_agent_communication(text: &str, trigger_turn: bool) -> RolloutItem {
 fn turn_started(turn_id: &str) -> RolloutItem {
     RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
         turn_id: turn_id.to_string(),
+        root_turn_id: None,
         trace_id: None,
         started_at: None,
         model_context_window: None,
@@ -368,7 +369,8 @@ async fn ignores_session_prefix_messages_when_truncating_rollout_from_start() {
     let step_context = StepContext::for_test(turn_context);
     let mut items = session
         .build_initial_context_with_world_state(&step_context, &world_state)
-        .await;
+        .await
+        .0;
     items.push(user_msg("feature request"));
     items.push(assistant_msg("ack"));
     items.push(user_msg("second question"));

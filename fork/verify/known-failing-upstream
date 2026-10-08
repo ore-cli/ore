@@ -22,13 +22,18 @@
 
 
 # --- codex-core --------------------------------------------------------
-package(codex-core) & test(=suite::compact_resume_fork::snapshot_rollback_past_compaction_replays_append_only_history)
 # Substring, not `=`: rust-v0.152.0 parameterised this into `user_turn` and
 # `automatic_continuation`, and an exact-match filter matches neither. The entry
 # looked alive to known_failing_check -- the function name is still in the source
 # -- while covering nothing, which is the silent-green shape this file guards
 # against, reached by a route the check could not see. It can now.
 package(codex-core) & test(suite::hooks::async_hook_finishing_while_idle_waits_for_the_next_turn)
+# The code_mode case of the resource-messages scenario snapshots a resource
+# listing line too long to keep, so the snapshot stores its hash. Upstream's
+# committed hash is the one macOS computes; on ubuntu-24.04 a pristine
+# rust-v0.161.0 computes another, deterministically, and fails. The direct
+# case passes on both.
+package(codex-core) & test(suite::scenarios::mcp_resource_messages::mcp_resource_messages::code_mode)
 package(codex-core) & test(=suite::unified_exec::unified_exec_formats_large_output_summary)
 #
 # rust-v0.154.0. Demonstrated by ore-upstream-probe against a pristine checkout:
@@ -140,6 +145,21 @@ package(codex-tui) & test(=status::tests::status_snapshot_uses_default_reasoning
 package(codex-tui) & test(=status::tests::status_snapshot_uses_generic_limit_labels_for_unsupported_windows)
 package(codex-tui) & test(=status::tests::status_uses_server_provider_id_and_auth_requirement)
 package(codex-tui) & test(=status::tests::transcript_overlay_remeasures_status_after_rate_limit_refresh)
+# The same version-string mismatch in two header snapshots rust-v0.161.0
+# added. One records `v0.0.0`; the other masks the number as `v<VERSION>` but
+# keeps the padding a five-character version leaves, so `0.161.0` shifts it.
+# Both fail identically on a pristine rust-v0.161.0.
+package(codex-tui) & test(empty_state_animation_preserves_header_cursor_and_footer)
+package(codex-tui) & test(owned_startup_keeps_the_live_bottom_geometry)
 
 # --- codex-v8-poc ------------------------------------------------------
 package(codex-v8-poc) & test(=tests::sandbox_feature_matches_linked_v8)
+
+# --- codex-exec-server -------------------------------------------------
+# rust-v0.161.0's DenyFdPath case of the shell-snapshot replay matrix. Run on a
+# pristine rust-v0.161.0 in an ubuntu-24.04 container with bubblewrap and
+# unprivileged user namespaces, the setup ore-ci gives it, it fails exactly as
+# on the candidate: "deadline has elapsed" at 25.1s, while the four other cases
+# pass. ore-upstream-probe reports it passing only because that runner has no
+# usable bwrap and the test returns early with "skipping sandbox test".
+package(codex-exec-server) & test(=shell_snapshot::shell_snapshot_concurrent_replays_keep_independent_readers::blocked_descriptor_path)

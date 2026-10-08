@@ -5,6 +5,7 @@
 
 use std::collections::VecDeque;
 
+use super::MessageDelivery;
 use super::PendingSteer;
 use super::QueuedUserMessage;
 use super::UserMessage;
@@ -21,6 +22,8 @@ pub(super) struct PendingInputPreview {
 
 #[derive(Debug, Default)]
 pub(super) struct InputQueueState {
+    /// The visible draft confirmed during startup, awaiting the protected-input handoff.
+    pub(super) startup_submission: Option<crate::bottom_pane::ComposerDraftSnapshot>,
     /// User inputs queued while a turn is in progress.
     pub(super) queued_user_messages: VecDeque<QueuedUserMessage>,
     /// History records for queued user messages. Slash commands such as `/goal`
@@ -30,6 +33,7 @@ pub(super) struct InputQueueState {
     pub(super) queued_user_message_history_records: VecDeque<UserMessageHistoryRecord>,
     /// A user turn has been submitted to core, but `TurnStarted` has not arrived yet.
     pub(super) user_turn_pending_start: bool,
+    pub(super) pending_user_message_client_id: Option<String>,
     /// User messages that tried to steer a non-regular turn and must be retried first.
     pub(super) rejected_steers_queue: VecDeque<UserMessage>,
     /// The origin of each rejected steer, kept in lockstep with its message.
@@ -47,19 +51,28 @@ pub(super) struct InputQueueState {
     pub(super) suppress_queue_autosend: bool,
     /// Hold submissions while a usage failure or backend-directed model fallback is resolved.
     pub(super) rate_limit_recovery_pending: bool,
+    /// Pause for user recovery (for example an image or permission failure), independent of delivery.
     pub(super) recovered_queue: bool,
 }
 
 impl InputQueueState {
+    pub(super) fn has_unconfirmed_messages(&self) -> bool {
+        self.queued_user_messages
+            .iter()
+            .any(|message| matches!(message.delivery, MessageDelivery::Unconfirmed(_)))
+    }
+
     pub(super) fn has_queued_follow_up_messages(&self) -> bool {
         !self.rejected_steers_queue.is_empty() || !self.queued_user_messages.is_empty()
     }
 
     pub(super) fn clear(&mut self) {
+        self.startup_submission = None;
         self.recovered_queue = false;
         self.queued_user_messages.clear();
         self.queued_user_message_history_records.clear();
         self.user_turn_pending_start = false;
+        self.pending_user_message_client_id = None;
         self.rejected_steers_queue.clear();
         self.rejected_steer_sources.clear();
         self.rejected_steer_history_records.clear();

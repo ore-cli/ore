@@ -2,9 +2,6 @@
 source: tui/src/app/tests.rs
 expression: rendered
 ---
-╭─────────────────────────────────────────────╮
-│ >_ Ore (v<VERSION>)                         │
-│                                             │
-│ model:     gpt-test high   /model to change │
-│ directory: /tmp/project                     │
-╰─────────────────────────────────────────────╯
+
+  >_ Ore (v<VERSION>)
+     /tmp/project

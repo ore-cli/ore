@@ -44,36 +44,6 @@ macro_rules! frames_for {
     };
 }
 
-pub(crate) const FRAMES_DEFAULT: [&str; 36] = frames_for!("default");
-pub(crate) const FRAMES_CODEX: [&str; 36] = frames_for!("codex");
-pub(crate) const FRAMES_OPENAI: [&str; 36] = frames_for!("openai");
-pub(crate) const FRAMES_BLOCKS: [&str; 36] = frames_for!("blocks");
-pub(crate) const FRAMES_DOTS: [&str; 36] = frames_for!("dots");
-pub(crate) const FRAMES_HASH: [&str; 36] = frames_for!("hash");
-pub(crate) const FRAMES_HBARS: [&str; 36] = frames_for!("hbars");
-pub(crate) const FRAMES_VBARS: [&str; 36] = frames_for!("vbars");
-pub(crate) const FRAMES_SHAPES: [&str; 36] = frames_for!("shapes");
-pub(crate) const FRAMES_SLUG: [&str; 36] = frames_for!("slug");
-
-/// Upstream's Ore wordmark sets, retained but not shown.
-///
-/// ore ships its own art (below), so nothing selects these. They are kept —
-/// constants and frame files both — so the fork carries no deletion diff
-/// against upstream and edits to those files merge instead of conflicting.
-#[expect(dead_code, reason = "kept to keep the upstream diff additive")]
-pub(crate) const UPSTREAM_VARIANTS: &[&[&str]] = &[
-    &FRAMES_DEFAULT,
-    &FRAMES_CODEX,
-    &FRAMES_OPENAI,
-    &FRAMES_BLOCKS,
-    &FRAMES_DOTS,
-    &FRAMES_HASH,
-    &FRAMES_HBARS,
-    &FRAMES_VBARS,
-    &FRAMES_SHAPES,
-    &FRAMES_SLUG,
-];
-
 // The rotating ore crystal, rendered by `scripts/ore_art.py` and baked in by
 // `scripts/generate-ore-frames.py`.
 //

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use codex_api::ApiError;
 use codex_api::TransportError;
+use codex_http_client::RetryAfter;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::CodexErrorDetails;
 use http::HeaderMap;
@@ -65,9 +66,10 @@ pub(super) fn map_api_error(error: ApiError) -> CodexErr {
 
     match header_retry_after
         .or(gemini.retry_info_delay)
-        .or_else(|| error.retry_delay())
+        .or_else(|| error.server_retry_delay())
+        .and_then(RetryAfter::from_delay)
     {
-        Some(retry_delay) => mapped_error.with_retry_delay(retry_delay),
+        Some(retry_after) => mapped_error.with_retry_after(retry_after),
         None => mapped_error,
     }
 }
@@ -194,6 +196,14 @@ mod tests {
     use super::GeminiErrorEnvelope;
     use super::map_api_error;
 
+    /// The server-advised delay, rounded up to the millisecond: `CodexErr` keeps
+    /// the advice as a deadline, so the remaining delay shrinks as the test runs.
+    fn advised_delay(error: &codex_protocol::error::CodexErr) -> Option<Duration> {
+        error
+            .server_retry_delay()
+            .map(|delay| Duration::from_millis((delay.as_secs_f64() * 1000.0).ceil() as u64))
+    }
+
     const GEMINI_GENERATE_URL: &str =
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent";
     const UNAVAILABLE: u16 = 503;
@@ -212,6 +222,7 @@ mod tests {
             url: Some(GEMINI_GENERATE_URL.to_string()),
             headers: Some(headers),
             body: Some(body.to_string()),
+            retry_after: None,
         })
     }
 
@@ -267,10 +278,10 @@ mod tests {
 
         assert_eq!(unexpected_status(&error), GEMINI_OVERLOADED_MESSAGE);
         assert!(
-            error.is_retryable(),
+            error.retry_delay(/*retry_count*/ 1).is_some(),
             "503 UNAVAILABLE is a capacity signal and must keep being retried"
         );
-        assert_eq!(error.retry_delay(), None);
+        assert_eq!(advised_delay(&error), None);
     }
 
     /// The prose the user actually sees for a non-capacity failure: the raw JSON
@@ -308,7 +319,7 @@ mod tests {
     fn overloaded_honours_retry_after() {
         let error = map_api_error(http_error(UNAVAILABLE, OVERLOADED_BODY, Some("7")));
 
-        assert_eq!(error.retry_delay(), Some(Duration::from_secs(7)));
+        assert_eq!(advised_delay(&error), Some(Duration::from_secs(7)));
     }
 
     /// Gemini's real backoff hint: a `RetryInfo` detail, not a header.
@@ -321,7 +332,7 @@ mod tests {
         ));
 
         assert_eq!(
-            error.retry_delay(),
+            advised_delay(&error),
             Some(Duration::from_secs_f64(12.5)),
             "a Help entry must not be mistaken for the RetryInfo entry"
         );
@@ -337,7 +348,7 @@ mod tests {
                 body_or_header,
             ));
 
-            assert_eq!(error.retry_delay(), Some(Duration::from_secs(60)));
+            assert_eq!(advised_delay(&error), Some(Duration::from_secs(60)));
         }
     }
 
@@ -351,11 +362,9 @@ mod tests {
             );
             let error = map_api_error(http_error(UNAVAILABLE, &body, /*retry_after*/ None));
             assert!(
-                error
-                    .retry_delay()
-                    .is_none_or(|delay| delay <= Duration::from_secs(60)),
+                advised_delay(&error).is_none_or(|delay| delay <= Duration::from_secs(60)),
                 "retry hint {hint} produced {:?}",
-                error.retry_delay()
+                advised_delay(&error)
             );
         }
     }
@@ -369,8 +378,8 @@ mod tests {
             Some("Wed, 21 Oct 2026 07:28:00 GMT"),
         ));
 
-        assert_eq!(error.retry_delay(), None);
-        assert!(error.is_retryable());
+        assert_eq!(advised_delay(&error), None);
+        assert!(error.retry_delay(/*retry_count*/ 1).is_some());
     }
 
     /// A 400 is `InvalidRequest` in the shared mapping, which this module does

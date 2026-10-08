@@ -4,6 +4,7 @@ use super::*;
 use crate::Budgeted;
 use crate::composition::SectionOutput;
 use crate::composition::user_message as message;
+use codex_protocol::models::ImageReference;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -17,18 +18,27 @@ fn section_costs_keep_multimodal_payloads_separate() {
                         text: "évidence".to_owned(),
                     }),
                     Budgeted::required(ContentItem::InputImage {
-                        image_url: "data:image/png;base64,AAAA".to_owned(),
+                        image: ImageReference::Inline {
+                            image_url: "data:image/png;base64,AAAA".to_owned(),
+                        },
+                        detail: None,
+                    }),
+                    Budgeted::required(ContentItem::InputImage {
+                        image: ImageReference::File {
+                            file_id: "file_123".to_owned(),
+                        },
                         detail: None,
                     }),
                 ]),
             },
             SectionOutput {
                 id: "trusted",
-                delivery: SectionDelivery::Message(Box::new(message(vec![
-                    ContentItem::InputText {
+                delivery: SectionDelivery::Message(crate::Budgeted::required(Box::new(
+                    message(vec![ContentItem::InputText {
                         text: "verified".to_owned(),
-                    },
-                ]))),
+                    }])
+                    .into(),
+                ))),
             },
         ],
         truncations: Vec::new(),
@@ -41,7 +51,7 @@ fn section_costs_keep_multimodal_payloads_separate() {
                 SectionCost {
                     text_bytes: "évidence".len(),
                     image_bytes: "data:image/png;base64,AAAA".len(),
-                    image_count: 1
+                    image_count: 2
                 }
             ),
             (
@@ -59,13 +69,23 @@ fn section_costs_keep_multimodal_payloads_separate() {
 fn request_estimate_reserves_images_independently_of_encoded_size() {
     let image = |payload: &str| {
         message(vec![ContentItem::InputImage {
-            image_url: format!("data:image/png;base64,{payload}"),
+            image: ImageReference::Inline {
+                image_url: format!("data:image/png;base64,{payload}"),
+            },
             detail: None,
         }])
     };
     let short = estimate_input_tokens(&image("AAAA"));
     assert_eq!(short, estimate_input_tokens(&image(&"A".repeat(200_000))));
     assert!(short >= IMAGE_TOKEN_RESERVATION);
+
+    let file = message(vec![ContentItem::InputImage {
+        image: ImageReference::File {
+            file_id: "file_123".to_owned(),
+        },
+        detail: Some(codex_protocol::models::ImageDetail::Original),
+    }]);
+    assert!(estimate_input_tokens(&file) >= IMAGE_TOKEN_RESERVATION);
 }
 
 #[test]
