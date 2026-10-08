@@ -762,6 +762,25 @@ if [[ "$SKIP_HEAVY" -eq 0 ]]; then
     fi
     if [[ "$pkg_rc" -eq 100 ]]; then regen_rc=100; fi
   done
+  # A tui test the load made fail or time out never reached its snapshot
+  # assertion, so its snapshot keeps upstream's text. Give those one more run
+  # on their own, at low parallelism, before settling.
+  if [[ "$regen_rc" -eq 100 ]]; then
+    retry_names=$(grep -E '^ +(TRY [0-9]+ )?(FAIL|TMT|TIMEOUT|SIGSEGV|SIGABRT|ABRT) \[' "$regen_log" \
+      | grep -E ' codex-tui ' | awk '{print $NF}' | sort -u || true)
+    retry_count=$(grep -c . <<<"$retry_names" || true)
+    if [[ -n "$retry_names" && "$retry_count" -le 400 ]]; then
+      retry_filter=$(sed 's/.*/test(=&)/' <<<"$retry_names" | paste -sd'|' - | sed 's/|/ | /g')
+      info "snapshot regen: retrying $retry_count tui test(s) that did not finish"
+      ( cd "$WORKTREE/codex-rs" && INSTA_UPDATE=always RUST_MIN_STACK=8388608 \
+          cargo "+$TOOLCHAIN" nextest run -p codex-tui --no-fail-fast --test-threads 2 \
+          -E "$retry_filter" ) >>"$regen_log" 2>&1 || true
+    fi
+  fi
+  # What remains of load in the snapshots is elapsed time and the spinner
+  # frame; put those lines back as upstream recorded them.
+  python3 "$WORKTREE/fork/settle-snapshots.py" --root "$WORKTREE" >>"$PASSES_LOG" \
+    || fail_pass "snapshot regen: settle-snapshots.py failed"
   grep -E '^ +Summary ' "$regen_log" >>"$PASSES_LOG" || true
   echo "(full output: $(basename "$regen_log"))" >>"$PASSES_LOG"
   if [[ "$regen_rc" -ne 0 && "$regen_rc" -ne 100 ]]; then
