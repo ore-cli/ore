@@ -54,6 +54,7 @@ use codex_models_manager::model_info::model_info_from_slug;
 use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CoreResult;
+use codex_protocol::openai_models::ApplyPatchToolType;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelVisibility;
 use codex_protocol::openai_models::ModelsResponse;
@@ -870,6 +871,10 @@ pub(crate) struct DiscoveringModelsManager {
     /// catalog, as upstream's own discovery does.
     discovery_enabled: AtomicBool,
     auth_manager: Option<Arc<AuthManager>>,
+    /// The patch tool offered to a model whose metadata names none. Upstream
+    /// offers apply_patch only where its catalog says so, which leaves every
+    /// gateway model it does not know editing files through shell heredocs.
+    default_apply_patch: Option<ApplyPatchToolType>,
 }
 
 impl DiscoveringModelsManager {
@@ -886,7 +891,20 @@ impl DiscoveringModelsManager {
             merged_complete: RwLock::new(true),
             discovery_enabled: AtomicBool::new(true),
             auth_manager,
+            default_apply_patch: None,
         }
+    }
+
+    /// Chat, Anthropic and Gemini requests are encoded by ore, which turns the
+    /// freeform tool into a plain function. Responses requests carry it as a
+    /// custom grammar tool, which a third-party Responses server may refuse.
+    pub(crate) fn with_wire(mut self, wire_api: WireApi) -> Self {
+        self.default_apply_patch = matches!(
+            wire_api,
+            WireApi::Chat | WireApi::Anthropic | WireApi::Gemini
+        )
+        .then_some(ApplyPatchToolType::Freeform);
+        self
     }
 
     async fn raw_model_catalog(
@@ -994,6 +1012,20 @@ impl DiscoveringModelsManager {
         }
     }
 
+    async fn lookup_model_info(&self, model: &str, config: &ModelsManagerConfig) -> ModelInfo {
+        let merged = self.get_remote_models().await;
+        if merged.iter().any(|known| known.slug == model) {
+            return construct_model_info_from_candidates(model, &merged, config);
+        }
+        // Fall back to what the provider shipped, which still knows this
+        // model's real limits, before anyone guesses from the slug.
+        let static_models = self.inner.get_remote_models().await;
+        if static_models.iter().any(|known| known.slug == model) {
+            return construct_model_info_from_candidates(model, &static_models, config);
+        }
+        construct_model_info_from_candidates(model, &merged, config)
+    }
+
     async fn merged_or(&self, static_models: Vec<ModelInfo>) -> Vec<ModelInfo> {
         let merged = self.merged.read().await.clone();
         match merged {
@@ -1032,17 +1064,11 @@ impl ModelsManager for DiscoveringModelsManager {
         config: &'a ModelsManagerConfig,
     ) -> ModelsManagerFuture<'a, ModelInfo> {
         Box::pin(async move {
-            let merged = self.get_remote_models().await;
-            if merged.iter().any(|known| known.slug == model) {
-                return construct_model_info_from_candidates(model, &merged, config);
+            let mut info = self.lookup_model_info(model, config).await;
+            if info.apply_patch_tool_type.is_none() {
+                info.apply_patch_tool_type = self.default_apply_patch.clone();
             }
-            // Fall back to what the provider shipped, which still knows this
-            // model's real limits, before anyone guesses from the slug.
-            let static_models = self.inner.get_remote_models().await;
-            if static_models.iter().any(|known| known.slug == model) {
-                return construct_model_info_from_candidates(model, &static_models, config);
-            }
-            construct_model_info_from_candidates(model, &merged, config)
+            info
         })
     }
 
@@ -1181,11 +1207,14 @@ impl DiscoveringModelProvider {
         if config_model_catalog_is_authoritative {
             return inner_manager;
         }
-        Arc::new(DiscoveringModelsManager::new(
-            inner_manager,
-            Arc::new(ProviderModelListDiscovery::new(Arc::clone(&self.inner))),
-            self.inner.auth_manager(),
-        ))
+        Arc::new(
+            DiscoveringModelsManager::new(
+                inner_manager,
+                Arc::new(ProviderModelListDiscovery::new(Arc::clone(&self.inner))),
+                self.inner.auth_manager(),
+            )
+            .with_wire(self.inner.info().wire_api),
+        )
     }
 }
 

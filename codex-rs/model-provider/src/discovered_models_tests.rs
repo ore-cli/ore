@@ -1584,3 +1584,29 @@ async fn a_gateway_without_model_info_is_not_asked_again() {
         assert_eq!(slugs(&catalog.models), vec!["gateway-model"]);
     }
 }
+
+#[tokio::test]
+async fn a_model_with_no_patch_tool_gets_apply_patch_on_the_wires_ore_encodes() {
+    let without_patch = ModelInfo {
+        apply_patch_tool_type: None,
+        ..static_entry("gateway-model", 1)
+    };
+    for (wire_api, expected) in [
+        (WireApi::Chat, Some(ApplyPatchToolType::Freeform)),
+        (WireApi::Anthropic, Some(ApplyPatchToolType::Freeform)),
+        (WireApi::Gemini, Some(ApplyPatchToolType::Freeform)),
+        (WireApi::Responses, None),
+    ] {
+        let manager = manager_over(
+            vec![without_patch.clone()],
+            FakeDiscovery::serving(&["gateway-model"]),
+        )
+        .with_wire(wire_api);
+
+        let info = manager
+            .get_model_info("gateway-model", &ModelsManagerConfig::default())
+            .await;
+
+        assert_eq!(info.apply_patch_tool_type, expected, "{wire_api:?}");
+    }
+}
