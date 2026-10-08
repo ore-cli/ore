@@ -1610,3 +1610,23 @@ async fn a_model_with_no_patch_tool_gets_apply_patch_on_the_wires_ore_encodes() 
         assert_eq!(info.apply_patch_tool_type, expected, "{wire_api:?}");
     }
 }
+
+#[test]
+fn a_model_the_gateway_describes_is_not_fallback_metadata() {
+    let template = static_entry("provider-default", 0);
+    let described = DiscoveredModel {
+        context_window: Some(262_144),
+        ..discovered("Qwen3.8-27B")
+    };
+
+    let merged = merge_catalog(vec![template], &[described, discovered("undescribed")]);
+    let flag = |slug: &str| {
+        merged
+            .iter()
+            .find(|model| model.slug == slug)
+            .map(|model| model.used_fallback_model_metadata)
+    };
+
+    assert_eq!(flag("Qwen3.8-27B"), Some(false));
+    assert_eq!(flag("undescribed"), Some(true));
+}

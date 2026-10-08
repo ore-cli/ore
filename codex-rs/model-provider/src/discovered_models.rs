@@ -841,6 +841,11 @@ fn synthesize_model_info(
         context_window,
         max_context_window,
         auto_compact_token_limit,
+        // Fallback means ore does not know the model's limits. When the gateway
+        // states its context window it does, and core reads this flag as
+        // "unknown model": a warning on every turn, and no use as a subagent,
+        // review or guardian model.
+        used_fallback_model_metadata: discovered.context_window.is_none(),
         ..base
     }
 }
