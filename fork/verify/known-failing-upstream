@@ -145,6 +145,12 @@ package(codex-tui) & test(=status::tests::status_snapshot_uses_default_reasoning
 package(codex-tui) & test(=status::tests::status_snapshot_uses_generic_limit_labels_for_unsupported_windows)
 package(codex-tui) & test(=status::tests::status_uses_server_provider_id_and_auth_requirement)
 package(codex-tui) & test(=status::tests::transcript_overlay_remeasures_status_after_rate_limit_refresh)
+# The same version-string mismatch in two header snapshots rust-v0.161.0
+# added. One records `v0.0.0`; the other masks the number as `v<VERSION>` but
+# keeps the padding a five-character version leaves, so `0.161.0` shifts it.
+# Both fail identically on a pristine rust-v0.161.0.
+package(codex-tui) & test(empty_state_animation_preserves_header_cursor_and_footer)
+package(codex-tui) & test(owned_startup_keeps_the_live_bottom_geometry)
 
 # --- codex-v8-poc ------------------------------------------------------
 package(codex-v8-poc) & test(=tests::sandbox_feature_matches_linked_v8)
