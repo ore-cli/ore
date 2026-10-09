@@ -151,6 +151,18 @@ package(codex-tui) & test(=status::tests::transcript_overlay_remeasures_status_a
 # Both fail identically on a pristine rust-v0.161.0.
 package(codex-tui) & test(empty_state_animation_preserves_header_cursor_and_footer)
 package(codex-tui) & test(owned_startup_keeps_the_live_bottom_geometry)
+# Eight more snapshots of the same mismatch at rust-v0.161.0: each records the
+# CLI version as `0.0.0` (`v0.0.0`, `Codex CLI v0.0.0`, `Update available ·
+# 0.0.0`) and the tag renders `0.161.0`. All eight fail on a pristine
+# rust-v0.161.0.
+package(codex-tui) & test(daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff)
+package(codex-tui) & test(reconnect_allows_slow_hydration_but_bounds_a_stalled_server)
+package(codex-tui) & test(reconnect_daemon_command_center_after_socket_replacement_without_a_conversation)
+package(codex-tui) & test(owned_startup_hides_tip_in_transcript)
+package(codex-tui) & test(=status::tests::status_snapshot_wraps_halfwidth_kana_in_narrow_terminal)
+package(codex-tui) & test(=status::tests::status_snapshot_wraps_in_narrow_terminal)
+package(codex-tui) & test(long_update_command_keeps_selected_skip_visible_in_a_short_viewport)
+package(codex-tui) & test(=update_prompt::tests::update_prompt_snapshot)
 
 # --- codex-v8-poc ------------------------------------------------------
 package(codex-v8-poc) & test(=tests::sandbox_feature_matches_linked_v8)
