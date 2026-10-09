@@ -634,3 +634,8 @@ package(codex-cli) & test(incompatible_daemon_can_cancel)
 package(codex-cli) & test(incompatible_daemon_can_restart_with_confirmed_settings)
 package(codex-cli) & test(incompatible_daemon_can_run_embedded)
 package(codex-cli) & test(stopped_daemon_requires_confirmation_to_disable_persisted_features)
+# tui's focus_palette suite snapshots the daemon start failure, whose path names
+# the managed binary: `current/bin/ore` on the series, `bin/codex` in the
+# snapshot. It passes on the candidate, where the snapshot is regenerated, and
+# on a pristine rust-v0.161.0.
+package(codex-tui) & test(auto_daemon_start_failure_exits_with_manual_fallback_hint)
