@@ -60,7 +60,7 @@ on:
         type: string
 
 env:
-  WINDOWS_BINARIES: "codex codex-code-mode-host codex-responses-api-proxy codex-windows-sandbox-setup codex-command-runner codex-app-server"
+  WINDOWS_BINARIES: "codex codex-code-mode-host codex-responses-api-proxy codex-windows-sandbox-setup codex-windows-sandbox-service codex-command-runner codex-app-server"
 
 jobs:
   build-windows-binaries:
@@ -91,12 +91,12 @@ jobs:
           - runner: windows-x64
             target: x86_64-pc-windows-msvc
             bundle: helpers
-            binaries: "codex-windows-sandbox-setup codex-command-runner"
+            binaries: "codex-windows-sandbox-setup codex-windows-sandbox-service codex-command-runner"
             runs_on: windows-latest
           - runner: windows-x64
             target: aarch64-pc-windows-msvc
             bundle: helpers
-            binaries: "codex-windows-sandbox-setup codex-command-runner"
+            binaries: "codex-windows-sandbox-setup codex-windows-sandbox-service codex-command-runner"
             runs_on: windows-latest
           - runner: windows-x64
             target: x86_64-pc-windows-msvc
